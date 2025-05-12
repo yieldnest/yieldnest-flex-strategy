@@ -2,26 +2,24 @@
 pragma solidity ^0.8.28;
 
 import { BaseStrategy } from "@yieldnest-vault/strategy/BaseStrategy.sol";
-import { SafeVerifierLib } from "./library/SafeVerifierLib.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeAccountingModule } from "./SafeAccountingModule.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { AccountingModule } from "./AccountingModule.sol";
 
-contract FlexStrategy is BaseStrategy {
+interface IFlexStrategy {
+    error OnlyBaseAsset();
+
+    function isAllocator(address maybeAllocator) external view returns (bool);
+}
+
+contract FlexStrategy is IFlexStrategy, BaseStrategy {
     using SafeERC20 for IERC20;
 
-    /// @custom:oz-upgrades-unsafe-allow state-variable-immutable
-    address public immutable SAFE;
-    SafeAccountingModule public safeAccounting;
+    address public SAFE;
+    AccountingModule public accountingModule;
 
-    /**
-     * constructor
-     * @param strategySafe The safe that will custody strategy principal.
-     */
-    constructor(address strategySafe) {
+    constructor() {
         _disableInitializers();
-
-        SafeVerifierLib.verify(strategySafe);
-        SAFE = strategySafe;
     }
 
     /**
@@ -29,16 +27,38 @@ contract FlexStrategy is BaseStrategy {
      * @param admin The address of the admin.
      * @param name The name of the vault.
      * @param symbol The symbol of the vault.
+     * @param strategySafe The safe that will custody strategy principal.
      */
-    function initialize(address admin, string memory name, string memory symbol) external virtual initializer {
+    function initialize(
+        address admin,
+        string memory name,
+        string memory symbol,
+        address strategySafe,
+        address baseAsset
+    )
+        external
+        virtual
+        initializer
+    {
         __ERC20_init(name, symbol);
         __AccessControl_init();
         __ReentrancyGuard_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
-        safeAccounting = new SafeAccountingModule(string.concat("v-", name), string.concat("v-", name), address(this));
+        addAsset(baseAsset, true);
 
-        // todo:  set fixed rate provider for 1:1 tokens
+        accountingModule = new AccountingModule(
+            string.concat("v-", name), string.concat("v-", name), address(this), baseAsset, strategySafe, 1000, 1000
+        );
+
+        // TODO: set fixed rate provider for 1:1 tokens
+        // add provider here? 1 baseAsset === 1 accountingModule.ACCOUNTING_TOKEN()
+        //  _getVaultStorage().provider = provider;
+
+        IERC20(baseAsset).approve(address(accountingModule), type(uint256).max);
+        IERC20(accountingModule.ACCOUNTING_TOKEN()).approve(address(accountingModule), type(uint256).max);
+
+        // TODO: approve on safe: IERC20(baseAsset).approve(accountingModule, type(uint256).max);
     }
 
     /**
@@ -62,14 +82,14 @@ contract FlexStrategy is BaseStrategy {
         virtual
         override
     {
+        // only base asset is depositable into safe
+        if (asset_ != accountingModule.BASE_ASSET()) revert OnlyBaseAsset();
+
         // call the base strategy deposit function for accounting
         super._deposit(asset_, caller, receiver, assets, shares, baseAssets);
 
-        // mint virtual tokens
-        safeAccounting.deposit(assets);
-
-        // transfer assets to safe
-        IERC20(asset_).safeTransfer(SAFE, assets);
+        // virtual accounting
+        accountingModule.deposit(assets);
     }
 
     /**
@@ -93,6 +113,9 @@ contract FlexStrategy is BaseStrategy {
         virtual
         override
     {
+        // only base asset is depositable into safe
+        if (asset_ != accountingModule.BASE_ASSET()) revert OnlyBaseAsset();
+
         // check if the asset is withdrawable
         if (!_getBaseStrategyStorage().isAssetWithdrawable[asset_]) {
             revert AssetNotWithdrawable();
@@ -108,16 +131,18 @@ contract FlexStrategy is BaseStrategy {
         // NOTE: burn shares before withdrawing the assets
         _burn(owner, shares);
 
-        // uint256 vaultBalance = IERC20(asset_).balanceOf(address(this));
-
         // burn virtual tokens
-        safeAccounting.withdraw(assets);
-
-        // transfer assets from SAFE to receiver
-        // TODO: maybe dangerous. do more research
-        SafeERC20.safeTransferFrom(IERC20(asset_), SAFE, receiver, assets);
-
+        accountingModule.withdraw(assets);
         emit WithdrawAsset(caller, receiver, owner, asset_, assets, shares);
+    }
+
+    /**
+     * @notice Checks if an address has the ALLOCATOR role
+     * @param maybeAllocator address to check
+     * @return true if address has role
+     */
+    function isAllocator(address maybeAllocator) external view virtual override returns (bool) {
+        return (_getBaseStrategyStorage().hasAllocators && !hasRole(ALLOCATOR_ROLE, maybeAllocator));
     }
 
     // TODO
