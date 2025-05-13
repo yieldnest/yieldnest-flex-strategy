@@ -6,6 +6,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract AccountingToken is ERC20 {
     error Unauthorized();
+    error NotAllowed();
 
     address public immutable ACCOUNTING;
     address public immutable TRACKED_ASSET;
@@ -56,13 +57,13 @@ contract AccountingToken is ERC20 {
      * @dev should not ordinarily be transferred
      */
     function transferFrom(address, address, uint256) public virtual override returns (bool) {
-        revert Unauthorized();
+        revert NotAllowed();
     }
 
     /**
      * @dev should not ordinarily be transferred
      */
     function transfer(address, uint256) public virtual override returns (bool) {
-        revert Unauthorized();
+        revert NotAllowed();
     }
 }

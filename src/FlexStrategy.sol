@@ -9,13 +9,18 @@ import { AccountingModule } from "./AccountingModule.sol";
 interface IFlexStrategy {
     error OnlyBaseAsset();
 
-    function isAllocator(address maybeAllocator) external view returns (bool);
+    event SafeUpdated(address newValue, address oldValue);
+
+    function isSafeManager(address maybeAllocator) external view returns (bool);
 }
 
 contract FlexStrategy is IFlexStrategy, BaseStrategy {
     using SafeERC20 for IERC20;
 
-    address public SAFE;
+    /// @notice Role for safe manager permissions
+    bytes32 public constant SAFE_MANAGER_ROLE = keccak256("SAFE_MANAGER_ROLE");
+
+    address public safe;
     AccountingModule public accountingModule;
 
     constructor() {
@@ -48,7 +53,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         addAsset(baseAsset, true);
 
         accountingModule = new AccountingModule(
-            string.concat("v-", name), string.concat("v-", name), address(this), baseAsset, strategySafe, 1000, 1000
+            string.concat("v-", name), string.concat("v-", symbol), address(this), baseAsset, strategySafe, 1000, 1000
         );
 
         // TODO: set fixed rate provider for 1:1 tokens
@@ -137,20 +142,35 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     }
 
     /**
-     * @notice Checks if an address has the ALLOCATOR role
-     * @param maybeAllocator address to check
+     * @notice Checks if an address has the SAFE_MANAGER_ROLE
+     * @param addr address to check
      * @return true if address has role
      */
-    function isAllocator(address maybeAllocator) external view virtual override returns (bool) {
-        return (_getBaseStrategyStorage().hasAllocators && !hasRole(ALLOCATOR_ROLE, maybeAllocator));
+    function isSafeManager(address addr) external view virtual override returns (bool) {
+        return hasRole(SAFE_MANAGER_ROLE, addr);
     }
 
-    // TODO
+    /**
+     * @notice Allows an address with the SAFE_MANAGER_ROLE to specify a new safe address
+     * @param newSafe new address
+     */
+    function setSafeAddress(address newSafe) external virtual onlyRole("SAFE_MANAGER_ROLE") {
+        emit SafeUpdated(newSafe, safe);
+        safe = newSafe;
+    }
+
+    /**
+     * @notice Returns the fee on total amount.
+     * @return 0 as this strategy does not charge any fee on total amount.
+     */
     function _feeOnTotal(uint256) public view virtual override returns (uint256) {
         return 0;
     }
 
-    // TODO
+    /**
+     * @notice Returns the fee on total amount.
+     * @return 0 as this strategy does not charge any fee on total amount.
+     */
     function _feeOnRaw(uint256) public view virtual override returns (uint256) {
         return 0;
     }

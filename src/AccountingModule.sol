@@ -3,16 +3,17 @@ pragma solidity ^0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { SafeVerifierLib } from "./library/SafeVerifierLib.sol";
 import { AccountingToken } from "./AccountingToken.sol";
 import { IFlexStrategy } from "./FlexStrategy.sol";
 
 interface IAccountingModule {
     event LowerBoundUpdated(uint16 newValue, uint16 oldValue);
     event TargetApyUpdated(uint16 newValue, uint16 oldValue);
+    event CooldownSecondsUpdated(uint16 newValue, uint16 oldValue);
 
     error TooEarly();
-    error Unauthorized();
+    error NotSafeManager();
+    error NotStrategy();
     error InvariantViolation();
     error TvlTooLow();
 }
@@ -26,11 +27,10 @@ contract AccountingModule is IAccountingModule {
     AccountingToken public immutable ACCOUNTING_TOKEN;
     address public immutable BASE_ASSET;
     address public immutable STRATEGY;
-
     address public SAFE;
 
-    uint16 public cooldownSeconds = 3600;
     uint64 public nextRewardWindow;
+    uint16 public cooldownSeconds = 3600;
     uint16 public targetApy; // in bips;
     uint16 public lowerBound; // in bips; % of tvl
 
@@ -40,13 +40,13 @@ contract AccountingModule is IAccountingModule {
         _;
     }
 
-    modifier onlyStrategyAllocator() {
-        if (IFlexStrategy(STRATEGY).isAllocator(msg.sender)) revert Unauthorized();
+    modifier onlySafeManager() {
+        if (IFlexStrategy(STRATEGY).isSafeManager(msg.sender)) revert NotSafeManager();
         _;
     }
 
     modifier onlyStrategy() {
-        if (msg.sender != STRATEGY) revert Unauthorized();
+        if (msg.sender != STRATEGY) revert NotStrategy();
         _;
     }
 
@@ -62,9 +62,6 @@ contract AccountingModule is IAccountingModule {
         ACCOUNTING_TOKEN = new AccountingToken(name_, symbol_, baseAsset, address(this));
         BASE_ASSET = baseAsset;
         STRATEGY = strategy;
-
-        // will revert after having deployed if we proxify this - is there a better way to check?
-        SafeVerifierLib.verify(safe);
         SAFE = safe;
 
         targetApy = targetApy_;
@@ -95,7 +92,7 @@ contract AccountingModule is IAccountingModule {
      * @notice Process rewards by minting accounting tokens
      * @param amount profits to mint
      */
-    function processRewards(uint256 amount) external onlyStrategyAllocator checkAndResetCooldown {
+    function processRewards(uint256 amount) external onlySafeManager checkAndResetCooldown {
         uint256 totalSupply = ACCOUNTING_TOKEN.totalSupply();
 
         // sanity check: if token.totalSupply() > small amount to prevent rounding issues
@@ -112,7 +109,7 @@ contract AccountingModule is IAccountingModule {
      * @notice Process losses by burning accounting tokens
      * @param amount losses to burn
      */
-    function processLosses(uint256 amount) external onlyStrategyAllocator checkAndResetCooldown {
+    function processLosses(uint256 amount) external onlySafeManager checkAndResetCooldown {
         uint256 totalSupply = ACCOUNTING_TOKEN.totalSupply();
 
         // sanity check: if token.totalSupply() > small amount to prevent rounding issues
@@ -128,7 +125,7 @@ contract AccountingModule is IAccountingModule {
      * @notice Set target APY to determine upper bound. e.g. 1000 = 10% APY
      * @param targetApyInBips in bips
      */
-    function setTargetApy(uint16 targetApyInBips) external onlyStrategyAllocator {
+    function setTargetApy(uint16 targetApyInBips) external onlySafeManager {
         emit TargetApyUpdated(targetApyInBips, targetApy);
         targetApy = targetApyInBips;
     }
@@ -137,8 +134,17 @@ contract AccountingModule is IAccountingModule {
      * @notice Set lower bound as a function of tvl for losses. e.g. 1000 = 10% of tvl
      * @param lb in bips, as a function of % of tvl
      */
-    function setLowerBound(uint16 lb) external onlyStrategyAllocator {
+    function setLowerBound(uint16 lb) external onlySafeManager {
         emit LowerBoundUpdated(lb, lowerBound);
         lowerBound = lb;
+    }
+
+    /**
+     * @notice Set cooldown in seconds between every processing of rewards/losses
+     * @param cooldownSeconds_ new cooldown seconds
+     */
+    function setCoolDownSeconds(uint16 cooldownSeconds_) external onlySafeManager {
+        emit CooldownSecondsUpdated(cooldownSeconds_, cooldownSeconds);
+        cooldownSeconds = cooldownSeconds_;
     }
 }
