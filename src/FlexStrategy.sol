@@ -4,14 +4,14 @@ pragma solidity ^0.8.28;
 import { BaseStrategy } from "@yieldnest-vault/strategy/BaseStrategy.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { AccountingModule } from "./AccountingModule.sol";
+import { IAccountingModule } from "./AccountingModule.sol";
 
 interface IFlexStrategy {
     error OnlyBaseAsset();
 
-    event SafeUpdated(address newValue, address oldValue);
+    event AccountingModuleUpdated(address newValue, address oldValue);
 
-    function isSafeManager(address maybeAllocator) external view returns (bool);
+    function isSafeManager(address addr) external view returns (bool);
 }
 
 contract FlexStrategy is IFlexStrategy, BaseStrategy {
@@ -20,8 +20,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     /// @notice Role for safe manager permissions
     bytes32 public constant SAFE_MANAGER_ROLE = keccak256("SAFE_MANAGER_ROLE");
 
-    address public safe;
-    AccountingModule public accountingModule;
+    IAccountingModule public accountingModule;
 
     constructor() {
         _disableInitializers();
@@ -32,13 +31,12 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @param admin The address of the admin.
      * @param name The name of the vault.
      * @param symbol The symbol of the vault.
-     * @param strategySafe The safe that will custody strategy principal.
+     * @param baseAsset The base asset of the strategy.
      */
     function initialize(
         address admin,
         string memory name,
         string memory symbol,
-        address strategySafe,
         address baseAsset
     )
         external
@@ -51,19 +49,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
         addAsset(baseAsset, true);
-
-        accountingModule = new AccountingModule(
-            string.concat("v-", name), string.concat("v-", symbol), address(this), baseAsset, strategySafe, 1000, 1000
-        );
-
-        // TODO: set fixed rate provider for 1:1 tokens
-        // add provider here? 1 baseAsset === 1 accountingModule.ACCOUNTING_TOKEN()
-        //  _getVaultStorage().provider = provider;
-
-        IERC20(baseAsset).approve(address(accountingModule), type(uint256).max);
-        IERC20(accountingModule.ACCOUNTING_TOKEN()).approve(address(accountingModule), type(uint256).max);
-
-        // TODO: approve on safe: IERC20(baseAsset).approve(accountingModule, type(uint256).max);
     }
 
     /**
@@ -142,21 +127,33 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     }
 
     /**
+     * @notice Sets the accounting module.
+     * @param accountingModule_ address to check.
+     * @dev Will revoke approvals for outgoing accounting module, and approve max for incoming accounting module.
+     */
+    function setAccountingModule(address accountingModule_) external onlyRole("SAFE_MANAGER_ROLE") {
+        if (accountingModule_ == address(0)) revert ZeroAddress();
+        emit AccountingModuleUpdated(accountingModule_, address(accountingModule));
+
+        IAccountingModule oldAccounting = accountingModule;
+
+        if (address(oldAccounting) != address(0)) {
+            IERC20(asset()).approve(address(oldAccounting), 0);
+            IERC20(oldAccounting.ACCOUNTING_TOKEN()).approve(address(oldAccounting), 0);
+        }
+
+        accountingModule = IAccountingModule(accountingModule_);
+        IERC20(asset()).approve(accountingModule_, type(uint256).max);
+        IERC20(IAccountingModule(accountingModule_).ACCOUNTING_TOKEN()).approve(accountingModule_, type(uint256).max);
+    }
+
+    /**
      * @notice Checks if an address has the SAFE_MANAGER_ROLE
      * @param addr address to check
      * @return true if address has role
      */
     function isSafeManager(address addr) external view virtual override returns (bool) {
         return hasRole(SAFE_MANAGER_ROLE, addr);
-    }
-
-    /**
-     * @notice Allows an address with the SAFE_MANAGER_ROLE to specify a new safe address
-     * @param newSafe new address
-     */
-    function setSafeAddress(address newSafe) external virtual onlyRole("SAFE_MANAGER_ROLE") {
-        emit SafeUpdated(newSafe, safe);
-        safe = newSafe;
     }
 
     /**
