@@ -8,6 +8,7 @@ import { IAccountingModule } from "./AccountingModule.sol";
 
 interface IFlexStrategy {
     error OnlyBaseAsset();
+    error NoAccountingModule();
 
     event AccountingModuleUpdated(address newValue, address oldValue);
 
@@ -31,24 +32,12 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @param admin The address of the admin.
      * @param name The name of the vault.
      * @param symbol The symbol of the vault.
-     * @param baseAsset The base asset of the strategy.
      */
-    function initialize(
-        address admin,
-        string memory name,
-        string memory symbol,
-        address baseAsset
-    )
-        external
-        virtual
-        initializer
-    {
+    function initialize(address admin, string memory name, string memory symbol) external virtual initializer {
         __ERC20_init(name, symbol);
         __AccessControl_init();
         __ReentrancyGuard_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-
-        addAsset(baseAsset, true);
     }
 
     /**
@@ -74,6 +63,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     {
         // only base asset is depositable into safe
         if (asset_ != accountingModule.BASE_ASSET()) revert OnlyBaseAsset();
+
+        if (address(accountingModule) == address(0)) revert NoAccountingModule();
 
         // call the base strategy deposit function for accounting
         super._deposit(asset_, caller, receiver, assets, shares, baseAssets);
@@ -105,6 +96,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     {
         // only base asset is depositable into safe
         if (asset_ != accountingModule.BASE_ASSET()) revert OnlyBaseAsset();
+
+        if (address(accountingModule) == address(0)) revert NoAccountingModule();
 
         // check if the asset is withdrawable
         if (!_getBaseStrategyStorage().isAssetWithdrawable[asset_]) {
