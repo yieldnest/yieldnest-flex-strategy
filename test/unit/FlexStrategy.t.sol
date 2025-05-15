@@ -37,14 +37,27 @@ contract FlexStrategyTest is Test {
 
         flexStrategy = FlexStrategy(payable(address(tu)));
 
-        accountingModule = new AccountingModule(
-            "NAME", "SYMBOL", address(flexStrategy), address(mockErc20), SAFE, TARGET_APY, LOWER_BOUND
-        );
-        accountingToken = accountingModule.ACCOUNTING_TOKEN();
+        AccountingModule am_implementation = new AccountingModule(address(flexStrategy), address(mockErc20));
 
-        accountingModule2 = new AccountingModule(
-            "NAME2", "SYMBOL2", address(flexStrategy), address(mockErc20), SAFE, TARGET_APY, LOWER_BOUND
+        TransparentUpgradeableProxy amtu = new TransparentUpgradeableProxy(
+            address(am_implementation),
+            ADMIN,
+            abi.encodeWithSelector(
+                AccountingModule.initialize.selector, "NAME", "SYMBOL", SAFE, TARGET_APY, LOWER_BOUND
+            )
         );
+
+        accountingModule = AccountingModule(payable(address(amtu)));
+        accountingToken = accountingModule.accountingToken();
+
+        TransparentUpgradeableProxy amtu2 = new TransparentUpgradeableProxy(
+            address(am_implementation),
+            ADMIN,
+            abi.encodeWithSelector(
+                AccountingModule.initialize.selector, "NAME2", "SYMBOL2", SAFE, TARGET_APY, LOWER_BOUND
+            )
+        );
+        accountingModule2 = AccountingModule(payable(address(amtu2)));
 
         FixedRateProvider provider = new FixedRateProvider(address(mockErc20));
 
@@ -101,7 +114,7 @@ contract FlexStrategyTest is Test {
         );
 
         assertEq(
-            IERC20(accountingModule.ACCOUNTING_TOKEN()).allowance(address(flexStrategy), address(accountingModule)),
+            IERC20(accountingModule.accountingToken()).allowance(address(flexStrategy), address(accountingModule)),
             type(uint256).max
         );
     }
@@ -116,14 +129,14 @@ contract FlexStrategyTest is Test {
         );
 
         assertEq(
-            IERC20(accountingModule2.ACCOUNTING_TOKEN()).allowance(address(flexStrategy), address(accountingModule2)),
+            IERC20(accountingModule2.accountingToken()).allowance(address(flexStrategy), address(accountingModule2)),
             type(uint256).max
         );
 
         assertEq(IERC20(flexStrategy.asset()).allowance(address(flexStrategy), address(accountingModule)), 0);
 
         assertEq(
-            IERC20(accountingModule.ACCOUNTING_TOKEN()).allowance(address(flexStrategy), address(accountingModule)), 0
+            IERC20(accountingModule.accountingToken()).allowance(address(flexStrategy), address(accountingModule)), 0
         );
     }
 

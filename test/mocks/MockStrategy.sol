@@ -17,7 +17,7 @@ contract MockStrategy is IFlexStrategy {
     function setAccountingModule(IAccountingModule am_) public {
         am = am_;
         IERC20(am.BASE_ASSET()).approve(address(am), type(uint256).max);
-        IERC20(am.ACCOUNTING_TOKEN()).approve(address(am), type(uint256).max);
+        IERC20(am.accountingToken()).approve(address(am), type(uint256).max);
     }
 
     function deposit(uint256 amount) public {

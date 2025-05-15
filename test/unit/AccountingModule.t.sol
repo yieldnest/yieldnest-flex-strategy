@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import { Test, console } from "forge-std/Test.sol";
+import { TransparentUpgradeableProxy } from "@yieldnest-vault/Common.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockStrategy } from "../mocks/MockStrategy.sol";
 import { AccountingModule, IAccountingModule } from "../../src/AccountingModule.sol";
@@ -21,10 +22,17 @@ contract AccountingModuleTest is Test {
     function setUp() public {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
         mockStrategy = new MockStrategy();
-        accountingModule = new AccountingModule(
-            "NAME", "SYMBOL", address(mockStrategy), address(mockErc20), SAFE, TARGET_APY, LOWER_BOUND
+        AccountingModule implementation = new AccountingModule(address(mockStrategy), address(mockErc20));
+
+        bytes memory initData = abi.encodeWithSelector(
+            AccountingModule.initialize.selector, "NAME", "SYMBOL", SAFE, TARGET_APY, LOWER_BOUND
         );
-        accountingToken = accountingModule.ACCOUNTING_TOKEN();
+
+        TransparentUpgradeableProxy tu = new TransparentUpgradeableProxy(address(implementation), ADMIN, initData);
+
+        accountingModule = AccountingModule(payable(address(tu)));
+
+        accountingToken = accountingModule.accountingToken();
 
         mockStrategy.setAccountingModule(accountingModule);
         vm.prank(BOB);

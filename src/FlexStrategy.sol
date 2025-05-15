@@ -93,7 +93,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
 
     modifier checkInvariantAfter() {
         _;
-        if (totalAssets() != IERC20(accountingModule.ACCOUNTING_TOKEN()).balanceOf(address(this))) {
+        if (totalAssets() != IERC20(accountingModule.accountingToken()).balanceOf(address(this))) {
             revert InvariantViolation();
         }
     }
@@ -183,12 +183,12 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
 
         if (address(oldAccounting) != address(0)) {
             IERC20(asset()).approve(address(oldAccounting), 0);
-            IERC20(oldAccounting.ACCOUNTING_TOKEN()).approve(address(oldAccounting), 0);
+            IERC20(oldAccounting.accountingToken()).approve(address(oldAccounting), 0);
         }
 
         accountingModule = IAccountingModule(accountingModule_);
         IERC20(asset()).approve(accountingModule_, type(uint256).max);
-        IERC20(IAccountingModule(accountingModule_).ACCOUNTING_TOKEN()).approve(accountingModule_, type(uint256).max);
+        IERC20(IAccountingModule(accountingModule_).accountingToken()).approve(accountingModule_, type(uint256).max);
     }
 
     /**
@@ -241,6 +241,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @dev Overriden to compute total Accounting Tokens in vault.
      */
     function computeTotalAssets() public view virtual override returns (uint256 totalBaseBalance) {
-        totalBaseBalance = IERC20(accountingModule.ACCOUNTING_TOKEN()).balanceOf(address(this));
+        totalBaseBalance = IERC20(accountingModule.accountingToken()).balanceOf(address(this));
     }
 }

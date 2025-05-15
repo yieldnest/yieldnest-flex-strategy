@@ -7,6 +7,7 @@ import { AccountingToken } from "./AccountingToken.sol";
 import { IFlexStrategy } from "./FlexStrategy.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 interface IAccountingModule {
     event LowerBoundUpdated(uint16 newValue, uint16 oldValue);
@@ -23,7 +24,7 @@ interface IAccountingModule {
     error TvlTooLow();
 
     function BASE_ASSET() external view returns (address);
-    function ACCOUNTING_TOKEN() external view returns (AccountingToken);
+    function accountingToken() external view returns (AccountingToken);
     function safe() external view returns (address);
 
     function deposit(uint256 amount) external;
@@ -36,21 +37,53 @@ interface IAccountingModule {
  *  and mint/burn IOU tokens to represent value accrual/loss.
  */
 
-contract AccountingModule is IAccountingModule {
+contract AccountingModule is IAccountingModule, Initializable {
     using SafeERC20 for IERC20;
 
     uint256 public constant YEAR = 365.25 days;
     uint256 public constant DIVISOR = 10_000;
-
-    AccountingToken public immutable ACCOUNTING_TOKEN;
     address public immutable BASE_ASSET;
     address public immutable STRATEGY;
 
+    AccountingToken public accountingToken;
     address public safe;
     uint64 public nextRewardWindow;
-    uint16 public cooldownSeconds = 3600;
+    uint16 public cooldownSeconds;
     uint16 public targetApy; // in bips;
     uint16 public lowerBound; // in bips; % of tvl
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor(address strategy, address baseAsset) {
+        _disableInitializers();
+        BASE_ASSET = baseAsset;
+        STRATEGY = strategy;
+    }
+
+    /**
+     * @notice Initializes the vault.
+     * @param name_ The name of the accountingToken.
+     * @param symbol_ The symbol of accountingToken.
+     * @param safe_ The safe associated with the strategy.
+     * @param targetApy_ The target APY of the strategy.
+     * @param lowerBound_ The lower bound of losses of the strategy(as % of TVL).
+     */
+    function initialize(
+        string memory name_,
+        string memory symbol_,
+        address safe_,
+        uint16 targetApy_,
+        uint16 lowerBound_
+    )
+        external
+        virtual
+        initializer
+    {
+        accountingToken = new AccountingToken(name_, symbol_, BASE_ASSET, address(this));
+        safe = safe_;
+        targetApy = targetApy_;
+        lowerBound = lowerBound_;
+        cooldownSeconds = 3600;
+    }
 
     modifier checkAndResetCooldown() {
         if (block.timestamp < nextRewardWindow) revert TooEarly();
@@ -78,25 +111,6 @@ contract AccountingModule is IAccountingModule {
         _;
     }
 
-    constructor(
-        string memory name_,
-        string memory symbol_,
-        address strategy,
-        address baseAsset,
-        address safe_,
-        uint16 targetApy_,
-        uint16 lowerBound_
-    ) {
-        ACCOUNTING_TOKEN = new AccountingToken(name_, symbol_, baseAsset, address(this));
-        BASE_ASSET = baseAsset;
-        STRATEGY = strategy;
-        safe = safe_;
-        targetApy = targetApy_;
-        lowerBound = lowerBound_;
-
-        // TODO: approve on SAFE: IERC20(baseAsset).approve(accountingModule, type(uint256).max);
-    }
-
     /**
      * @notice Proxies deposit of base assets from caller to associated SAFE,
      * and mints an equiv amount of accounting tokens
@@ -104,7 +118,7 @@ contract AccountingModule is IAccountingModule {
      */
     function deposit(uint256 amount) external onlyStrategy {
         IERC20(BASE_ASSET).safeTransferFrom(msg.sender, safe, amount);
-        ACCOUNTING_TOKEN.mintTo(msg.sender, amount);
+        accountingToken.mintTo(msg.sender, amount);
     }
 
     /**
@@ -113,7 +127,7 @@ contract AccountingModule is IAccountingModule {
      * @param amount amount to deposit
      */
     function withdraw(uint256 amount) external onlyStrategy {
-        ACCOUNTING_TOKEN.burnFrom(msg.sender, amount);
+        accountingToken.burnFrom(msg.sender, amount);
         IERC20(BASE_ASSET).safeTransferFrom(safe, msg.sender, amount);
     }
 
@@ -122,14 +136,14 @@ contract AccountingModule is IAccountingModule {
      * @param amount profits to mint
      */
     function processRewards(uint256 amount) external onlyAccountingProcessor checkAndResetCooldown {
-        uint256 totalSupply = ACCOUNTING_TOKEN.totalSupply();
-        if (totalSupply < 10 ** ACCOUNTING_TOKEN.decimals()) revert TvlTooLow();
+        uint256 totalSupply = accountingToken.totalSupply();
+        if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
         // check for upper bound
         // targetApy / year * token.totalsupply()
         if (amount > targetApy * totalSupply / DIVISOR / YEAR) revert AccountingLimitsExceeded();
 
-        ACCOUNTING_TOKEN.mintTo(STRATEGY, amount);
+        accountingToken.mintTo(STRATEGY, amount);
         IVault(STRATEGY).processAccounting();
     }
 
@@ -138,13 +152,13 @@ contract AccountingModule is IAccountingModule {
      * @param amount losses to burn
      */
     function processLosses(uint256 amount) external onlyAccountingProcessor checkAndResetCooldown {
-        uint256 totalSupply = ACCOUNTING_TOKEN.totalSupply();
-        if (totalSupply < 10 ** ACCOUNTING_TOKEN.decimals()) revert TvlTooLow();
+        uint256 totalSupply = accountingToken.totalSupply();
+        if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
         // check lower bound - 10% of tvl (in bips)
         if (amount > totalSupply * 1000 / DIVISOR) revert AccountingLimitsExceeded();
 
-        ACCOUNTING_TOKEN.burnFrom(STRATEGY, amount);
+        accountingToken.burnFrom(STRATEGY, amount);
         IVault(STRATEGY).processAccounting();
     }
 
