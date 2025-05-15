@@ -34,7 +34,7 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(accountingModule), type(uint256).max);
     }
 
-    function test_setupSuccess() public view {
+    function test_setup_success() public view {
         assertEq(accountingToken.name(), "NAME");
         assertEq(accountingToken.symbol(), "SYMBOL");
         assertEq(accountingToken.decimals(), 18);
@@ -49,7 +49,7 @@ contract AccountingModuleTest is Test {
         accountingModule.deposit(20e18);
     }
 
-    function test_deposit_happyPath() public {
+    function test_deposit_success() public {
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -64,7 +64,7 @@ contract AccountingModuleTest is Test {
         accountingModule.withdraw(20e18);
     }
 
-    function test_withdraw_happyPath() public {
+    function test_withdraw_success() public {
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -127,7 +127,7 @@ contract AccountingModuleTest is Test {
         accountingModule.processRewards(1e6);
     }
 
-    function test_processRewards_happyPath() public {
+    function test_processRewards_success() public {
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -186,7 +186,7 @@ contract AccountingModuleTest is Test {
         accountingModule.processLosses(1e6);
     }
 
-    function test_processLosses_happyPath() public {
+    function test_processLosses_success() public {
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -208,7 +208,7 @@ contract AccountingModuleTest is Test {
         accountingModule.setTargetApy(1e4);
     }
 
-    function test_setTargetApy_happyPath() public {
+    function test_setTargetApy_success() public {
         mockStrategy.setSafeManager(true);
         accountingModule.setTargetApy(2000);
         assertEq(accountingModule.targetApy(), 2000);
@@ -226,7 +226,7 @@ contract AccountingModuleTest is Test {
         accountingModule.setLowerBound(1e4);
     }
 
-    function test_setLowerBound_happyPath() public {
+    function test_setLowerBound_success() public {
         mockStrategy.setSafeManager(true);
         accountingModule.setLowerBound(2000);
         assertEq(accountingModule.lowerBound(), 2000);
@@ -238,7 +238,7 @@ contract AccountingModuleTest is Test {
         accountingModule.setCoolDownSeconds(5000);
     }
 
-    function test_setCooldownSeconds_happyPath() public {
+    function test_setCooldownSeconds_success() public {
         mockStrategy.setSafeManager(true);
         accountingModule.setCoolDownSeconds(5000);
         assertEq(accountingModule.cooldownSeconds(), 5000);
@@ -250,7 +250,7 @@ contract AccountingModuleTest is Test {
         accountingModule.setSafeAddress(BOB);
     }
 
-    function test_setSafeAddress_happyPath() public {
+    function test_setSafeAddress_success() public {
         mockStrategy.setSafeManager(true);
         accountingModule.setSafeAddress(BOB);
         assertEq(accountingModule.safe(), BOB);

@@ -29,7 +29,7 @@ contract FlexStrategyTest is Test {
         flexStrategy.addAsset(address(mockErc20), true, true); // base asset
     }
 
-    function test_setupSuccess() public view {
+    function test_setup_success() public view {
         assertEq(flexStrategy.name(), "FlexStrategy");
         assertEq(flexStrategy.symbol(), "FLEX");
     }

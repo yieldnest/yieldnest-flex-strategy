@@ -19,7 +19,7 @@ contract AccountingTokenTest is Test {
         accountingToken = new AccountingToken("NAME", "SYMBOL", address(mockErc20), ADMIN);
     }
 
-    function test_setupSuccess() public view {
+    function test_setup_success() public view {
         assertEq(accountingToken.name(), "NAME");
         assertEq(accountingToken.symbol(), "SYMBOL");
         assertEq(accountingToken.decimals(), 18);
@@ -37,7 +37,7 @@ contract AccountingTokenTest is Test {
         accountingToken.mintTo(ADMIN, 1e18);
     }
 
-    function test_mintTo_happyPath() public {
+    function test_mintTo_success() public {
         vm.prank(ADMIN);
         accountingToken.mintTo(ADMIN, 1e18);
         assertEq(accountingToken.balanceOf(ADMIN), 1e18);
@@ -51,7 +51,7 @@ contract AccountingTokenTest is Test {
         accountingToken.burnFrom(ADMIN, 1e18);
     }
 
-    function test_burnFrom_happyPath() public {
+    function test_burnFrom_success() public {
         vm.startPrank(ADMIN);
         accountingToken.mintTo(ADMIN, 1e18);
         accountingToken.burnFrom(ADMIN, 1e18);
