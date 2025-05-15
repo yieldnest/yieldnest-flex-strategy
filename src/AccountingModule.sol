@@ -111,9 +111,7 @@ contract AccountingModule is IAccountingModule {
      */
     function processRewards(uint256 amount) external onlySafeManager checkAndResetCooldown {
         uint256 totalSupply = ACCOUNTING_TOKEN.totalSupply();
-
-        // sanity check: if token.totalSupply() > small amount to prevent rounding issues
-        if (totalSupply < 1 ether) revert TvlTooLow();
+        if (totalSupply < 10 ** ACCOUNTING_TOKEN.decimals()) revert TvlTooLow();
 
         // check for upper bound
         // targetApy / year * token.totalsupply()
@@ -129,9 +127,7 @@ contract AccountingModule is IAccountingModule {
      */
     function processLosses(uint256 amount) external onlySafeManager checkAndResetCooldown {
         uint256 totalSupply = ACCOUNTING_TOKEN.totalSupply();
-
-        // sanity check: if token.totalSupply() > small amount to prevent rounding issues
-        if (totalSupply < 1 ether) revert TvlTooLow();
+        if (totalSupply < 10 ** ACCOUNTING_TOKEN.decimals()) revert TvlTooLow();
 
         // check lower bound - 10% of tvl (in bips)
         if (amount > totalSupply * 1000 / DIVISOR) revert AccountingLimitsExceeded();
@@ -153,20 +149,20 @@ contract AccountingModule is IAccountingModule {
 
     /**
      * @notice Set lower bound as a function of tvl for losses. e.g. 1000 = 10% of tvl
-     * @param lb in bips, as a function of % of tvl
+     * @param _lowerBound in bips, as a function of % of tvl
      */
-    function setLowerBound(uint16 lb) external onlySafeManager {
-        if (lb > (DIVISOR / 2)) revert InvariantViolation();
+    function setLowerBound(uint16 _lowerBound) external onlySafeManager {
+        if (_lowerBound > (DIVISOR / 2)) revert InvariantViolation();
 
-        emit LowerBoundUpdated(lb, lowerBound);
-        lowerBound = lb;
+        emit LowerBoundUpdated(_lowerBound, lowerBound);
+        lowerBound = _lowerBound;
     }
 
     /**
      * @notice Set cooldown in seconds between every processing of rewards/losses
      * @param cooldownSeconds_ new cooldown seconds
      */
-    function setCoolDownSeconds(uint16 cooldownSeconds_) external onlySafeManager {
+    function setCooldownSeconds(uint16 cooldownSeconds_) external onlySafeManager {
         emit CooldownSecondsUpdated(cooldownSeconds_, cooldownSeconds);
         cooldownSeconds = cooldownSeconds_;
     }

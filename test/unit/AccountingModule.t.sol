@@ -237,12 +237,12 @@ contract AccountingModuleTest is Test {
     function test_setCooldownSeconds_revertIfNotSafeManager() public {
         mockStrategy.setSafeManager(false);
         vm.expectRevert(IAccountingModule.NotSafeManager.selector);
-        accountingModule.setCoolDownSeconds(5000);
+        accountingModule.setCooldownSeconds(5000);
     }
 
     function test_setCooldownSeconds_success() public {
         mockStrategy.setSafeManager(true);
-        accountingModule.setCoolDownSeconds(5000);
+        accountingModule.setCooldownSeconds(5000);
         assertEq(accountingModule.cooldownSeconds(), 5000);
     }
 
