@@ -18,6 +18,10 @@ interface IFlexStrategy {
     function isSafeManager(address addr) external view returns (bool);
 }
 
+/**
+ * Flex strategy that proxies the deposited base asset to an associated safe,
+ * minting IOU accounting tokens in the process to represent transferred assets.
+ */
 contract FlexStrategy is IFlexStrategy, BaseStrategy {
     using SafeERC20 for IERC20;
 

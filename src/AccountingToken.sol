@@ -4,6 +4,9 @@ pragma solidity ^0.8.28;
 import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+/**
+ * Accounting token that keeps track of baseAsset amount transferred to safe.
+ */
 contract AccountingToken is ERC20 {
     error Unauthorized();
     error NotAllowed();

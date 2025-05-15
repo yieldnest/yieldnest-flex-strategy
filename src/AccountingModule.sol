@@ -29,6 +29,10 @@ interface IAccountingModule {
     function processRewards(uint256 amount) external;
     function processLosses(uint256 amount) external;
 }
+/**
+ * Module to configure strategy params,
+ *  and mint/burn IOU tokens to represent value accrual/loss.
+ */
 
 contract AccountingModule is IAccountingModule {
     using SafeERC20 for IERC20;

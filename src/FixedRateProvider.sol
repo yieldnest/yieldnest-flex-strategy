@@ -5,7 +5,7 @@ import { IProvider } from "@yieldnest-vault/interface/IProvider.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 /**
- * Fixed rate provider that assumes 1:1 rate of added asset
+ * Fixed rate provider that assumes 1:1 rate of added asset.
  */
 contract FixedRateProvider is IProvider {
     address public immutable ASSET;
