@@ -36,7 +36,7 @@ jobs:
           forge build --sizes
         id: build
 
-      - name: Run Forge tests
+      - name: Run Forge coverage
         run: |
-          forge test -vvv
+          forge coverage
         id: test

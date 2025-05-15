@@ -29,7 +29,9 @@ contract MockStrategy is IFlexStrategy {
         _isSafeManager = isManager;
     }
 
-    function isSafeManager(address addr) external view returns (bool) {
+    function isSafeManager(address) external view returns (bool) {
         return _isSafeManager;
     }
+
+    function processAccounting() public { }
 }

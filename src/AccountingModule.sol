@@ -5,6 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { AccountingToken } from "./AccountingToken.sol";
 import { IFlexStrategy } from "./FlexStrategy.sol";
+import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 
 interface IAccountingModule {
     event LowerBoundUpdated(uint16 newValue, uint16 oldValue);
@@ -15,11 +16,13 @@ interface IAccountingModule {
     error TooEarly();
     error NotSafeManager();
     error NotStrategy();
+    error AccountingLimitsExceeded();
     error InvariantViolation();
     error TvlTooLow();
 
     function BASE_ASSET() external view returns (address);
     function ACCOUNTING_TOKEN() external view returns (AccountingToken);
+    function safe() external view returns (address);
 
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount) external;
@@ -110,9 +113,10 @@ contract AccountingModule is IAccountingModule {
 
         // check for upper bound
         // targetApy / year * token.totalsupply()
-        if (amount > targetApy * totalSupply / DIVISOR / YEAR) revert InvariantViolation();
+        if (amount > targetApy * totalSupply / DIVISOR / YEAR) revert AccountingLimitsExceeded();
 
         ACCOUNTING_TOKEN.mintTo(STRATEGY, amount);
+        IVault(STRATEGY).processAccounting();
     }
 
     /**
@@ -126,9 +130,10 @@ contract AccountingModule is IAccountingModule {
         if (totalSupply < 1 ether) revert TvlTooLow();
 
         // check lower bound - 10% of tvl (in bips)
-        if (amount > totalSupply * 1000 / DIVISOR) revert InvariantViolation();
+        if (amount > totalSupply * 1000 / DIVISOR) revert AccountingLimitsExceeded();
 
         ACCOUNTING_TOKEN.burnFrom(STRATEGY, amount);
+        IVault(STRATEGY).processAccounting();
     }
 
     /**

@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
+import { Test, console } from "forge-std/Test.sol";
 import { BaseStrategy } from "@yieldnest-vault/strategy/BaseStrategy.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IVault } from "@yieldnest-vault/interface/IVault.sol";
+import { IERC20, IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IAccountingModule } from "./AccountingModule.sol";
 
 interface IFlexStrategy {
     error OnlyBaseAsset();
     error NoAccountingModule();
+    error InvariantViolation();
 
     event AccountingModuleUpdated(address newValue, address oldValue);
 
@@ -32,12 +35,58 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @param admin The address of the admin.
      * @param name The name of the vault.
      * @param symbol The symbol of the vault.
+     * @param decimals_ The number of decimals for the vault token.
+     * @param baseAsset The base asset of the vault.
      */
-    function initialize(address admin, string memory name, string memory symbol) external virtual initializer {
+    function initialize(
+        address admin,
+        string memory name,
+        string memory symbol,
+        uint8 decimals_,
+        address baseAsset
+    )
+        external
+        virtual
+        initializer
+    {
+        _initialize(admin, name, symbol, decimals_);
+
+        _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
+        _setAssetWithdrawable(baseAsset, true);
+    }
+
+    /**
+     * @notice Internal function to initialize the vault.
+     * @param admin The address of the admin.
+     * @param name The name of the vault.
+     * @param symbol The symbol of the vault.
+     * @param decimals_ The number of decimals for the vault token.
+     */
+    function _initialize(address admin, string memory name, string memory symbol, uint8 decimals_) internal virtual {
         __ERC20_init(name, symbol);
         __AccessControl_init();
         __ReentrancyGuard_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+
+        VaultStorage storage vaultStorage = _getVaultStorage();
+        vaultStorage.paused = true;
+        vaultStorage.decimals = decimals_;
+
+        /// @dev these 2 params MUST be false. accounting is done virtually.
+        // vaultStorage.countNativeAsset = false;
+        // vaultStorage.alwaysComputeTotalAssets = false;
+    }
+
+    modifier hasAccountingModule() {
+        if (address(accountingModule) == address(0)) revert NoAccountingModule();
+        _;
+    }
+
+    modifier checkInvariantAfter() {
+        _;
+        if (totalAssets() != IERC20(accountingModule.ACCOUNTING_TOKEN()).balanceOf(address(this))) {
+            revert InvariantViolation();
+        }
     }
 
     /**
@@ -60,12 +109,9 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         internal
         virtual
         override
+        hasAccountingModule
+        checkInvariantAfter
     {
-        // only base asset is depositable into safe
-        if (asset_ != accountingModule.BASE_ASSET()) revert OnlyBaseAsset();
-
-        if (address(accountingModule) == address(0)) revert NoAccountingModule();
-
         // call the base strategy deposit function for accounting
         super._deposit(asset_, caller, receiver, assets, shares, baseAssets);
 
@@ -93,12 +139,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         internal
         virtual
         override
+        checkInvariantAfter
     {
-        // only base asset is depositable into safe
-        if (asset_ != accountingModule.BASE_ASSET()) revert OnlyBaseAsset();
-
-        if (address(accountingModule) == address(0)) revert NoAccountingModule();
-
         // check if the asset is withdrawable
         if (!_getBaseStrategyStorage().isAssetWithdrawable[asset_]) {
             revert AssetNotWithdrawable();
@@ -124,7 +166,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @param accountingModule_ address to check.
      * @dev Will revoke approvals for outgoing accounting module, and approve max for incoming accounting module.
      */
-    function setAccountingModule(address accountingModule_) external onlyRole("SAFE_MANAGER_ROLE") {
+    function setAccountingModule(address accountingModule_) external onlyRole(SAFE_MANAGER_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
         emit AccountingModuleUpdated(accountingModule_, address(accountingModule));
 
@@ -141,12 +183,32 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     }
 
     /**
+     * @notice Processes the accounting of the vault by calculating the total base balance.
+     * @dev This function iterates through the list of assets, gets their balances and rates,
+     *      and updates the total assets denominated in the base asset.
+     */
+    function processAccounting() public virtual override nonReentrant checkInvariantAfter {
+        _processAccounting();
+    }
+
+    /**
      * @notice Checks if an address has the SAFE_MANAGER_ROLE
      * @param addr address to check
      * @return true if address has role
      */
-    function isSafeManager(address addr) external view virtual override returns (bool) {
+    function isSafeManager(address addr) external view virtual returns (bool) {
         return hasRole(SAFE_MANAGER_ROLE, addr);
+    }
+
+    /**
+     * @notice Internal function to get the available amount of assets.
+     * @param asset_ The address of the asset.
+     * @return availableAssets The available amount of assets.
+     * @dev Overriden. This function is used to calculate the available assets for a given asset,
+     *      It returns the balance of the asset in the associated SAFE.
+     */
+    function _availableAssets(address asset_) internal view virtual override returns (uint256 availableAssets) {
+        availableAssets = IERC20(asset_).balanceOf(accountingModule.safe());
     }
 
     /**
@@ -163,5 +225,22 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      */
     function _feeOnRaw(uint256) public view virtual override returns (uint256) {
         return 0;
+    }
+
+    /**
+     * @notice Sets whether the vault should always compute total assets.
+     * @dev Overridden. MUST always be false for flex strategy, because accounting is done virtually
+     */
+    function setAlwaysComputeTotalAssets(bool) external virtual override onlyRole(ASSET_MANAGER_ROLE) {
+        revert InvariantViolation();
+    }
+
+    /**
+     * @notice Computes the total assets in the vault.
+     * @return totalBaseBalance The total assets in the vault.
+     * @dev Overriden to compute total Accounting Tokens in vault.
+     */
+    function computeTotalAssets() public view virtual override returns (uint256 totalBaseBalance) {
+        totalBaseBalance = IERC20(accountingModule.ACCOUNTING_TOKEN()).balanceOf(address(this));
     }
 }

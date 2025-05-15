@@ -107,7 +107,7 @@ contract AccountingModuleTest is Test {
         mockStrategy.deposit(deposit);
 
         mockStrategy.setSafeManager(true);
-        vm.expectRevert(IAccountingModule.InvariantViolation.selector);
+        vm.expectRevert(IAccountingModule.AccountingLimitsExceeded.selector);
         accountingModule.processRewards(deposit);
     }
 
@@ -135,6 +135,7 @@ contract AccountingModuleTest is Test {
 
         mockStrategy.setSafeManager(true);
         accountingModule.processRewards(1e6);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 + 1e6);
     }
 
     function test_processLosses_revertIfNotSafeManager() public {
@@ -166,7 +167,7 @@ contract AccountingModuleTest is Test {
         mockStrategy.deposit(deposit);
 
         mockStrategy.setSafeManager(true);
-        vm.expectRevert(IAccountingModule.InvariantViolation.selector);
+        vm.expectRevert(IAccountingModule.AccountingLimitsExceeded.selector);
         accountingModule.processLosses(deposit);
     }
 
@@ -194,6 +195,7 @@ contract AccountingModuleTest is Test {
 
         mockStrategy.setSafeManager(true);
         accountingModule.processLosses(1e6);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 - 1e6);
     }
 
     function test_setTargetApy_revertIfNotSafeManager() public {
