@@ -58,6 +58,7 @@ contract FlexStrategyTest is Test {
         flexStrategy.grantRole(flexStrategy.ASSET_MANAGER_ROLE(), ADMIN);
         flexStrategy.grantRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
         flexStrategy.grantRole(flexStrategy.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
+        flexStrategy.grantRole(flexStrategy.ACCOUNTING_PROCESSOR_ROLE(), SAFE_MANAGER);
         vm.stopPrank();
 
         vm.prank(BOB);

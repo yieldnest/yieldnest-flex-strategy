@@ -78,14 +78,14 @@ contract AccountingModuleTest is Test {
         assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw);
     }
 
-    function test_processRewards_revertIfNotSafeManager() public {
+    function test_processRewards_revertIfNotAccountingProcessor() public {
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(false);
-        vm.expectRevert(IAccountingModule.NotSafeManager.selector);
+        mockStrategy.setHasRole(false);
+        vm.expectRevert(IAccountingModule.NotAccountingProcessor.selector);
         accountingModule.processRewards(1e6);
     }
 
@@ -95,7 +95,7 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         vm.expectRevert(IAccountingModule.TvlTooLow.selector);
         accountingModule.processRewards(1e6);
     }
@@ -106,7 +106,7 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         vm.expectRevert(IAccountingModule.AccountingLimitsExceeded.selector);
         accountingModule.processRewards(deposit);
     }
@@ -117,7 +117,7 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         accountingModule.processRewards(1e6);
 
         vm.expectRevert(IAccountingModule.TooEarly.selector);
@@ -133,19 +133,19 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         accountingModule.processRewards(1e6);
         assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 + 1e6);
     }
 
-    function test_processLosses_revertIfNotSafeManager() public {
+    function test_processLosses_revertIfNotAccountingProcessor() public {
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(false);
-        vm.expectRevert(IAccountingModule.NotSafeManager.selector);
+        mockStrategy.setHasRole(false);
+        vm.expectRevert(IAccountingModule.NotAccountingProcessor.selector);
         accountingModule.processLosses(1e6);
     }
 
@@ -155,7 +155,7 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         vm.expectRevert(IAccountingModule.TvlTooLow.selector);
         accountingModule.processLosses(1e6);
     }
@@ -166,7 +166,7 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         vm.expectRevert(IAccountingModule.AccountingLimitsExceeded.selector);
         accountingModule.processLosses(deposit);
     }
@@ -177,7 +177,7 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         accountingModule.processLosses(1e6);
 
         vm.expectRevert(IAccountingModule.TooEarly.selector);
@@ -193,67 +193,67 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         accountingModule.processLosses(1e6);
         assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 - 1e6);
     }
 
     function test_setTargetApy_revertIfNotSafeManager() public {
-        mockStrategy.setSafeManager(false);
+        mockStrategy.setHasRole(false);
         vm.expectRevert(IAccountingModule.NotSafeManager.selector);
         accountingModule.setTargetApy(5000);
     }
 
     function test_setTargetApy_revertIfExceedDivisor() public {
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         vm.expectRevert(IAccountingModule.InvariantViolation.selector);
         accountingModule.setTargetApy(1e4);
     }
 
     function test_setTargetApy_success() public {
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         accountingModule.setTargetApy(2000);
         assertEq(accountingModule.targetApy(), 2000);
     }
 
     function test_setLowerBound_revertIfNotSafeManager() public {
-        mockStrategy.setSafeManager(false);
+        mockStrategy.setHasRole(false);
         vm.expectRevert(IAccountingModule.NotSafeManager.selector);
         accountingModule.setLowerBound(5000);
     }
 
     function test_setLowerBound_revertIfExceedDivisor() public {
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         vm.expectRevert(IAccountingModule.InvariantViolation.selector);
         accountingModule.setLowerBound(1e4);
     }
 
     function test_setLowerBound_success() public {
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         accountingModule.setLowerBound(2000);
         assertEq(accountingModule.lowerBound(), 2000);
     }
 
     function test_setCooldownSeconds_revertIfNotSafeManager() public {
-        mockStrategy.setSafeManager(false);
+        mockStrategy.setHasRole(false);
         vm.expectRevert(IAccountingModule.NotSafeManager.selector);
         accountingModule.setCooldownSeconds(5000);
     }
 
     function test_setCooldownSeconds_success() public {
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         accountingModule.setCooldownSeconds(5000);
         assertEq(accountingModule.cooldownSeconds(), 5000);
     }
 
     function test_setSafeAddress_revertIfNotSafeManager() public {
-        mockStrategy.setSafeManager(false);
+        mockStrategy.setHasRole(false);
         vm.expectRevert(IAccountingModule.NotSafeManager.selector);
         accountingModule.setSafeAddress(BOB);
     }
 
     function test_setSafeAddress_success() public {
-        mockStrategy.setSafeManager(true);
+        mockStrategy.setHasRole(true);
         accountingModule.setSafeAddress(BOB);
         assertEq(accountingModule.safe(), BOB);
     }

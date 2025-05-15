@@ -7,7 +7,12 @@ import { IFlexStrategy } from "../../src/FlexStrategy.sol";
 
 contract MockStrategy is IFlexStrategy {
     IAccountingModule am;
-    bool _isSafeManager;
+    bool _hasRole;
+    /// @notice Role for safe manager permissions
+    bytes32 public constant SAFE_MANAGER_ROLE = keccak256("SAFE_MANAGER_ROLE");
+
+    /// @notice Role for processing rewards/losses
+    bytes32 public constant ACCOUNTING_PROCESSOR_ROLE = keccak256("ACCOUNTING_PROCESSOR_ROLE");
 
     function setAccountingModule(IAccountingModule am_) public {
         am = am_;
@@ -25,12 +30,12 @@ contract MockStrategy is IFlexStrategy {
         IERC20(am.BASE_ASSET()).transfer(msg.sender, amount);
     }
 
-    function setSafeManager(bool isManager) public {
-        _isSafeManager = isManager;
+    function setHasRole(bool hr) public {
+        _hasRole = hr;
     }
 
-    function isSafeManager(address) external view returns (bool) {
-        return _isSafeManager;
+    function hasRole(bytes32, address) external view virtual returns (bool) {
+        return _hasRole;
     }
 
     function processAccounting() public { }

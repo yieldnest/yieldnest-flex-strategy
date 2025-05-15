@@ -6,6 +6,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { AccountingToken } from "./AccountingToken.sol";
 import { IFlexStrategy } from "./FlexStrategy.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 interface IAccountingModule {
     event LowerBoundUpdated(uint16 newValue, uint16 oldValue);
@@ -15,6 +16,7 @@ interface IAccountingModule {
 
     error TooEarly();
     error NotSafeManager();
+    error NotAccountingProcessor();
     error NotStrategy();
     error AccountingLimitsExceeded();
     error InvariantViolation();
@@ -57,7 +59,17 @@ contract AccountingModule is IAccountingModule {
     }
 
     modifier onlySafeManager() {
-        if (IFlexStrategy(STRATEGY).isSafeManager(msg.sender) == false) revert NotSafeManager();
+        if (IAccessControl(STRATEGY).hasRole(IFlexStrategy(STRATEGY).SAFE_MANAGER_ROLE(), msg.sender) == false) {
+            revert NotSafeManager();
+        }
+        _;
+    }
+
+    modifier onlyAccountingProcessor() {
+        if (IAccessControl(STRATEGY).hasRole(IFlexStrategy(STRATEGY).ACCOUNTING_PROCESSOR_ROLE(), msg.sender) == false)
+        {
+            revert NotAccountingProcessor();
+        }
         _;
     }
 
@@ -109,7 +121,7 @@ contract AccountingModule is IAccountingModule {
      * @notice Process rewards by minting accounting tokens
      * @param amount profits to mint
      */
-    function processRewards(uint256 amount) external onlySafeManager checkAndResetCooldown {
+    function processRewards(uint256 amount) external onlyAccountingProcessor checkAndResetCooldown {
         uint256 totalSupply = ACCOUNTING_TOKEN.totalSupply();
         if (totalSupply < 10 ** ACCOUNTING_TOKEN.decimals()) revert TvlTooLow();
 
@@ -125,7 +137,7 @@ contract AccountingModule is IAccountingModule {
      * @notice Process losses by burning accounting tokens
      * @param amount losses to burn
      */
-    function processLosses(uint256 amount) external onlySafeManager checkAndResetCooldown {
+    function processLosses(uint256 amount) external onlyAccountingProcessor checkAndResetCooldown {
         uint256 totalSupply = ACCOUNTING_TOKEN.totalSupply();
         if (totalSupply < 10 ** ACCOUNTING_TOKEN.decimals()) revert TvlTooLow();
 

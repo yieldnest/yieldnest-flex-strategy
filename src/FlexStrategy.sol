@@ -15,7 +15,9 @@ interface IFlexStrategy {
 
     event AccountingModuleUpdated(address newValue, address oldValue);
 
-    function isSafeManager(address addr) external view returns (bool);
+    function SAFE_MANAGER_ROLE() external view returns (bytes32);
+
+    function ACCOUNTING_PROCESSOR_ROLE() external view returns (bytes32);
 }
 
 /**
@@ -27,6 +29,9 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
 
     /// @notice Role for safe manager permissions
     bytes32 public constant SAFE_MANAGER_ROLE = keccak256("SAFE_MANAGER_ROLE");
+
+    /// @notice Role for processing rewards/losses
+    bytes32 public constant ACCOUNTING_PROCESSOR_ROLE = keccak256("ACCOUNTING_PROCESSOR_ROLE");
 
     IAccountingModule public accountingModule;
 
@@ -193,15 +198,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      */
     function processAccounting() public virtual override nonReentrant checkInvariantAfter {
         _processAccounting();
-    }
-
-    /**
-     * @notice Checks if an address has the SAFE_MANAGER_ROLE
-     * @param addr address to check
-     * @return true if address has role
-     */
-    function isSafeManager(address addr) external view virtual returns (bool) {
-        return hasRole(SAFE_MANAGER_ROLE, addr);
     }
 
     /**
