@@ -31,7 +31,7 @@ contract FlexStrategyTest is Test {
 
         FlexStrategy implementation = new FlexStrategy();
         bytes memory initData =
-            abi.encodeWithSelector(FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, mockErc20);
+            abi.encodeWithSelector(FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, mockErc20, true);
 
         TransparentUpgradeableProxy tu = new TransparentUpgradeableProxy(address(implementation), ADMIN, initData);
 

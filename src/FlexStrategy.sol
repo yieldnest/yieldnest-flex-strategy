@@ -46,44 +46,32 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @param symbol The symbol of the vault.
      * @param decimals_ The number of decimals for the vault token.
      * @param baseAsset The base asset of the vault.
+     * @param paused_ Whether the vault should start in a paused state.
      */
     function initialize(
         address admin,
         string memory name,
         string memory symbol,
         uint8 decimals_,
-        address baseAsset
+        address baseAsset,
+        bool paused_
     )
         external
         virtual
         initializer
     {
-        _initialize(admin, name, symbol, decimals_);
-
+        _initialize(
+            admin,
+            name,
+            symbol,
+            decimals_,
+            paused_,
+            false, // countNativeAsset. MUST be false. accounting is done virtually.
+            false, // alwaysComputeTotalAssets. MUST be false. accounting is done virtually.
+            0 // defaultAssetIndex. MUST be 0. baseAsset is default
+        );
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
         _setAssetWithdrawable(baseAsset, true);
-    }
-
-    /**
-     * @notice Internal function to initialize the vault.
-     * @param admin The address of the admin.
-     * @param name The name of the vault.
-     * @param symbol The symbol of the vault.
-     * @param decimals_ The number of decimals for the vault token.
-     */
-    function _initialize(address admin, string memory name, string memory symbol, uint8 decimals_) internal virtual {
-        __ERC20_init(name, symbol);
-        __AccessControl_init();
-        __ReentrancyGuard_init();
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-
-        VaultStorage storage vaultStorage = _getVaultStorage();
-        vaultStorage.paused = true;
-        vaultStorage.decimals = decimals_;
-
-        /// @dev these 2 params MUST be false. accounting is done virtually.
-        // vaultStorage.countNativeAsset = false;
-        // vaultStorage.alwaysComputeTotalAssets = false;
     }
 
     modifier hasAccountingModule() {
