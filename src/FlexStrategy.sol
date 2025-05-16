@@ -163,7 +163,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @param accountingModule_ address to check.
      * @dev Will revoke approvals for outgoing accounting module, and approve max for incoming accounting module.
      */
-    function setAccountingModule(address accountingModule_) external onlyRole(SAFE_MANAGER_ROLE) {
+    function setAccountingModule(address accountingModule_) external virtual onlyRole(SAFE_MANAGER_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
         emit AccountingModuleUpdated(accountingModule_, address(accountingModule));
 

@@ -165,9 +165,10 @@ contract AccountingModule is IAccountingModule, Initializable {
     /**
      * @notice Set target APY to determine upper bound. e.g. 1000 = 10% APY
      * @param targetApyInBips in bips
+     * @dev hard max of 100% targetApy
      */
     function setTargetApy(uint16 targetApyInBips) external onlySafeManager {
-        if (targetApyInBips > (DIVISOR / 2)) revert InvariantViolation();
+        if (targetApyInBips > DIVISOR) revert InvariantViolation();
 
         emit TargetApyUpdated(targetApyInBips, targetApy);
         targetApy = targetApyInBips;
@@ -176,6 +177,7 @@ contract AccountingModule is IAccountingModule, Initializable {
     /**
      * @notice Set lower bound as a function of tvl for losses. e.g. 1000 = 10% of tvl
      * @param _lowerBound in bips, as a function of % of tvl
+     * @dev hard max of 50% of tvl
      */
     function setLowerBound(uint16 _lowerBound) external onlySafeManager {
         if (_lowerBound > (DIVISOR / 2)) revert InvariantViolation();
@@ -194,8 +196,8 @@ contract AccountingModule is IAccountingModule, Initializable {
     }
 
     /**
-     * @notice Allows an address with the SAFE_MANAGER_ROLE to specify a new safe address
-     * @param newSafe new address
+     * @notice Set a new safe address
+     * @param newSafe new safe address
      */
     function setSafeAddress(address newSafe) external virtual onlySafeManager {
         emit SafeUpdated(newSafe, safe);

@@ -214,8 +214,10 @@ contract AccountingModuleTest is Test {
 
     function test_setTargetApy_revertIfExceedDivisor() public {
         mockStrategy.setHasRole(true);
-        vm.expectRevert(IAccountingModule.InvariantViolation.selector);
         accountingModule.setTargetApy(1e4);
+
+        vm.expectRevert(IAccountingModule.InvariantViolation.selector);
+        accountingModule.setTargetApy(10_001);
     }
 
     function test_setTargetApy_success() public {
