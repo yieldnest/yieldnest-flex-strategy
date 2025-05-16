@@ -156,7 +156,7 @@ contract AccountingModule is IAccountingModule, Initializable {
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
         // check lower bound - 10% of tvl (in bips)
-        if (amount > totalSupply * 1000 / DIVISOR) revert AccountingLimitsExceeded();
+        if (amount > totalSupply * lowerBound / DIVISOR) revert AccountingLimitsExceeded();
 
         accountingToken.burnFrom(STRATEGY, amount);
         IVault(STRATEGY).processAccounting();

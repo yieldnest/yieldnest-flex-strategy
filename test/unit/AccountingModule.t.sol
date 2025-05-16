@@ -36,7 +36,7 @@ contract AccountingModuleTest is Test {
 
         mockStrategy.setAccountingModule(accountingModule);
         vm.prank(BOB);
-        mockErc20.mint(100e18);
+        mockErc20.mint(type(uint128).max);
 
         vm.prank(SAFE);
         mockErc20.approve(address(accountingModule), type(uint256).max);
@@ -66,6 +66,14 @@ contract AccountingModuleTest is Test {
         assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit);
     }
 
+    function testFuzz_deposit(uint128 amount) public {
+        vm.startPrank(BOB);
+        uint256 deposit = amount;
+        mockErc20.approve(address(mockStrategy), type(uint256).max);
+        mockStrategy.deposit(deposit);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit);
+    }
+
     function test_withdraw_revertIfNotStrategy() public {
         vm.expectRevert(IAccountingModule.NotStrategy.selector);
         vm.prank(BOB);
@@ -82,7 +90,21 @@ contract AccountingModuleTest is Test {
         uint256 withdraw = 10e18;
         mockStrategy.withdraw(withdraw);
 
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), withdraw);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - withdraw);
+        assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw);
+    }
+
+    function testFuzz_withdraw(uint96 amount) public {
+        vm.startPrank(BOB);
+        uint256 deposit = type(uint128).max;
+        mockErc20.approve(address(mockStrategy), type(uint256).max);
+        mockStrategy.deposit(deposit);
+
+        uint256 bobBefore = mockErc20.balanceOf(BOB);
+        uint256 withdraw = amount;
+        mockStrategy.withdraw(withdraw);
+
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - withdraw);
         assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw);
     }
 
@@ -146,6 +168,23 @@ contract AccountingModuleTest is Test {
         assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 + 1e6);
     }
 
+    function testFuzz_processRewards(uint96 processedAmount) public {
+        uint256 supply = 10_000_000e18;
+        vm.assume(
+            processedAmount
+                <= (accountingModule.targetApy() * supply / accountingModule.DIVISOR() / accountingModule.YEAR())
+        );
+
+        vm.startPrank(BOB);
+
+        mockErc20.approve(address(mockStrategy), type(uint256).max);
+        mockStrategy.deposit(supply);
+
+        mockStrategy.setHasRole(true);
+        accountingModule.processRewards(processedAmount);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), supply + processedAmount);
+    }
+
     function test_processLosses_revertIfNotAccountingProcessor() public {
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
@@ -204,6 +243,19 @@ contract AccountingModuleTest is Test {
         mockStrategy.setHasRole(true);
         accountingModule.processLosses(1e6);
         assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 - 1e6);
+    }
+
+    function testFuzz_processLosses(uint96 processedAmount) public {
+        uint256 supply = 10_000_000e18;
+        vm.assume(processedAmount <= (supply * accountingModule.lowerBound() / accountingModule.DIVISOR()));
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(mockStrategy), type(uint256).max);
+        mockStrategy.deposit(supply);
+
+        mockStrategy.setHasRole(true);
+        accountingModule.processLosses(processedAmount);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), supply - processedAmount);
     }
 
     function test_setTargetApy_revertIfNotSafeManager() public {
