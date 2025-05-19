@@ -43,7 +43,7 @@ contract FlexStrategyTest is Test {
             address(am_implementation),
             ADMIN,
             abi.encodeWithSelector(
-                AccountingModule.initialize.selector, "NAME", "SYMBOL", SAFE, TARGET_APY, LOWER_BOUND
+                AccountingModule.initialize.selector, ADMIN, "NAME", "SYMBOL", SAFE, TARGET_APY, LOWER_BOUND
             )
         );
 
@@ -54,7 +54,7 @@ contract FlexStrategyTest is Test {
             address(am_implementation),
             ADMIN,
             abi.encodeWithSelector(
-                AccountingModule.initialize.selector, "NAME2", "SYMBOL2", SAFE, TARGET_APY, LOWER_BOUND
+                AccountingModule.initialize.selector, ADMIN, "NAME2", "SYMBOL2", SAFE, TARGET_APY, LOWER_BOUND
             )
         );
         accountingModule2 = AccountingModule(payable(address(amtu2)));
@@ -70,8 +70,8 @@ contract FlexStrategyTest is Test {
         flexStrategy.setHasAllocator(true);
         flexStrategy.grantRole(flexStrategy.ASSET_MANAGER_ROLE(), ADMIN);
         flexStrategy.grantRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
-        flexStrategy.grantRole(flexStrategy.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
-        flexStrategy.grantRole(flexStrategy.ACCOUNTING_PROCESSOR_ROLE(), SAFE_MANAGER);
+        accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), SAFE_MANAGER);
         vm.stopPrank();
 
         vm.prank(BOB);
@@ -93,20 +93,20 @@ contract FlexStrategyTest is Test {
         vm.startPrank(BOB);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.SAFE_MANAGER_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.DEFAULT_ADMIN_ROLE()
             )
         );
         flexStrategy.setAccountingModule(address(accountingModule));
     }
 
     function test_setAccountingModule_revertIfZeroAddress() public {
-        vm.startPrank(SAFE_MANAGER);
+        vm.startPrank(ADMIN);
         vm.expectRevert(IVault.ZeroAddress.selector);
         flexStrategy.setAccountingModule(address(0));
     }
 
     function test_setAccountingModule_setRelevantApprovals() public {
-        vm.prank(SAFE_MANAGER);
+        vm.prank(ADMIN);
         flexStrategy.setAccountingModule(address(accountingModule));
 
         assertEq(
@@ -120,7 +120,7 @@ contract FlexStrategyTest is Test {
     }
 
     function test_setAccountingModule_revokeRelevantApprovals() public {
-        vm.startPrank(SAFE_MANAGER);
+        vm.startPrank(ADMIN);
         flexStrategy.setAccountingModule(address(accountingModule));
         flexStrategy.setAccountingModule(address(accountingModule2));
 
@@ -141,7 +141,7 @@ contract FlexStrategyTest is Test {
     }
 
     function test_deposit_success() public {
-        vm.prank(SAFE_MANAGER);
+        vm.prank(ADMIN);
         flexStrategy.setAccountingModule(address(accountingModule));
 
         vm.startPrank(BOB);
@@ -150,7 +150,7 @@ contract FlexStrategyTest is Test {
     }
 
     function test_processAccounting_success() public {
-        vm.prank(SAFE_MANAGER);
+        vm.prank(ADMIN);
         flexStrategy.setAccountingModule(address(accountingModule));
 
         uint256 deposit = 30e18;
@@ -180,7 +180,7 @@ contract FlexStrategyTest is Test {
     }
 
     function test_withdraw_success() public {
-        vm.prank(SAFE_MANAGER);
+        vm.prank(ADMIN);
         flexStrategy.setAccountingModule(address(accountingModule));
         vm.startPrank(BOB);
         mockErc20.approve(address(flexStrategy), type(uint256).max);

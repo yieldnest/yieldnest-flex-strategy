@@ -6,7 +6,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { AccountingToken } from "./AccountingToken.sol";
 import { IFlexStrategy } from "./FlexStrategy.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
-import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 interface IAccountingModule {
@@ -16,29 +16,35 @@ interface IAccountingModule {
     event SafeUpdated(address newValue, address oldValue);
 
     error TooEarly();
-    error NotSafeManager();
-    error NotAccountingProcessor();
     error NotStrategy();
     error AccountingLimitsExceeded();
     error InvariantViolation();
     error TvlTooLow();
 
-    function BASE_ASSET() external view returns (address);
-    function accountingToken() external view returns (AccountingToken);
-    function safe() external view returns (address);
-
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount) external;
     function processRewards(uint256 amount) external;
     function processLosses(uint256 amount) external;
+
+    function BASE_ASSET() external view returns (address);
+    function accountingToken() external view returns (AccountingToken);
+    function safe() external view returns (address);
+    function SAFE_MANAGER_ROLE() external view returns (bytes32);
+    function ACCOUNTING_PROCESSOR_ROLE() external view returns (bytes32);
 }
 /**
  * Module to configure strategy params,
  *  and mint/burn IOU tokens to represent value accrual/loss.
  */
 
-contract AccountingModule is IAccountingModule, Initializable {
+contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
+
+    /// @notice Role for safe manager permissions
+    bytes32 public constant SAFE_MANAGER_ROLE = keccak256("SAFE_MANAGER_ROLE");
+
+    /// @notice Role for processing rewards/losses
+    bytes32 public constant ACCOUNTING_PROCESSOR_ROLE = keccak256("ACCOUNTING_PROCESSOR_ROLE");
 
     uint256 public constant YEAR = 365.25 days;
     uint256 public constant DIVISOR = 10_000;
@@ -61,6 +67,7 @@ contract AccountingModule is IAccountingModule, Initializable {
 
     /**
      * @notice Initializes the vault.
+     * @param admin The address of the admin.
      * @param name_ The name of the accountingToken.
      * @param symbol_ The symbol of accountingToken.
      * @param safe_ The safe associated with the strategy.
@@ -68,6 +75,7 @@ contract AccountingModule is IAccountingModule, Initializable {
      * @param lowerBound_ The lower bound of losses of the strategy(as % of TVL).
      */
     function initialize(
+        address admin,
         string memory name_,
         string memory symbol_,
         address safe_,
@@ -78,6 +86,9 @@ contract AccountingModule is IAccountingModule, Initializable {
         virtual
         initializer
     {
+        __AccessControl_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+
         accountingToken = new AccountingToken(name_, symbol_, BASE_ASSET, address(this));
         safe = safe_;
         targetApy = targetApy_;
@@ -88,21 +99,6 @@ contract AccountingModule is IAccountingModule, Initializable {
     modifier checkAndResetCooldown() {
         if (block.timestamp < nextRewardWindow) revert TooEarly();
         nextRewardWindow = (uint64(block.timestamp) + cooldownSeconds);
-        _;
-    }
-
-    modifier onlySafeManager() {
-        if (IAccessControl(STRATEGY).hasRole(IFlexStrategy(STRATEGY).SAFE_MANAGER_ROLE(), msg.sender) == false) {
-            revert NotSafeManager();
-        }
-        _;
-    }
-
-    modifier onlyAccountingProcessor() {
-        if (IAccessControl(STRATEGY).hasRole(IFlexStrategy(STRATEGY).ACCOUNTING_PROCESSOR_ROLE(), msg.sender) == false)
-        {
-            revert NotAccountingProcessor();
-        }
         _;
     }
 
@@ -135,7 +131,7 @@ contract AccountingModule is IAccountingModule, Initializable {
      * @notice Process rewards by minting accounting tokens
      * @param amount profits to mint
      */
-    function processRewards(uint256 amount) external onlyAccountingProcessor checkAndResetCooldown {
+    function processRewards(uint256 amount) external onlyRole(ACCOUNTING_PROCESSOR_ROLE) checkAndResetCooldown {
         uint256 totalSupply = accountingToken.totalSupply();
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
@@ -151,7 +147,7 @@ contract AccountingModule is IAccountingModule, Initializable {
      * @notice Process losses by burning accounting tokens
      * @param amount losses to burn
      */
-    function processLosses(uint256 amount) external onlyAccountingProcessor checkAndResetCooldown {
+    function processLosses(uint256 amount) external onlyRole(ACCOUNTING_PROCESSOR_ROLE) checkAndResetCooldown {
         uint256 totalSupply = accountingToken.totalSupply();
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
@@ -167,7 +163,7 @@ contract AccountingModule is IAccountingModule, Initializable {
      * @param targetApyInBips in bips
      * @dev hard max of 100% targetApy
      */
-    function setTargetApy(uint16 targetApyInBips) external onlySafeManager {
+    function setTargetApy(uint16 targetApyInBips) external onlyRole(SAFE_MANAGER_ROLE) {
         if (targetApyInBips > DIVISOR) revert InvariantViolation();
 
         emit TargetApyUpdated(targetApyInBips, targetApy);
@@ -179,7 +175,7 @@ contract AccountingModule is IAccountingModule, Initializable {
      * @param _lowerBound in bips, as a function of % of tvl
      * @dev hard max of 50% of tvl
      */
-    function setLowerBound(uint16 _lowerBound) external onlySafeManager {
+    function setLowerBound(uint16 _lowerBound) external onlyRole(SAFE_MANAGER_ROLE) {
         if (_lowerBound > (DIVISOR / 2)) revert InvariantViolation();
 
         emit LowerBoundUpdated(_lowerBound, lowerBound);
@@ -190,7 +186,7 @@ contract AccountingModule is IAccountingModule, Initializable {
      * @notice Set cooldown in seconds between every processing of rewards/losses
      * @param cooldownSeconds_ new cooldown seconds
      */
-    function setCooldownSeconds(uint16 cooldownSeconds_) external onlySafeManager {
+    function setCooldownSeconds(uint16 cooldownSeconds_) external onlyRole(SAFE_MANAGER_ROLE) {
         emit CooldownSecondsUpdated(cooldownSeconds_, cooldownSeconds);
         cooldownSeconds = cooldownSeconds_;
     }
@@ -199,7 +195,7 @@ contract AccountingModule is IAccountingModule, Initializable {
      * @notice Set a new safe address
      * @param newSafe new safe address
      */
-    function setSafeAddress(address newSafe) external virtual onlySafeManager {
+    function setSafeAddress(address newSafe) external virtual onlyRole(SAFE_MANAGER_ROLE) {
         emit SafeUpdated(newSafe, safe);
         safe = newSafe;
     }

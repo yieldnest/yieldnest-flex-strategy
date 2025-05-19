@@ -7,11 +7,14 @@ import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockStrategy } from "../mocks/MockStrategy.sol";
 import { AccountingModule, IAccountingModule } from "../../src/AccountingModule.sol";
 import { AccountingToken } from "../../src/AccountingToken.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 contract AccountingModuleTest is Test {
     address public ADMIN = address(0xd34db33f);
     address public BOB = address(0x0b0b);
     address public SAFE = address(0x1111);
+    address public SAFE_MANAGER = address(0x54f3);
+    address public ACCOUNTING_PROCESSOR = address(0x4cc7);
     MockERC20 public mockErc20;
     AccountingModule public accountingModule;
     AccountingToken public accountingToken;
@@ -25,7 +28,7 @@ contract AccountingModuleTest is Test {
         AccountingModule implementation = new AccountingModule(address(mockStrategy), address(mockErc20));
 
         bytes memory initData = abi.encodeWithSelector(
-            AccountingModule.initialize.selector, "NAME", "SYMBOL", SAFE, TARGET_APY, LOWER_BOUND
+            AccountingModule.initialize.selector, ADMIN, "NAME", "SYMBOL", SAFE, TARGET_APY, LOWER_BOUND
         );
 
         TransparentUpgradeableProxy tu = new TransparentUpgradeableProxy(address(implementation), ADMIN, initData);
@@ -33,7 +36,6 @@ contract AccountingModuleTest is Test {
         accountingModule = AccountingModule(payable(address(tu)));
 
         accountingToken = accountingModule.accountingToken();
-
         mockStrategy.setAccountingModule(accountingModule);
         vm.prank(BOB);
         mockErc20.mint(type(uint128).max);
@@ -108,46 +110,59 @@ contract AccountingModuleTest is Test {
         assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw);
     }
 
-    function test_processRewards_revertIfNotAccountingProcessor() public {
+    function test_processRewards_revertIfNoAccountingProcessorRole() public {
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(false);
-        vm.expectRevert(IAccountingModule.NotAccountingProcessor.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                BOB,
+                accountingModule.ACCOUNTING_PROCESSOR_ROLE()
+            )
+        );
         accountingModule.processRewards(1e6);
     }
 
     function test_processRewards_revertIfTvlTooLow() public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
         vm.startPrank(BOB);
         uint256 deposit = 1e6;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         vm.expectRevert(IAccountingModule.TvlTooLow.selector);
         accountingModule.processRewards(1e6);
     }
 
     function test_processRewards_revertIfUpperBoundExceed() public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         vm.expectRevert(IAccountingModule.AccountingLimitsExceeded.selector);
         accountingModule.processRewards(deposit);
     }
 
     function test_processRewards_revertIfTooEarly() public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processRewards(1e6);
 
         vm.expectRevert(IAccountingModule.TooEarly.selector);
@@ -158,17 +173,23 @@ contract AccountingModuleTest is Test {
     }
 
     function test_processRewards_success() public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processRewards(1e6);
         assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 + 1e6);
     }
 
     function testFuzz_processRewards(uint96 processedAmount) public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         uint256 supply = 10_000_000e18;
         vm.assume(
             processedAmount
@@ -176,55 +197,71 @@ contract AccountingModuleTest is Test {
         );
 
         vm.startPrank(BOB);
-
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(supply);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processRewards(processedAmount);
         assertEq(accountingToken.balanceOf(address(mockStrategy)), supply + processedAmount);
     }
 
-    function test_processLosses_revertIfNotAccountingProcessor() public {
+    function test_processLosses_revertIfNoAccountingProcessorRole() public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(false);
-        vm.expectRevert(IAccountingModule.NotAccountingProcessor.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                BOB,
+                accountingModule.ACCOUNTING_PROCESSOR_ROLE()
+            )
+        );
         accountingModule.processLosses(1e6);
     }
 
     function test_processLosses_revertIfTvlTooLow() public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         vm.startPrank(BOB);
         uint256 deposit = 1e6;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         vm.expectRevert(IAccountingModule.TvlTooLow.selector);
         accountingModule.processLosses(1e6);
     }
 
     function test_processLosses_revertIfLowerBoundExceed() public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         vm.expectRevert(IAccountingModule.AccountingLimitsExceeded.selector);
         accountingModule.processLosses(deposit);
     }
 
     function test_processLosses_revertIfTooEarly() public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processLosses(1e6);
 
         vm.expectRevert(IAccountingModule.TooEarly.selector);
@@ -235,17 +272,23 @@ contract AccountingModuleTest is Test {
     }
 
     function test_processLosses_success() public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processLosses(1e6);
         assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 - 1e6);
     }
 
     function testFuzz_processLosses(uint96 processedAmount) public {
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
         uint256 supply = 10_000_000e18;
         vm.assume(processedAmount <= (supply * accountingModule.lowerBound() / accountingModule.DIVISOR()));
 
@@ -253,19 +296,26 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(supply);
 
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processLosses(processedAmount);
         assertEq(accountingToken.balanceOf(address(mockStrategy)), supply - processedAmount);
     }
 
-    function test_setTargetApy_revertIfNotSafeManager() public {
-        mockStrategy.setHasRole(false);
-        vm.expectRevert(IAccountingModule.NotSafeManager.selector);
+    function test_setTargetApy_revertIfNoSafeManagerRole() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, accountingModule.SAFE_MANAGER_ROLE()
+            )
+        );
         accountingModule.setTargetApy(5000);
     }
 
     function test_setTargetApy_revertIfExceedDivisor() public {
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
+        vm.startPrank(SAFE_MANAGER);
+
         accountingModule.setTargetApy(1e4);
 
         vm.expectRevert(IAccountingModule.InvariantViolation.selector);
@@ -273,49 +323,76 @@ contract AccountingModuleTest is Test {
     }
 
     function test_setTargetApy_success() public {
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
+        vm.startPrank(SAFE_MANAGER);
+
         accountingModule.setTargetApy(2000);
         assertEq(accountingModule.targetApy(), 2000);
     }
 
-    function test_setLowerBound_revertIfNotSafeManager() public {
-        mockStrategy.setHasRole(false);
-        vm.expectRevert(IAccountingModule.NotSafeManager.selector);
+    function test_setLowerBound_revertIfNoSafeManagerRole() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, accountingModule.SAFE_MANAGER_ROLE()
+            )
+        );
         accountingModule.setLowerBound(5000);
     }
 
     function test_setLowerBound_revertIfExceedDivisor() public {
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
+        vm.startPrank(SAFE_MANAGER);
+
         vm.expectRevert(IAccountingModule.InvariantViolation.selector);
         accountingModule.setLowerBound(1e4);
     }
 
     function test_setLowerBound_success() public {
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
+        vm.startPrank(SAFE_MANAGER);
+
         accountingModule.setLowerBound(2000);
         assertEq(accountingModule.lowerBound(), 2000);
     }
 
-    function test_setCooldownSeconds_revertIfNotSafeManager() public {
-        mockStrategy.setHasRole(false);
-        vm.expectRevert(IAccountingModule.NotSafeManager.selector);
+    function test_setCooldownSeconds_revertIfNoSafeManagerRole() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, accountingModule.SAFE_MANAGER_ROLE()
+            )
+        );
         accountingModule.setCooldownSeconds(5000);
     }
 
     function test_setCooldownSeconds_success() public {
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
+        vm.startPrank(SAFE_MANAGER);
+
         accountingModule.setCooldownSeconds(5000);
         assertEq(accountingModule.cooldownSeconds(), 5000);
     }
 
-    function test_setSafeAddress_revertIfNotSafeManager() public {
-        mockStrategy.setHasRole(false);
-        vm.expectRevert(IAccountingModule.NotSafeManager.selector);
+    function test_setSafeAddress_revertIfNoSafeManagerRole() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, accountingModule.SAFE_MANAGER_ROLE()
+            )
+        );
         accountingModule.setSafeAddress(BOB);
     }
 
     function test_setSafeAddress_success() public {
-        mockStrategy.setHasRole(true);
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
+        vm.startPrank(SAFE_MANAGER);
+
         accountingModule.setSafeAddress(BOB);
         assertEq(accountingModule.safe(), BOB);
     }

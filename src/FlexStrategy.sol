@@ -14,10 +14,6 @@ interface IFlexStrategy {
     error InvariantViolation();
 
     event AccountingModuleUpdated(address newValue, address oldValue);
-
-    function SAFE_MANAGER_ROLE() external view returns (bytes32);
-
-    function ACCOUNTING_PROCESSOR_ROLE() external view returns (bytes32);
 }
 
 /**
@@ -26,12 +22,6 @@ interface IFlexStrategy {
  */
 contract FlexStrategy is IFlexStrategy, BaseStrategy {
     using SafeERC20 for IERC20;
-
-    /// @notice Role for safe manager permissions
-    bytes32 public constant SAFE_MANAGER_ROLE = keccak256("SAFE_MANAGER_ROLE");
-
-    /// @notice Role for processing rewards/losses
-    bytes32 public constant ACCOUNTING_PROCESSOR_ROLE = keccak256("ACCOUNTING_PROCESSOR_ROLE");
 
     IAccountingModule public accountingModule;
 
@@ -163,7 +153,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @param accountingModule_ address to check.
      * @dev Will revoke approvals for outgoing accounting module, and approve max for incoming accounting module.
      */
-    function setAccountingModule(address accountingModule_) external virtual onlyRole(SAFE_MANAGER_ROLE) {
+    function setAccountingModule(address accountingModule_) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
         emit AccountingModuleUpdated(accountingModule_, address(accountingModule));
 
