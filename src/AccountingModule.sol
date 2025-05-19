@@ -3,11 +3,11 @@ pragma solidity ^0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { AccountingToken } from "./AccountingToken.sol";
+import { IAccountingToken } from "./AccountingToken.sol";
 import { IFlexStrategy } from "./FlexStrategy.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
-import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
 interface IAccountingModule {
     event LowerBoundUpdated(uint16 newValue, uint16 oldValue);
@@ -27,7 +27,7 @@ interface IAccountingModule {
     function processLosses(uint256 amount) external;
 
     function BASE_ASSET() external view returns (address);
-    function accountingToken() external view returns (AccountingToken);
+    function accountingToken() external view returns (IAccountingToken);
     function safe() external view returns (address);
     function SAFE_MANAGER_ROLE() external view returns (bytes32);
     function ACCOUNTING_PROCESSOR_ROLE() external view returns (bytes32);
@@ -51,7 +51,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     address public immutable BASE_ASSET;
     address public immutable STRATEGY;
 
-    AccountingToken public accountingToken;
+    IAccountingToken public accountingToken;
     address public safe;
     uint64 public nextRewardWindow;
     uint16 public cooldownSeconds;
@@ -68,17 +68,15 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     /**
      * @notice Initializes the vault.
      * @param admin The address of the admin.
-     * @param name_ The name of the accountingToken.
-     * @param symbol_ The symbol of accountingToken.
-     * @param safe_ The safe associated with the strategy.
+     * @param safe_ The safe associated with the module.
+     * @param accountingToken_ The accountingToken associated with the module.
      * @param targetApy_ The target APY of the strategy.
      * @param lowerBound_ The lower bound of losses of the strategy(as % of TVL).
      */
     function initialize(
         address admin,
-        string memory name_,
-        string memory symbol_,
         address safe_,
+        IAccountingToken accountingToken_,
         uint16 targetApy_,
         uint16 lowerBound_
     )
@@ -89,8 +87,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
-        accountingToken = new AccountingToken(name_, symbol_, BASE_ASSET, address(this));
         safe = safe_;
+        accountingToken = accountingToken_;
         targetApy = targetApy_;
         lowerBound = lowerBound_;
         cooldownSeconds = 3600;

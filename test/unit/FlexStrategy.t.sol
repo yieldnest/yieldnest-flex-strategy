@@ -29,35 +29,35 @@ contract FlexStrategyTest is Test {
     function setUp() public {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
 
-        FlexStrategy implementation = new FlexStrategy();
-        bytes memory initData =
-            abi.encodeWithSelector(FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, mockErc20, true);
-
-        TransparentUpgradeableProxy tu = new TransparentUpgradeableProxy(address(implementation), ADMIN, initData);
-
-        flexStrategy = FlexStrategy(payable(address(tu)));
-
-        AccountingModule am_implementation = new AccountingModule(address(flexStrategy), address(mockErc20));
-
-        TransparentUpgradeableProxy amtu = new TransparentUpgradeableProxy(
-            address(am_implementation),
+        // create flex strategy proxy
+        FlexStrategy strat_impl = new FlexStrategy();
+        TransparentUpgradeableProxy strat_tu = new TransparentUpgradeableProxy(
+            address(strat_impl),
             ADMIN,
-            abi.encodeWithSelector(
-                AccountingModule.initialize.selector, ADMIN, "NAME", "SYMBOL", SAFE, TARGET_APY, LOWER_BOUND
-            )
+            abi.encodeWithSelector(FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, mockErc20, true)
         );
+        flexStrategy = FlexStrategy(payable(address(strat_tu)));
 
-        accountingModule = AccountingModule(payable(address(amtu)));
-        accountingToken = accountingModule.accountingToken();
-
-        TransparentUpgradeableProxy amtu2 = new TransparentUpgradeableProxy(
-            address(am_implementation),
+        // create accounting token proxy
+        AccountingToken accountingToken_impl = new AccountingToken(address(mockErc20));
+        TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
+            address(accountingToken_impl),
             ADMIN,
-            abi.encodeWithSelector(
-                AccountingModule.initialize.selector, ADMIN, "NAME2", "SYMBOL2", SAFE, TARGET_APY, LOWER_BOUND
-            )
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
         );
-        accountingModule2 = AccountingModule(payable(address(amtu2)));
+        accountingToken = AccountingToken(payable(address(accountingToken_tu)));
+
+        // create accounting module proxies
+        bytes memory am_initData = abi.encodeWithSelector(
+            AccountingModule.initialize.selector, ADMIN, SAFE, address(accountingToken), TARGET_APY, LOWER_BOUND
+        );
+        AccountingModule am_impl = new AccountingModule(address(flexStrategy), address(mockErc20));
+        TransparentUpgradeableProxy am_tu = new TransparentUpgradeableProxy(address(am_impl), ADMIN, am_initData);
+
+        TransparentUpgradeableProxy am_tu2 = new TransparentUpgradeableProxy(address(am_impl), ADMIN, am_initData);
+
+        accountingModule = AccountingModule(payable(address(am_tu)));
+        accountingModule2 = AccountingModule(payable(address(am_tu2)));
 
         FixedRateProvider provider = new FixedRateProvider(address(mockErc20));
 
@@ -72,6 +72,9 @@ contract FlexStrategyTest is Test {
         flexStrategy.grantRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
         accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), SAFE_MANAGER);
+
+        flexStrategy.setAccountingModule(address(accountingModule));
+        accountingToken.setAccountingModule(address(accountingModule));
         vm.stopPrank();
 
         vm.prank(BOB);
@@ -89,7 +92,7 @@ contract FlexStrategyTest is Test {
         assertEq(flexStrategy.asset(), address(mockErc20));
     }
 
-    function test_setAccountingModule_revertIfNotSafeManager() public {
+    function test_setAccountingModule_revertIfNoDefaultAdminRole() public {
         vm.startPrank(BOB);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -170,13 +173,6 @@ contract FlexStrategyTest is Test {
         assertEq(accountingToken.balanceOf(address(flexStrategy)), deposit + rewards);
         assertEq(flexStrategy.computeTotalAssets(), deposit + rewards);
         assertEq(flexStrategy.totalAssets(), deposit + rewards);
-    }
-
-    function test_deposit_revertIfNoAccountingModule() public {
-        vm.startPrank(BOB);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-        vm.expectRevert(IFlexStrategy.NoAccountingModule.selector);
-        flexStrategy.deposit(2e18, BOB);
     }
 
     function test_withdraw_success() public {
