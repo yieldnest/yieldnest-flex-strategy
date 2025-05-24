@@ -200,7 +200,11 @@ contract AccountingModuleTest is Test {
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processRewards(1e6);
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 + 1e6);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit + 1e6);
+
+        skip(3601);
+        accountingModule.processRewards(1e6);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit + 1e6 + 1e6);
     }
 
     function testFuzz_processRewards(uint96 processedAmount) public {
@@ -299,7 +303,11 @@ contract AccountingModuleTest is Test {
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processLosses(1e6);
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), 20e18 - 1e6);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - 1e6);
+
+        skip(3601);
+        accountingModule.processLosses(1e6);
+        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - 1e6 - 1e6);
     }
 
     function testFuzz_processLosses(uint96 processedAmount) public {
