@@ -7,6 +7,12 @@ optimizer = true
 optimizer-runs = 100
 solc_version = "0.8.28"
 
+# the following is needed after https://github.com/foundry-rs/foundry/pull/9537
+allow_internal_expect_revert = true
+fs_permissions = [
+  { access = "read-write", path = "./deployments" },
+  { access = "read", path = "./" },
+]
 [fmt]
 bracket_spacing = true
 int_types = "long"
