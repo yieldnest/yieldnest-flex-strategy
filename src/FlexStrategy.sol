@@ -159,12 +159,10 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
 
         if (address(oldAccounting) != address(0)) {
             IERC20(asset()).approve(address(oldAccounting), 0);
-            IERC20(oldAccounting.accountingToken()).approve(address(oldAccounting), 0);
         }
 
         accountingModule = IAccountingModule(accountingModule_);
         IERC20(asset()).approve(accountingModule_, type(uint256).max);
-        IERC20(IAccountingModule(accountingModule_).accountingToken()).approve(accountingModule_, type(uint256).max);
     }
 
     /**

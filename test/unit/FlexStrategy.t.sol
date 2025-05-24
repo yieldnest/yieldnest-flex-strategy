@@ -115,11 +115,6 @@ contract FlexStrategyTest is Test {
         assertEq(
             IERC20(flexStrategy.asset()).allowance(address(flexStrategy), address(accountingModule)), type(uint256).max
         );
-
-        assertEq(
-            IERC20(accountingModule.accountingToken()).allowance(address(flexStrategy), address(accountingModule)),
-            type(uint256).max
-        );
     }
 
     function test_setAccountingModule_revokeRelevantApprovals() public {
@@ -130,17 +125,7 @@ contract FlexStrategyTest is Test {
         assertEq(
             IERC20(flexStrategy.asset()).allowance(address(flexStrategy), address(accountingModule2)), type(uint256).max
         );
-
-        assertEq(
-            IERC20(accountingModule2.accountingToken()).allowance(address(flexStrategy), address(accountingModule2)),
-            type(uint256).max
-        );
-
         assertEq(IERC20(flexStrategy.asset()).allowance(address(flexStrategy), address(accountingModule)), 0);
-
-        assertEq(
-            IERC20(accountingModule.accountingToken()).allowance(address(flexStrategy), address(accountingModule)), 0
-        );
     }
 
     function test_deposit_success() public {
