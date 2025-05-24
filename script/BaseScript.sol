@@ -15,6 +15,18 @@ import { AccountingToken } from "src/AccountingToken.sol";
 abstract contract BaseScript is Script {
     using stdJson for string;
 
+    string public name;
+    string public symbol_;
+    string public accountTokenName;
+    string public accountTokenSymbol;
+    uint8 decimals;
+    bool paused;
+    uint16 targetApy;
+    uint16 lowerBound;
+    address accountingProcessor;
+    address baseAsset;
+    address allocator;
+
     uint256 public minDelay;
     IActors public actors;
     IContracts public contracts;
@@ -27,17 +39,14 @@ abstract contract BaseScript is Script {
     FlexStrategy public strategy;
     FlexStrategy public strategyImplementation;
     address public strategyProxyAdmin;
-    address public strategyImplementationProxyAdmin;
 
     AccountingModule public accountingModule;
     AccountingModule public accountingModuleImplementation;
     address public accountingModuleProxyAdmin;
-    address public accountingModuleImplementationProxyAdmin;
 
     AccountingToken public accountingToken;
     AccountingToken public accountingTokenImplementation;
     address public accountingTokenProxyAdmin;
-    address public accountingTokenImplementationProxyAdmin;
 
     error UnsupportedChain();
     error InvalidSetup();
@@ -82,10 +91,13 @@ abstract contract BaseScript is Script {
             return;
         }
         string memory jsonInput = vm.readFile(_deploymentFilePath());
-
+        symbol_ = vm.parseJsonString(jsonInput, ".symbol");
         deployer = address(vm.parseJsonAddress(jsonInput, ".deployer"));
         timelock = TimelockController(payable(address(vm.parseJsonAddress(jsonInput, ".timelock"))));
         rateProvider = IProvider(payable(address(vm.parseJsonAddress(jsonInput, ".rateProvider"))));
+        safe = vm.parseJsonAddress(jsonInput, ".safe");
+        allocator = vm.parseJsonAddress(jsonInput, ".allocator");
+        baseAsset = vm.parseJsonAddress(jsonInput, ".baseAsset");
 
         strategy =
             FlexStrategy(payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-proxy")))));
@@ -93,6 +105,30 @@ abstract contract BaseScript is Script {
             payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-implementation"))))
         );
         strategyProxyAdmin = address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-proxyAdmin")));
+
+        accountingModule = AccountingModule(
+            payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModule-proxy"))))
+        );
+        accountingModuleImplementation = AccountingModule(
+            payable(
+                address(
+                    vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModule-implementation"))
+                )
+            )
+        );
+        accountingModuleProxyAdmin =
+            address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModule-proxyAdmin")));
+
+        accountingToken = AccountingToken(
+            payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxy"))))
+        );
+        accountingTokenImplementation = AccountingToken(
+            payable(
+                address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-implementation")))
+            )
+        );
+        accountingTokenProxyAdmin =
+            address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxyAdmin")));
     }
 
     function _deploymentFilePath() internal view virtual returns (string memory) {
@@ -106,7 +142,8 @@ abstract contract BaseScript is Script {
         vm.serializeAddress(symbol(), "timelock", address(timelock));
         vm.serializeAddress(symbol(), "rateProvider", address(rateProvider));
         vm.serializeAddress(symbol(), "safe", address(safe));
-
+        vm.serializeAddress(symbol(), "allocator", address(allocator));
+        vm.serializeAddress(symbol(), "baseAsset", address(baseAsset));
         vm.serializeAddress(symbol(), string.concat(symbol(), "-proxy"), address(strategy));
         vm.serializeAddress(
             symbol(), string.concat(symbol(), "-proxyAdmin"), ProxyUtils.getProxyAdmin(address(strategy))

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
-import { console } from "forge-std/console.sol";
 import { IProvider } from "@yieldnest-vault/interface/IProvider.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
-import { BaseRules, SafeRules } from "@yieldnest-vault-script/rules/BaseRules.sol";
+import { BaseRules } from "@yieldnest-vault-script/rules/BaseRules.sol";
 import {
     BaseScript,
     TransparentUpgradeableProxy,
@@ -21,13 +20,14 @@ import { FixedRateProvider } from "src/FixedRateProvider.sol";
 contract DeployFlexStrategy is BaseScript {
     error InvalidRules();
     error InvalidRateProvider();
+    error InvalidDeploymentParams(string);
 
-    function symbol() public pure override returns (string memory) {
-        return "ynFlexEth";
+    function symbol() public view override returns (string memory) {
+        return symbol_;
     }
 
     function deployRateProvider() internal {
-        rateProvider = IProvider(address(new FixedRateProvider(IVault(contracts.YNETHX()).asset())));
+        rateProvider = IProvider(address(new FixedRateProvider(IVault(allocator).asset())));
     }
 
     function _verifySetup() public view override {
@@ -42,6 +42,8 @@ contract DeployFlexStrategy is BaseScript {
         vm.startBroadcast();
 
         _setup();
+        assignDeploymentParameters();
+        _verifyDeploymentParams();
         deployRateProvider();
         _deployTimelockController();
         _verifySetup();
@@ -53,19 +55,57 @@ contract DeployFlexStrategy is BaseScript {
         vm.stopBroadcast();
     }
 
-    function deploy() internal {
-        string memory name = "YieldNest Flex Strategy";
-        string memory symbol_ = symbol();
-        string memory accountTokenName = "YieldNest Flex Strategy IOU";
-        string memory accountTokenSymbol = "ynFlex_iou";
-        uint8 decimals = 18;
-        bool paused = true;
-        uint16 targetApy = 1000; // max rewards per day: 10% of tvl / 365.25
-        uint16 lowerBound = 1000; // max loss: 10% of tvl
-        safe = 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64;
-        address accountingProcessor = safe;
+    function assignDeploymentParameters() internal virtual {
+        name = "YieldNest Flex Strategy";
+        symbol_ = "ynFlexEth";
+        accountTokenName = "YieldNest Flex Strategy IOU";
+        accountTokenSymbol = "ynFlex_iou";
+        decimals = 18;
+        paused = true;
+        allocator = contracts.YNETHX();
+        baseAsset = IVault(allocator).asset();
 
-        address baseAsset = IVault(contracts.YNETHX()).asset();
+        targetApy = 1000; // max rewards per day: 10% of tvl / 365.25
+        lowerBound = 1000; // max loss: 10% of tvl
+        safe = 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64;
+        accountingProcessor = safe;
+    }
+
+    function _verifyDeploymentParams() internal view virtual {
+        if (bytes(name).length == 0) {
+            revert InvalidDeploymentParams("strategy name not set");
+        }
+
+        if (bytes(symbol_).length == 0) {
+            revert InvalidDeploymentParams("strategy symbol not set");
+        }
+
+        if (decimals == 0) {
+            revert InvalidDeploymentParams("strategy decimals not set");
+        }
+
+        if (allocator == address(0)) {
+            revert InvalidDeploymentParams("allocator is not set");
+        }
+
+        if (baseAsset == address(0)) {
+            revert InvalidDeploymentParams("baseAsset is not set");
+        }
+
+        if (targetApy == 0) {
+            revert InvalidDeploymentParams("targetApy is not set");
+        }
+
+        if (lowerBound == 0) {
+            revert InvalidDeploymentParams("lowerBound is not set");
+        }
+
+        if (safe == address(0)) {
+            revert InvalidDeploymentParams("safe is not set");
+        }
+    }
+
+    function deploy() internal {
         address admin = msg.sender;
         strategyImplementation = new FlexStrategy();
         accountingTokenImplementation = new AccountingToken(address(baseAsset));
@@ -118,10 +158,10 @@ contract DeployFlexStrategy is BaseScript {
             )
         );
 
-        configureStrategy(accountingProcessor);
+        configureStrategy();
     }
 
-    function configureStrategy(address accountingProcessor) internal {
+    function configureStrategy() internal {
         BaseRoles.configureDefaultRolesStrategy(strategy, accountingModule, accountingToken, address(timelock), actors);
         BaseRoles.configureTemporaryRolesStrategy(strategy, accountingModule, accountingToken, deployer);
 
@@ -131,7 +171,7 @@ contract DeployFlexStrategy is BaseScript {
         // set has allocator
         strategy.setHasAllocator(true);
         // grant allocator roles
-        strategy.grantRole(strategy.ALLOCATOR_ROLE(), contracts.YNETHX());
+        strategy.grantRole(strategy.ALLOCATOR_ROLE(), allocator);
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), MainnetActors(address(actors)).YnBootstrapper());
 
         // set accounting module for strategy
