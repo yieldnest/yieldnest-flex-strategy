@@ -5,6 +5,7 @@ import { IERC20, IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/ERC2
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { IAccountingModule } from "./AccountingModule.sol";
 
 interface IAccountingToken is IERC20, IERC20Metadata {
     function burnFrom(address burnAddress, uint256 burnAmount) external;
@@ -18,6 +19,7 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
     error Unauthorized();
     error NotAllowed();
     error ZeroAddress();
+    error AccountingTokenMismatch();
 
     event AccountingModuleUpdated(address newValue, address oldValue);
 
@@ -92,6 +94,11 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
     function setAccountingModule(address accountingModule_) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
         emit AccountingModuleUpdated(accountingModule_, accountingModule);
+
+        if (address(IAccountingModule(accountingModule_).accountingToken()) != address(this)) {
+            revert AccountingTokenMismatch();
+        }
+
         accountingModule = accountingModule_;
     }
 }

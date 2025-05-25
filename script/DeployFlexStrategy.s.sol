@@ -174,11 +174,11 @@ contract DeployFlexStrategy is BaseScript {
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), allocator);
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), MainnetActors(address(actors)).YnBootstrapper());
 
-        // set accounting module for strategy
-        strategy.setAccountingModule(address(accountingModule));
-
         // set accounting module for token
         accountingToken.setAccountingModule(address(accountingModule));
+
+        // set accounting module for strategy
+        strategy.setAccountingModule(address(accountingModule));
 
         // set accounting processor role
         accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), accountingProcessor);

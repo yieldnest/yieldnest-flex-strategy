@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { TransparentUpgradeableProxy } from "@yieldnest-vault/Common.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockStrategy } from "../mocks/MockStrategy.sol";
@@ -47,8 +47,8 @@ contract AccountingModuleTest is Test {
         accountingModule = AccountingModule(payable(address(accountingModule_tu)));
 
         vm.startPrank(ADMIN);
-        mockStrategy.setAccountingModule(accountingModule);
         accountingToken.setAccountingModule(address(accountingModule));
+        mockStrategy.setAccountingModule(accountingModule);
         vm.stopPrank();
 
         vm.prank(BOB);

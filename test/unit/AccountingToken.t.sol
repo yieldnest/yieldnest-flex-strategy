@@ -6,15 +6,16 @@ import { MockERC20 } from "../mocks/MockERC20.sol";
 import { TransparentUpgradeableProxy } from "@yieldnest-vault/Common.sol";
 import { AccountingToken } from "../../src/AccountingToken.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { MockAccountingModule } from "../mocks/MockAccountingModule.sol";
 
 contract AccountingTokenTest is Test {
     address public ADMIN = address(0xd34db33f);
     address public BOB = address(0x0b0b);
-    address public ACCOUNTING_MODULE = ADMIN;
 
     MockERC20 public mockErc20;
     MockERC20 public mockErc20e6;
     AccountingToken public accountingToken;
+    MockAccountingModule public accountingModule = new MockAccountingModule();
 
     function setUp() public {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
@@ -28,8 +29,9 @@ contract AccountingTokenTest is Test {
         );
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
+        accountingModule.setAccountingToken(address(accountingToken));
         vm.prank(ADMIN);
-        accountingToken.setAccountingModule(ACCOUNTING_MODULE);
+        accountingToken.setAccountingModule(address(accountingModule));
     }
 
     function test_setup_success() public view {
@@ -57,13 +59,13 @@ contract AccountingTokenTest is Test {
     }
 
     function test_mintTo_success() public {
-        vm.prank(ADMIN);
+        vm.startPrank(address(accountingModule));
         accountingToken.mintTo(ADMIN, 1e18);
         assertEq(accountingToken.balanceOf(ADMIN), 1e18);
     }
 
     function test_burnFrom_revertIfNotAccounting() public {
-        vm.prank(ADMIN);
+        vm.prank(address(accountingModule));
         accountingToken.mintTo(ADMIN, 1e18);
         vm.stopPrank();
         vm.expectRevert(AccountingToken.Unauthorized.selector);
@@ -71,21 +73,21 @@ contract AccountingTokenTest is Test {
     }
 
     function test_burnFrom_success() public {
-        vm.startPrank(ADMIN);
+        vm.startPrank(address(accountingModule));
         accountingToken.mintTo(ADMIN, 1e18);
         accountingToken.burnFrom(ADMIN, 1e18);
         assertEq(accountingToken.balanceOf(ADMIN), 0);
     }
 
     function test_transferFrom_revert() public {
-        vm.startPrank(ADMIN);
+        vm.startPrank(address(accountingModule));
         accountingToken.mintTo(ADMIN, 1e18);
         vm.expectRevert(AccountingToken.NotAllowed.selector);
         accountingToken.transferFrom(ADMIN, BOB, 1e18);
     }
 
     function test_transfer_revert() public {
-        vm.startPrank(ADMIN);
+        vm.startPrank(address(accountingModule));
         accountingToken.mintTo(ADMIN, 1e18);
         vm.expectRevert(AccountingToken.NotAllowed.selector);
         accountingToken.transfer(BOB, 1e18);
@@ -102,7 +104,18 @@ contract AccountingTokenTest is Test {
     }
 
     function test_setAccountingModule_success() public {
+        MockAccountingModule mockAccountingModule2 = new MockAccountingModule();
+        mockAccountingModule2.setAccountingToken(address(accountingToken));
         vm.startPrank(ADMIN);
-        accountingToken.setAccountingModule(BOB);
+        accountingToken.setAccountingModule(address(mockAccountingModule2));
+        assertEq(accountingToken.accountingModule(), address(mockAccountingModule2));
+    }
+
+    function test_setAccountingModule_revertIfAccountingTokenMismatch() public {
+        MockAccountingModule mockAccountingModule2 = new MockAccountingModule();
+        mockAccountingModule2.setAccountingToken(address(mockAccountingModule2));
+        vm.startPrank(ADMIN);
+        vm.expectRevert(AccountingToken.AccountingTokenMismatch.selector);
+        accountingToken.setAccountingModule(address(mockAccountingModule2));
     }
 }

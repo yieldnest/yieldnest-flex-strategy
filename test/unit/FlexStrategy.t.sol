@@ -73,8 +73,9 @@ contract FlexStrategyTest is Test {
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
         accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), SAFE_MANAGER);
 
-        flexStrategy.setAccountingModule(address(accountingModule));
         accountingToken.setAccountingModule(address(accountingModule));
+        flexStrategy.setAccountingModule(address(accountingModule));
+
         vm.stopPrank();
 
         vm.prank(BOB);
