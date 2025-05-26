@@ -46,5 +46,5 @@ jobs:
 
       - name: Run Integration tests
         run: |
-          forge test --match-path "test/integration/*" --rpc-url https://ethereum-rpc.publicnode.com -vvv
+          forge test --match-path "test/integration/*" --rpc-url $RPC_URL -vvv
         id: test_integration
