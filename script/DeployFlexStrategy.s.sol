@@ -110,7 +110,6 @@ contract DeployFlexStrategy is BaseScript {
         address admin = msg.sender;
         strategyImplementation = new FlexStrategy();
         accountingTokenImplementation = new AccountingToken(address(baseAsset));
-        accountingModuleImplementation = new AccountingModule(address(strategy), baseAsset);
 
         strategy = FlexStrategy(
             payable(
@@ -140,6 +139,7 @@ contract DeployFlexStrategy is BaseScript {
             )
         );
 
+        accountingModuleImplementation = new AccountingModule(address(strategy), baseAsset);
         accountingModule = AccountingModule(
             payable(
                 address(
