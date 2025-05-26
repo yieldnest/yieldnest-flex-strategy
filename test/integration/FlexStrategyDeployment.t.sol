@@ -9,6 +9,7 @@ import { AccountingModule } from "src/AccountingModule.sol";
 import { AccountingToken } from "src/AccountingToken.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { BaseScript } from "script/BaseScript.sol";
 
 contract FlexStrategyDeployment is Test {
     DeployFlexStrategy public deployment;
@@ -16,11 +17,13 @@ contract FlexStrategyDeployment is Test {
 
     function setUp() public {
         deployment = new DeployFlexStrategy();
+        deployment.setEnv(BaseScript.Env.TEST);
         deployment.run();
     }
 
     function test_verify_setup() public {
         VerifyFlexStrategy verify = new VerifyFlexStrategy();
+        verify.setEnv(BaseScript.Env.TEST);
         verify.run();
     }
 }

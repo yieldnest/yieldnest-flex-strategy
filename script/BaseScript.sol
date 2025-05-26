@@ -15,6 +15,13 @@ import { AccountingToken } from "src/AccountingToken.sol";
 abstract contract BaseScript is Script {
     using stdJson for string;
 
+    enum Env {
+        TEST,
+        PROD
+    }
+
+    Env public deploymentEnv = Env.PROD;
+
     string public name;
     string public symbol_;
     string public accountTokenName;
@@ -54,6 +61,10 @@ abstract contract BaseScript is Script {
     // needs to be overridden by child script
     function symbol() public view virtual returns (string memory);
 
+    function setEnv(Env env) public {
+        deploymentEnv = env;
+    }
+
     function _setup() public virtual {
         if (block.chainid == 1) {
             minDelay = 1 days;
@@ -84,11 +95,11 @@ abstract contract BaseScript is Script {
         timelock = new TimelockController(minDelay, proposers, executors, admin);
     }
 
-    function _loadDeployment() internal virtual {
-        if (!vm.isFile(_deploymentFilePath())) {
+    function _loadDeployment(Env env) internal virtual {
+        if (!vm.isFile(_deploymentFilePath(env))) {
             return;
         }
-        string memory jsonInput = vm.readFile(_deploymentFilePath());
+        string memory jsonInput = vm.readFile(_deploymentFilePath(env));
         symbol_ = vm.parseJsonString(jsonInput, ".symbol");
         deployer = address(vm.parseJsonAddress(jsonInput, ".deployer"));
         timelock = TimelockController(payable(address(vm.parseJsonAddress(jsonInput, ".timelock"))));
@@ -129,11 +140,19 @@ abstract contract BaseScript is Script {
             address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxyAdmin")));
     }
 
-    function _deploymentFilePath() internal view virtual returns (string memory) {
-        return string.concat(vm.projectRoot(), "/deployments/", symbol(), "-", Strings.toString(block.chainid), ".json");
+    function _deploymentFilePath(Env env) internal view virtual returns (string memory) {
+        if (env == Env.PROD) {
+            return string.concat(
+                vm.projectRoot(), "/deployments/", symbol(), "-", Strings.toString(block.chainid), ".json"
+            );
+        }
+
+        return string.concat(
+            vm.projectRoot(), "/deployments/", "test-", symbol(), "-", Strings.toString(block.chainid), ".json"
+        );
     }
 
-    function _saveDeployment() internal virtual {
+    function _saveDeployment(Env env) internal virtual {
         vm.serializeString(symbol(), "symbol", symbol());
         vm.serializeAddress(symbol(), "deployer", deployer);
         vm.serializeAddress(symbol(), "admin", actors.ADMIN());
@@ -170,6 +189,6 @@ abstract contract BaseScript is Script {
             symbol(), string.concat(symbol(), "-accountingToken-implementation"), address(accountingTokenImplementation)
         );
 
-        vm.writeJson(jsonOutput, _deploymentFilePath());
+        vm.writeJson(jsonOutput, _deploymentFilePath(env));
     }
 }

@@ -51,7 +51,7 @@ contract DeployFlexStrategy is BaseScript {
         _verifySetup();
 
         deploy();
-        _saveDeployment();
+        _saveDeployment(deploymentEnv);
 
         vm.stopBroadcast();
     }
