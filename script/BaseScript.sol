@@ -19,13 +19,13 @@ abstract contract BaseScript is Script {
     string public symbol_;
     string public accountTokenName;
     string public accountTokenSymbol;
-    uint8 decimals;
-    bool paused;
-    uint16 targetApy;
-    uint16 lowerBound;
-    address accountingProcessor;
-    address baseAsset;
-    address allocator;
+    uint8 public decimals;
+    bool public paused;
+    uint16 public targetApy;
+    uint16 public lowerBound;
+    address public accountingProcessor;
+    address public baseAsset;
+    address public allocator;
 
     uint256 public minDelay;
     IActors public actors;
@@ -55,8 +55,6 @@ abstract contract BaseScript is Script {
     function symbol() public view virtual returns (string memory);
 
     function _setup() public virtual {
-        deployer = msg.sender;
-
         if (block.chainid == 1) {
             minDelay = 1 days;
             MainnetActors _actors = new MainnetActors();

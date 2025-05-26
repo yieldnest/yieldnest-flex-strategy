@@ -6,6 +6,7 @@ on:
 
 env:
   FOUNDRY_PROFILE: ci
+  RPC_URL: ${{ vars.RPC_URL }}
 
 jobs:
   check:
@@ -36,7 +37,12 @@ jobs:
           forge build --sizes
         id: build
 
-      - name: Run Forge coverage
+      - name: Run Unit tests
         run: |
-          forge coverage
-        id: test
+          forge test --match-path "test/unit/*" -vvv
+        id: test_unit
+
+      - name: Run Integration tests
+        run: |
+          forge test --match-path "test/integration/*" --rpc-url ${{ env.RPC_URL }} -vvv
+        id: test_integration

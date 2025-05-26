@@ -90,8 +90,8 @@ library BaseRoles {
         strategy.renounceRole(strategy.ASSET_MANAGER_ROLE(), deployer);
         strategy.renounceRole(strategy.UNPAUSER_ROLE(), deployer);
         strategy.renounceRole(strategy.ALLOCATOR_MANAGER_ROLE(), deployer);
-        accountingToken.grantRole(accountingToken.DEFAULT_ADMIN_ROLE(), deployer);
-        accountingModule.grantRole(accountingModule.DEFAULT_ADMIN_ROLE(), deployer);
+        accountingToken.renounceRole(accountingToken.DEFAULT_ADMIN_ROLE(), deployer);
+        accountingModule.renounceRole(accountingModule.DEFAULT_ADMIN_ROLE(), deployer);
     }
 
     function renounceTemporaryRolesStrategy(

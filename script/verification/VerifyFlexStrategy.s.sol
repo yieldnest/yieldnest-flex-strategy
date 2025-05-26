@@ -10,7 +10,7 @@ import { RolesVerification } from "./RolesVerification.sol";
 
 // forge script VerifyFlexStrategy --rpc-url <MAINNET_RPC_URL>
 contract VerifyFlexStrategy is BaseScript, Test {
-    function symbol() public view override returns (string memory) {
+    function symbol() public pure override returns (string memory) {
         return "ynFlexEth";
     }
 

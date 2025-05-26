@@ -39,7 +39,9 @@ contract DeployFlexStrategy is BaseScript {
     }
 
     function run() public {
-        vm.startBroadcast();
+        deployer = msg.sender;
+
+        vm.startBroadcast(deployer);
 
         _setup();
         assignDeploymentParameters();
@@ -49,7 +51,6 @@ contract DeployFlexStrategy is BaseScript {
         _verifySetup();
 
         deploy();
-
         _saveDeployment();
 
         vm.stopBroadcast();
