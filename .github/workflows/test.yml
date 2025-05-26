@@ -6,7 +6,6 @@ on:
 
 env:
   FOUNDRY_PROFILE: ci
-  RPC_URL: ${{ vars.RPC_URL }}
 
 jobs:
   check:
@@ -15,6 +14,9 @@ jobs:
 
     name: Foundry project
     runs-on: ubuntu-latest
+    environment: prod
+    env:
+      RPC_URL: ${{ vars.RPC_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,5 +46,5 @@ jobs:
 
       - name: Run Integration tests
         run: |
-          forge test --match-path "test/integration/*" --rpc-url ${{ env.RPC_URL }} -vvv
+          forge test --match-path "test/integration/*" --rpc-url https://ethereum-rpc.publicnode.com -vvv
         id: test_integration
