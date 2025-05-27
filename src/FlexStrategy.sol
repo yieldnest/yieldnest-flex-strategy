@@ -70,7 +70,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         _;
     }
 
-    modifier sweepAssetBefore() {
+    modifier checkInvariantsAfter() {
         IERC20 asset = IERC20(asset());
         uint256 balance = asset.balanceOf(address(this));
 
@@ -79,15 +79,12 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         }
 
         _;
-    }
 
-    modifier checkInvariantAfter() {
-        _;
         if (totalAssets() != IERC20(accountingModule.accountingToken()).balanceOf(address(this))) {
             revert InvariantViolation();
         }
 
-        if (IERC20(asset()).balanceOf(address(this)) != 0) {
+        if (asset.balanceOf(address(this)) != 0) {
             revert InvariantViolation();
         }
     }
@@ -112,9 +109,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         internal
         virtual
         override
-        sweepAssetBefore
         hasAccountingModule
-        checkInvariantAfter
+        checkInvariantsAfter
     {
         // call the base strategy deposit function for accounting
         super._deposit(asset_, caller, receiver, assets, shares, baseAssets);
@@ -144,8 +140,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         virtual
         override
         onlyAllocator
-        sweepAssetBefore
-        checkInvariantAfter
+        checkInvariantsAfter
     {
         // check if the asset is withdrawable
         if (!_getBaseStrategyStorage().isAssetWithdrawable[asset_]) {
@@ -191,7 +186,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @dev This function iterates through the list of assets, gets their balances and rates,
      *      and updates the total assets denominated in the base asset.
      */
-    function processAccounting() public virtual override nonReentrant sweepAssetBefore checkInvariantAfter {
+    function processAccounting() public virtual override nonReentrant checkInvariantsAfter {
         _processAccounting();
     }
 
