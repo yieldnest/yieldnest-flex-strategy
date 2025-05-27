@@ -58,6 +58,9 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
             false, // alwaysComputeTotalAssets. MUST be false. accounting is done virtually.
             0 // defaultAssetIndex. MUST be 0. baseAsset is default
         );
+
+        if (admin == address(0)) revert ZeroAddress();
+
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
         _setAssetWithdrawable(baseAsset, true);
     }

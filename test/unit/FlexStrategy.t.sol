@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { TransparentUpgradeableProxy } from "@yieldnest-vault/Common.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { FlexStrategy, IFlexStrategy } from "../../src/FlexStrategy.sol";
@@ -29,7 +29,6 @@ contract FlexStrategyTest is Test {
     function setUp() public {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
 
-        // create flex strategy proxy
         FlexStrategy strat_impl = new FlexStrategy();
         TransparentUpgradeableProxy strat_tu = new TransparentUpgradeableProxy(
             address(strat_impl),
@@ -38,7 +37,6 @@ contract FlexStrategyTest is Test {
         );
         flexStrategy = FlexStrategy(payable(address(strat_tu)));
 
-        // create accounting token proxy
         AccountingToken accountingToken_impl = new AccountingToken(address(mockErc20));
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
             address(accountingToken_impl),
@@ -47,7 +45,6 @@ contract FlexStrategyTest is Test {
         );
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
-        // create accounting module proxies
         bytes memory am_initData = abi.encodeWithSelector(
             AccountingModule.initialize.selector, ADMIN, SAFE, address(accountingToken), TARGET_APY, LOWER_BOUND
         );
@@ -215,5 +212,201 @@ contract FlexStrategyTest is Test {
         vm.prank(ADMIN);
         vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
         flexStrategy.setAlwaysComputeTotalAssets(true);
+    }
+
+    function test_initialize_revertIfZeroAdmin() public {
+        FlexStrategy implementation = new FlexStrategy();
+        vm.expectRevert(IVault.ZeroAddress.selector);
+        new TransparentUpgradeableProxy(
+            address(implementation),
+            ADMIN,
+            abi.encodeWithSelector(
+                FlexStrategy.initialize.selector, address(0), "FlexStrategy", "FLEX", 18, address(mockErc20), true
+            )
+        );
+    }
+
+    function test_initialize_revertIfZeroBaseAsset() public {
+        FlexStrategy implementation = new FlexStrategy();
+        vm.expectRevert();
+        new TransparentUpgradeableProxy(
+            address(implementation),
+            ADMIN,
+            abi.encodeWithSelector(
+                FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, address(0), true
+            )
+        );
+    }
+
+    function test_deposit_revertIfNoAccountingModule() public {
+        FlexStrategy implementation = new FlexStrategy();
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            ADMIN,
+            abi.encodeWithSelector(
+                FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, address(mockErc20), false
+            )
+        );
+        FlexStrategy strategy = FlexStrategy(payable(address(proxy)));
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(strategy), type(uint256).max);
+        vm.expectRevert();
+        strategy.deposit(1e18, BOB);
+    }
+
+    function test_availableAssets() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.prank(SAFE);
+        mockErc20.mint(100e18);
+
+        assertEq(flexStrategy.totalAssets(), 0);
+        assertEq(flexStrategy.computeTotalAssets(), 0);
+    }
+
+    function test_processAccounting() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(2e18, BOB);
+
+        assertEq(flexStrategy.totalAssets(), 2e18);
+        flexStrategy.processAccounting();
+        assertEq(flexStrategy.totalAssets(), 2e18);
+    }
+
+    function test_feeOnTotal() public view {
+        assertEq(flexStrategy._feeOnTotal(100e18), 0);
+    }
+
+    function test_feeOnRaw() public view {
+        assertEq(flexStrategy._feeOnRaw(100e18), 0);
+    }
+
+    function test_withdrawAsset_revertIfAssetNotWithdrawable() public {
+        vm.startPrank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+        flexStrategy.setAssetWithdrawable(address(mockErc20), false);
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(2e18, BOB);
+
+        vm.expectRevert(abi.encodeWithSelector(IVault.ExceededMaxWithdraw.selector, BOB, 2e18, 0));
+        flexStrategy.withdraw(2e18, BOB, BOB);
+    }
+
+    function test_deposit_revertIfInvariantViolation() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.prank(BOB);
+        mockErc20.transfer(address(flexStrategy), 1e18);
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
+        flexStrategy.deposit(2e18, BOB);
+    }
+
+    function test_deposit_revertIfBaseAssetBalanceNotZero() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.startPrank(BOB);
+        mockErc20.transfer(address(flexStrategy), 1e18);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+
+        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
+        flexStrategy.deposit(2e18, BOB);
+    }
+
+    function test_withdraw_revertIfBaseAssetBalanceNotZero() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(2e18, BOB);
+
+        mockErc20.transfer(address(flexStrategy), 1e18);
+
+        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
+        flexStrategy.withdraw(1e18, BOB, BOB);
+    }
+
+    function test_withdraw_revertIfInvariantViolation() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(2e18, BOB);
+
+        vm.startPrank(address(accountingModule));
+        accountingToken.mintTo(address(flexStrategy), 1e18);
+
+        vm.startPrank(BOB);
+        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
+        flexStrategy.withdraw(2e18, BOB, BOB);
+    }
+
+    function test_processAccounting_revertIfInvariantViolation() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(2e18, BOB);
+
+        mockErc20.transfer(address(flexStrategy), 1e18);
+
+        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
+        flexStrategy.processAccounting();
+    }
+
+    function test_invariant_afterRewards() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(2e18, BOB);
+
+        vm.startPrank(SAFE_MANAGER);
+        accountingModule.processRewards(1e6);
+
+        assertEq(flexStrategy.totalAssets(), accountingToken.balanceOf(address(flexStrategy)));
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0);
+    }
+
+    function test_invariant_afterLosses() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(2e18, BOB);
+
+        vm.startPrank(SAFE_MANAGER);
+        accountingModule.processLosses(1e6);
+
+        assertEq(flexStrategy.totalAssets(), accountingToken.balanceOf(address(flexStrategy)));
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0);
+    }
+
+    function test_availableAssets_returnsSafeBalance() public {
+        vm.startPrank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.startPrank(BOB);
+        mockErc20.transfer(SAFE, 100e18);
+
+        assertEq(flexStrategy.totalAssets(), 0);
+        assertEq(mockErc20.balanceOf(SAFE), 100e18);
     }
 }

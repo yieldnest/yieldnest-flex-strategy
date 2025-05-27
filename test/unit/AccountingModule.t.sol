@@ -26,7 +26,6 @@ contract AccountingModuleTest is Test {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
         mockStrategy = new MockStrategy();
 
-        // create accounting token proxy
         AccountingToken accountingToken_impl = new AccountingToken(address(mockErc20));
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
             address(accountingToken_impl),
@@ -35,7 +34,6 @@ contract AccountingModuleTest is Test {
         );
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
-        // create accounting module proxy
         AccountingModule accountingModule_impl = new AccountingModule(address(mockStrategy), address(mockErc20));
         TransparentUpgradeableProxy accountingModule_tu = new TransparentUpgradeableProxy(
             address(accountingModule_impl),
@@ -76,21 +74,15 @@ contract AccountingModuleTest is Test {
         accountingModule.deposit(20e18);
     }
 
-    function test_deposit_success() public {
-        vm.startPrank(BOB);
-        uint256 deposit = 20e18;
-        mockErc20.approve(address(mockStrategy), type(uint256).max);
-        mockStrategy.deposit(deposit);
-
-        // assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit);
-    }
-
-    function testFuzz_deposit(uint128 amount) public {
+    function testFuzz_deposit_success(uint128 amount) public {
+        uint256 initialBalance = mockErc20.balanceOf(address(BOB));
         vm.startPrank(BOB);
         uint256 deposit = amount;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
         assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit);
+        assertEq(mockErc20.balanceOf(address(SAFE)), deposit);
+        assertEq(mockErc20.balanceOf(address(BOB)), initialBalance - deposit);
     }
 
     function test_withdraw_revertIfNotStrategy() public {
@@ -99,21 +91,7 @@ contract AccountingModuleTest is Test {
         accountingModule.withdraw(20e18, BOB);
     }
 
-    function test_withdraw_success() public {
-        vm.startPrank(BOB);
-        uint256 deposit = 20e18;
-        mockErc20.approve(address(mockStrategy), type(uint256).max);
-        mockStrategy.deposit(deposit);
-
-        uint256 bobBefore = mockErc20.balanceOf(BOB);
-        uint256 withdraw = 10e18;
-        mockStrategy.withdraw(withdraw, BOB);
-
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - withdraw);
-        assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw);
-    }
-
-    function testFuzz_withdraw(uint96 amount) public {
+    function testFuzz_withdraw_success(uint96 amount) public {
         vm.startPrank(BOB);
         uint256 deposit = type(uint128).max;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -125,6 +103,7 @@ contract AccountingModuleTest is Test {
 
         assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - withdraw);
         assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw);
+        assertEq(mockErc20.balanceOf(SAFE), deposit - withdraw);
     }
 
     function test_processRewards_revertIfNoAccountingProcessorRole() public {
