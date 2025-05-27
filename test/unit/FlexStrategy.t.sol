@@ -138,6 +138,21 @@ contract FlexStrategyTest is Test {
         flexStrategy.deposit(2e18, BOB);
     }
 
+    function test_deposit_revertIfNotAllocator() public {
+        vm.startPrank(ADMIN);
+        flexStrategy.revokeRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.ALLOCATOR_ROLE()
+            )
+        );
+
+        flexStrategy.deposit(2e18, BOB);
+    }
+
     function test_processAccounting_success() public {
         vm.prank(ADMIN);
         flexStrategy.setAccountingModule(address(accountingModule));
@@ -167,6 +182,26 @@ contract FlexStrategyTest is Test {
         vm.startPrank(BOB);
         mockErc20.approve(address(flexStrategy), type(uint256).max);
         flexStrategy.deposit(2e18, BOB);
+        flexStrategy.withdraw(2e18, BOB, BOB);
+    }
+
+    function test_withdraw_revertIfNotAllocator() public {
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(2e18, BOB);
+
+        vm.startPrank(ADMIN);
+        flexStrategy.revokeRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
+
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.ALLOCATOR_ROLE()
+            )
+        );
         flexStrategy.withdraw(2e18, BOB, BOB);
     }
 

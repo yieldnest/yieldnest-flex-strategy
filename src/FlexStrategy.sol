@@ -124,6 +124,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         internal
         virtual
         override
+        onlyAllocator
         checkInvariantAfter
     {
         // check if the asset is withdrawable
