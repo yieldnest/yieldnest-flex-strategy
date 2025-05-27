@@ -133,9 +133,12 @@ contract FlexStrategyTest is Test {
         vm.prank(ADMIN);
         flexStrategy.setAccountingModule(address(accountingModule));
 
+        uint256 balanceBefore = mockErc20.balanceOf(BOB);
         vm.startPrank(BOB);
         mockErc20.approve(address(flexStrategy), type(uint256).max);
         flexStrategy.deposit(2e18, BOB);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0);
+        assertEq(mockErc20.balanceOf(BOB), balanceBefore - 2e18);
     }
 
     function test_deposit_revertIfNotAllocator() public {
@@ -181,8 +184,11 @@ contract FlexStrategyTest is Test {
         flexStrategy.setAccountingModule(address(accountingModule));
         vm.startPrank(BOB);
         mockErc20.approve(address(flexStrategy), type(uint256).max);
+        uint256 balanceBefore = mockErc20.balanceOf(BOB);
         flexStrategy.deposit(2e18, BOB);
         flexStrategy.withdraw(2e18, BOB, BOB);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0);
+        assertEq(mockErc20.balanceOf(BOB), balanceBefore);
     }
 
     function test_withdraw_revertIfNotAllocator() public {

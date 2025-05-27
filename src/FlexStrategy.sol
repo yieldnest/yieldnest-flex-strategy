@@ -72,6 +72,10 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         if (totalAssets() != IERC20(accountingModule.accountingToken()).balanceOf(address(this))) {
             revert InvariantViolation();
         }
+
+        if (IERC20(asset()).balanceOf(address(this)) != 0) {
+            revert InvariantViolation();
+        }
     }
 
     /**
@@ -143,7 +147,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         _burn(owner, shares);
 
         // burn virtual tokens
-        accountingModule.withdraw(assets);
+        accountingModule.withdraw(assets, msg.sender);
         emit WithdrawAsset(caller, receiver, owner, asset_, assets, shares);
     }
 

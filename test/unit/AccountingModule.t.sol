@@ -96,7 +96,7 @@ contract AccountingModuleTest is Test {
     function test_withdraw_revertIfNotStrategy() public {
         vm.expectRevert(IAccountingModule.NotStrategy.selector);
         vm.prank(BOB);
-        accountingModule.withdraw(20e18);
+        accountingModule.withdraw(20e18, BOB);
     }
 
     function test_withdraw_success() public {
@@ -107,7 +107,7 @@ contract AccountingModuleTest is Test {
 
         uint256 bobBefore = mockErc20.balanceOf(BOB);
         uint256 withdraw = 10e18;
-        mockStrategy.withdraw(withdraw);
+        mockStrategy.withdraw(withdraw, BOB);
 
         assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - withdraw);
         assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw);
@@ -121,7 +121,7 @@ contract AccountingModuleTest is Test {
 
         uint256 bobBefore = mockErc20.balanceOf(BOB);
         uint256 withdraw = amount;
-        mockStrategy.withdraw(withdraw);
+        mockStrategy.withdraw(withdraw, BOB);
 
         assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - withdraw);
         assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw);

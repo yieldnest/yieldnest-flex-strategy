@@ -22,7 +22,7 @@ interface IAccountingModule {
     error TvlTooLow();
 
     function deposit(uint256 amount) external;
-    function withdraw(uint256 amount) external;
+    function withdraw(uint256 amount, address recipient) external;
     function processRewards(uint256 amount) external;
     function processLosses(uint256 amount) external;
 
@@ -119,10 +119,11 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @notice Proxies withdraw of base assets from associated SAFE to caller,
      * and burns an equiv amount of accounting tokens
      * @param amount amount to deposit
+     * @param recipient address to receive the base assets
      */
-    function withdraw(uint256 amount) external onlyStrategy {
+    function withdraw(uint256 amount, address recipient) external onlyStrategy {
         accountingToken.burnFrom(msg.sender, amount);
-        IERC20(BASE_ASSET).safeTransferFrom(safe, msg.sender, amount);
+        IERC20(BASE_ASSET).safeTransferFrom(safe, recipient, amount);
     }
 
     /**
