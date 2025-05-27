@@ -356,4 +356,42 @@ contract FlexStrategyTest is Test {
         assertEq(flexStrategy.totalAssets(), 0);
         assertEq(mockErc20.balanceOf(SAFE), 100e18);
     }
+
+    function test_processAccounting_maintainsTotalAssets(uint256 depositAmount) public {
+        vm.assume(depositAmount > 0 && depositAmount <= 100e18);
+
+        vm.prank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule));
+
+        uint256 balanceBefore = mockErc20.balanceOf(BOB);
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(depositAmount, BOB);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "FlexStrategy should have 0 balance after deposit");
+        assertEq(
+            mockErc20.balanceOf(BOB), balanceBefore - depositAmount, "BOB's balance should decrease by deposit amount"
+        );
+
+        assertEq(flexStrategy.getAssets().length, 1, "FlexStrategy should have exactly 1 asset");
+        assertEq(flexStrategy.asset(), address(mockErc20), "FlexStrategy asset should be mockErc20");
+
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "FlexStrategy should have 0 baseAsset balance");
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            depositAmount,
+            "FlexStrategy accounting token balance should equal deposit amount"
+        );
+
+        assertEq(
+            flexStrategy.totalAssets(),
+            depositAmount,
+            "Total assets should equal deposit amount before processAccounting"
+        );
+        flexStrategy.processAccounting();
+        assertEq(
+            flexStrategy.totalAssets(),
+            depositAmount,
+            "Total assets should remain equal to deposit amount after processAccounting"
+        );
+    }
 }
