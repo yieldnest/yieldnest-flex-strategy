@@ -300,45 +300,6 @@ contract FlexStrategyTest is Test {
         flexStrategy.withdraw(2e18, BOB, BOB);
     }
 
-    function test_deposit_revertIfInvariantViolation() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
-        vm.prank(BOB);
-        mockErc20.transfer(address(flexStrategy), 1e18);
-
-        vm.startPrank(BOB);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
-        flexStrategy.deposit(2e18, BOB);
-    }
-
-    function test_deposit_revertIfBaseAssetBalanceNotZero() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
-        vm.startPrank(BOB);
-        mockErc20.transfer(address(flexStrategy), 1e18);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
-        flexStrategy.deposit(2e18, BOB);
-    }
-
-    function test_withdraw_revertIfBaseAssetBalanceNotZero() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
-        vm.startPrank(BOB);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(2e18, BOB);
-
-        mockErc20.transfer(address(flexStrategy), 1e18);
-
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
-        flexStrategy.withdraw(1e18, BOB, BOB);
-    }
-
     function test_withdraw_revertIfInvariantViolation() public {
         vm.prank(ADMIN);
         flexStrategy.setAccountingModule(address(accountingModule));
@@ -353,20 +314,6 @@ contract FlexStrategyTest is Test {
         vm.startPrank(BOB);
         vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
         flexStrategy.withdraw(2e18, BOB, BOB);
-    }
-
-    function test_processAccounting_revertIfInvariantViolation() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
-        vm.startPrank(BOB);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(2e18, BOB);
-
-        mockErc20.transfer(address(flexStrategy), 1e18);
-
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
-        flexStrategy.processAccounting();
     }
 
     function test_invariant_afterRewards() public {
