@@ -158,7 +158,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         _burn(owner, shares);
 
         // burn virtual tokens
-        accountingModule.withdraw(assets, msg.sender);
+        accountingModule.withdraw(assets, receiver);
         emit WithdrawAsset(caller, receiver, owner, asset_, assets, shares);
     }
 

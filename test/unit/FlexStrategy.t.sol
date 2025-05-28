@@ -17,6 +17,8 @@ contract FlexStrategyTest is Test {
     address public BOB = address(0x0b0b);
     address public SAFE = address(0x1111);
     address public SAFE_MANAGER = address(0x5afe);
+    address public ACCOUNTING_PROCESSOR = address(0x1234);
+    address public WITHDRAW_RECEIVER = address(0x2222);
     uint16 public constant TARGET_APY = 1000;
     uint16 public constant LOWER_BOUND = 1000;
 
@@ -68,7 +70,7 @@ contract FlexStrategyTest is Test {
         flexStrategy.grantRole(flexStrategy.ASSET_MANAGER_ROLE(), ADMIN);
         flexStrategy.grantRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), SAFE_MANAGER);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
 
         accountingToken.setAccountingModule(address(accountingModule));
         flexStrategy.setAccountingModule(address(accountingModule));
@@ -76,143 +78,25 @@ contract FlexStrategyTest is Test {
         vm.stopPrank();
 
         vm.prank(BOB);
-        mockErc20.mint(100e18);
+        mockErc20.mint(type(uint128).max);
 
         vm.prank(SAFE);
         mockErc20.approve(address(accountingModule), type(uint256).max);
     }
 
     function test_setup_success() public view {
-        assertEq(flexStrategy.name(), "FlexStrategy");
-        assertEq(flexStrategy.symbol(), "FLEX");
-        assertEq(flexStrategy.decimals(), 18);
-        assertEq(flexStrategy.asset(), address(mockErc20));
-        assertEq(flexStrategy.asset(), address(mockErc20));
-    }
-
-    function test_setAccountingModule_revertIfNoDefaultAdminRole() public {
-        vm.startPrank(BOB);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.DEFAULT_ADMIN_ROLE()
-            )
-        );
-        flexStrategy.setAccountingModule(address(accountingModule));
-    }
-
-    function test_setAccountingModule_revertIfZeroAddress() public {
-        vm.startPrank(ADMIN);
-        vm.expectRevert(IVault.ZeroAddress.selector);
-        flexStrategy.setAccountingModule(address(0));
-    }
-
-    function test_setAccountingModule_setRelevantApprovals() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
+        assertEq(flexStrategy.name(), "FlexStrategy", "Strategy name should be set");
+        assertEq(flexStrategy.symbol(), "FLEX", "Strategy symbol should be set");
+        assertEq(flexStrategy.decimals(), 18, "Strategy decimals should be set");
+        assertEq(address(flexStrategy.asset()), address(mockErc20), "Strategy asset should be set");
         assertEq(
-            IERC20(flexStrategy.asset()).allowance(address(flexStrategy), address(accountingModule)), type(uint256).max
+            address(flexStrategy.accountingModule()),
+            address(accountingModule),
+            "Strategy accounting module should be set"
         );
     }
 
-    function test_setAccountingModule_revokeRelevantApprovals() public {
-        vm.startPrank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-        flexStrategy.setAccountingModule(address(accountingModule2));
-
-        assertEq(
-            IERC20(flexStrategy.asset()).allowance(address(flexStrategy), address(accountingModule2)), type(uint256).max
-        );
-        assertEq(IERC20(flexStrategy.asset()).allowance(address(flexStrategy), address(accountingModule)), 0);
-    }
-
-    function test_deposit_success() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
-        uint256 balanceBefore = mockErc20.balanceOf(BOB);
-        vm.startPrank(BOB);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(2e18, BOB);
-        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0);
-        assertEq(mockErc20.balanceOf(BOB), balanceBefore - 2e18);
-    }
-
-    function test_deposit_revertIfNotAllocator() public {
-        vm.startPrank(ADMIN);
-        flexStrategy.revokeRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
-
-        vm.startPrank(BOB);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.ALLOCATOR_ROLE()
-            )
-        );
-
-        flexStrategy.deposit(2e18, BOB);
-    }
-
-    function test_processAccounting_success() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
-        uint256 deposit = 30e18;
-        vm.startPrank(BOB);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(deposit, BOB);
-        vm.stopPrank();
-
-        assertEq(accountingToken.balanceOf(address(flexStrategy)), deposit);
-        assertEq(flexStrategy.computeTotalAssets(), deposit);
-        assertEq(flexStrategy.totalAssets(), deposit);
-
-        uint256 rewards = 1e5;
-        vm.startPrank(SAFE_MANAGER);
-        accountingModule.processRewards(rewards);
-
-        assertEq(accountingToken.balanceOf(address(flexStrategy)), deposit + rewards);
-        assertEq(flexStrategy.computeTotalAssets(), deposit + rewards);
-        assertEq(flexStrategy.totalAssets(), deposit + rewards);
-    }
-
-    function test_withdraw_success() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-        vm.startPrank(BOB);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-        uint256 balanceBefore = mockErc20.balanceOf(BOB);
-        flexStrategy.deposit(2e18, BOB);
-        flexStrategy.withdraw(2e18, BOB, BOB);
-        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0);
-        assertEq(mockErc20.balanceOf(BOB), balanceBefore);
-    }
-
-    function test_withdraw_revertIfNotAllocator() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
-        vm.startPrank(BOB);
-        mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(2e18, BOB);
-
-        vm.startPrank(ADMIN);
-        flexStrategy.revokeRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
-
-        vm.startPrank(BOB);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.ALLOCATOR_ROLE()
-            )
-        );
-        flexStrategy.withdraw(2e18, BOB, BOB);
-    }
-
-    function test_setAlwaysComputeTotalAssets_revert() public {
-        vm.prank(ADMIN);
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
-        flexStrategy.setAlwaysComputeTotalAssets(true);
-    }
+    // Initialization & param setting
 
     function test_initialize_revertIfZeroAdmin() public {
         FlexStrategy implementation = new FlexStrategy();
@@ -238,122 +122,231 @@ contract FlexStrategyTest is Test {
         );
     }
 
-    function test_deposit_revertIfNoAccountingModule() public {
-        FlexStrategy implementation = new FlexStrategy();
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
-            ADMIN,
+    function test_setAccountingModule_revertIfNoDefaultAdminRole() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(
             abi.encodeWithSelector(
-                FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, address(mockErc20), false
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.DEFAULT_ADMIN_ROLE()
             )
         );
-        FlexStrategy strategy = FlexStrategy(payable(address(proxy)));
+        flexStrategy.setAccountingModule(address(accountingModule));
+    }
 
+    function test_setAccountingModule_revertIfZeroAddress() public {
+        vm.startPrank(ADMIN);
+        vm.expectRevert(IVault.ZeroAddress.selector);
+        flexStrategy.setAccountingModule(address(0));
+    }
+
+    function test_setAccountingModule_revokeRelevantApprovals() public {
+        vm.startPrank(ADMIN);
+        flexStrategy.setAccountingModule(address(accountingModule2));
+
+        assertEq(
+            IERC20(flexStrategy.asset()).allowance(address(flexStrategy), address(accountingModule2)),
+            type(uint256).max,
+            "Strategy should approve max allowance of asset to new accountingModule"
+        );
+        assertEq(
+            IERC20(flexStrategy.asset()).allowance(address(flexStrategy), address(accountingModule)),
+            0,
+            "Strategy should revoke allowance of asset from old accountingModule"
+        );
+    }
+
+    function test_setAlwaysComputeTotalAssets_revert() public {
+        vm.prank(ADMIN);
+        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
+        flexStrategy.setAlwaysComputeTotalAssets(true);
+    }
+
+    // Deposit
+
+    function testFuzz_deposit_success(uint128 deposit) public {
+        uint256 balanceBefore = mockErc20.balanceOf(BOB);
         vm.startPrank(BOB);
-        mockErc20.approve(address(strategy), type(uint256).max);
-        vm.expectRevert();
-        strategy.deposit(1e18, BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(deposit, BOB);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after deposit");
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            deposit,
+            "Strategy should have correct accountingToken balance after deposit"
+        );
+        assertEq(
+            mockErc20.balanceOf(BOB), balanceBefore - deposit, "Allocator balance should decrease by deposit amount"
+        );
+        assertEq(IERC20(address(flexStrategy)).balanceOf(BOB), deposit, "Allocator should have correct strategy shares");
+        assertEq(mockErc20.balanceOf(SAFE), deposit, "Safe should have correct deposit");
+        assertEq(flexStrategy.computeTotalAssets(), deposit, "Computed total assets should match deposit");
+        assertEq(flexStrategy.totalAssets(), deposit, "Total assets should match deposit");
     }
 
-    function test_availableAssets() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
-        vm.prank(SAFE);
-        mockErc20.mint(100e18);
-
-        assertEq(flexStrategy.totalAssets(), 0);
-        assertEq(flexStrategy.computeTotalAssets(), 0);
-    }
-
-    function test_processAccounting() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
+    function testFuzz_deposit_revertIfNotAllocator(uint128 deposit) public {
+        vm.startPrank(ADMIN);
+        flexStrategy.revokeRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
 
         vm.startPrank(BOB);
         mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(2e18, BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.ALLOCATOR_ROLE()
+            )
+        );
 
-        assertEq(flexStrategy.totalAssets(), 2e18);
+        flexStrategy.deposit(deposit, BOB);
+    }
+
+    // ProcessAccounting
+
+    function testFuzz_processAccounting_success(uint128 deposit) public {
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(deposit, BOB);
+        assertEq(flexStrategy.computeTotalAssets(), deposit, "Computed total assets should match deposit");
+        assertEq(flexStrategy.totalAssets(), deposit, "Total assets should match deposit amount");
         flexStrategy.processAccounting();
-        assertEq(flexStrategy.totalAssets(), 2e18);
+        assertEq(flexStrategy.computeTotalAssets(), deposit, "Computed total assets should remain unchanged");
+        assertEq(
+            flexStrategy.totalAssets(), deposit, "Total assets should remain unchanged after processing accounting"
+        );
     }
 
-    function test_feeOnTotal() public view {
-        assertEq(flexStrategy._feeOnTotal(100e18), 0);
+    function testFuzz_processAccounting_successWhenProcessingRewards(uint128 deposit, uint128 rewards) public {
+        vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
+
+        uint256 maxRewards = (
+            accountingModule.targetApy() * accountingToken.totalSupply() / accountingModule.DIVISOR()
+                / accountingModule.YEAR()
+        );
+
+        vm.assume(rewards <= maxRewards);
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(deposit, BOB);
+
+        vm.startPrank(ACCOUNTING_PROCESSOR);
+        accountingModule.processRewards(rewards);
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            deposit + rewards,
+            "Strategy should have correct accountingToken balance after processing rewards"
+        );
+
+        assertEq(flexStrategy.computeTotalAssets(), deposit + rewards, "Computed total assets should include rewards");
+        assertEq(flexStrategy.totalAssets(), deposit + rewards, "Total assets should include rewards");
+        assertEq(
+            flexStrategy.totalAssets(),
+            accountingToken.balanceOf(address(flexStrategy)),
+            "Total assets should match accountingToken balance after processing rewards"
+        );
+        assertEq(
+            mockErc20.balanceOf(address(flexStrategy)),
+            0,
+            "Strategy should not hold any tokens after processing rewards"
+        );
     }
 
-    function test_feeOnRaw() public view {
-        assertEq(flexStrategy._feeOnRaw(100e18), 0);
+    function testFuzz_processAccounting_successWhenProcessingLosses(uint128 deposit, uint128 losses) public {
+        vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
+
+        uint256 maxLosses = (accountingToken.totalSupply() * accountingModule.lowerBound() / accountingModule.DIVISOR());
+
+        vm.assume(losses <= maxLosses);
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(flexStrategy), type(uint256).max);
+        flexStrategy.deposit(deposit, BOB);
+
+        vm.startPrank(ACCOUNTING_PROCESSOR);
+        accountingModule.processLosses(losses);
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            deposit - losses,
+            "Strategy should have correct accountingToken balance after processing losses"
+        );
+
+        assertEq(flexStrategy.computeTotalAssets(), deposit - losses, "Computed total assets should include losses");
+        assertEq(flexStrategy.totalAssets(), deposit - losses, "Total assets should include losses");
+        assertEq(
+            flexStrategy.totalAssets(),
+            accountingToken.balanceOf(address(flexStrategy)),
+            "Total assets should match accounting token balance after processing losses"
+        );
+        assertEq(
+            mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any tokens after processing losses"
+        );
     }
 
-    function test_withdrawAsset_revertIfAssetNotWithdrawable() public {
+    // Withdraw
+
+    function testFuzz_withdraw_revertIfAssetNotWithdrawable(uint128 deposit) public {
+        vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
         vm.startPrank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
         flexStrategy.setAssetWithdrawable(address(mockErc20), false);
 
         vm.startPrank(BOB);
         mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(2e18, BOB);
-
-        vm.expectRevert(abi.encodeWithSelector(IVault.ExceededMaxWithdraw.selector, BOB, 2e18, 0));
-        flexStrategy.withdraw(2e18, BOB, BOB);
+        flexStrategy.deposit(deposit, BOB);
+        vm.expectRevert(abi.encodeWithSelector(IVault.ExceededMaxWithdraw.selector, BOB, deposit, 0));
+        flexStrategy.withdraw(deposit, BOB, BOB);
     }
 
-    function test_withdraw_revertIfInvariantViolation() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
+    function testFuzz_withdraw_revertIfInvariantViolation(uint128 deposit) public {
         vm.startPrank(BOB);
         mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(2e18, BOB);
+        flexStrategy.deposit(deposit, BOB);
 
+        // break invariant by minting some accountingTokens to strategy
         vm.startPrank(address(accountingModule));
         accountingToken.mintTo(address(flexStrategy), 1e18);
 
         vm.startPrank(BOB);
         vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
-        flexStrategy.withdraw(2e18, BOB, BOB);
+        flexStrategy.withdraw(deposit, WITHDRAW_RECEIVER, BOB);
     }
 
-    function test_invariant_afterRewards() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
+    function testFuzz_withdraw_success(uint128 deposit) public {
         vm.startPrank(BOB);
         mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(2e18, BOB);
 
-        vm.startPrank(SAFE_MANAGER);
-        accountingModule.processRewards(1e6);
+        flexStrategy.deposit(deposit, BOB);
 
-        assertEq(flexStrategy.totalAssets(), accountingToken.balanceOf(address(flexStrategy)));
-        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0);
+        flexStrategy.withdraw(deposit, WITHDRAW_RECEIVER, BOB);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after withdrawal");
+        assertEq(mockErc20.balanceOf(WITHDRAW_RECEIVER), deposit, "Receiver balance should be correct after withdrawal");
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            0,
+            "Strategy accountingToken balance should be correct after withdrawal"
+        );
+        assertEq(IERC20(address(flexStrategy)).balanceOf(BOB), 0, "Allocator should have correct strategy shares");
+        assertEq(mockErc20.balanceOf(SAFE), 0, "Safe should have correct deposit");
     }
 
-    function test_invariant_afterLosses() public {
-        vm.prank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
-
+    function testFuzz_withdraw_revertIfNotAllocator(uint128 deposit) public {
         vm.startPrank(BOB);
         mockErc20.approve(address(flexStrategy), type(uint256).max);
-        flexStrategy.deposit(2e18, BOB);
+        flexStrategy.deposit(deposit, BOB);
 
-        vm.startPrank(SAFE_MANAGER);
-        accountingModule.processLosses(1e6);
-
-        assertEq(flexStrategy.totalAssets(), accountingToken.balanceOf(address(flexStrategy)));
-        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0);
-    }
-
-    function test_availableAssets_returnsSafeBalance() public {
         vm.startPrank(ADMIN);
-        flexStrategy.setAccountingModule(address(accountingModule));
+        flexStrategy.revokeRole(flexStrategy.ALLOCATOR_ROLE(), BOB);
 
         vm.startPrank(BOB);
-        mockErc20.transfer(SAFE, 100e18);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, flexStrategy.ALLOCATOR_ROLE()
+            )
+        );
+        flexStrategy.withdraw(deposit, BOB, BOB);
+    }
 
-        assertEq(flexStrategy.totalAssets(), 0);
-        assertEq(mockErc20.balanceOf(SAFE), 100e18);
+    function testFuzz_availableAssets_returnsSafeBalance(uint128 assetBalance) public {
+        vm.prank(SAFE);
+        mockErc20.mint(assetBalance);
+
+        assertEq(flexStrategy.totalAssets(), 0, "Total assets should be 0 when no deposits made");
+        assertEq(flexStrategy.computeTotalAssets(), 0, "Computed total assets should be 0 when no deposits made");
     }
 }
