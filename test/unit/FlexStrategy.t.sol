@@ -286,6 +286,58 @@ contract FlexStrategyTest is Test {
         assertEq(flexStrategy.totalAssets(), deposit, "Total assets should match deposit");
     }
 
+    function testFuzz_deposit_sequential_success(uint128 deposit, uint128 deposit2) public {
+        vm.assume(deposit > 0 && deposit < type(uint128).max / 2);
+        vm.assume(deposit2 > 0 && deposit2 < type(uint128).max / 2);
+
+        uint256 balanceBefore = mockErc20.balanceOf(ALLOCATOR);
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.deposit(deposit, ALLOCATOR);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after deposit");
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            deposit,
+            "Strategy should have correct accountingToken balance after deposit"
+        );
+        assertEq(
+            mockErc20.balanceOf(ALLOCATOR),
+            balanceBefore - deposit,
+            "Allocator balance should decrease by deposit amount"
+        );
+        assertEq(
+            IERC20(address(flexStrategy)).balanceOf(ALLOCATOR), deposit, "Allocator should have correct strategy shares"
+        );
+        assertEq(mockErc20.balanceOf(SAFE), deposit, "Safe should have correct deposit");
+        assertEq(flexStrategy.computeTotalAssets(), deposit, "Computed total assets should match deposit");
+        assertEq(flexStrategy.totalAssets(), deposit, "Total assets should match deposit");
+
+        // sim transfer to farm
+        vm.startPrank(SAFE);
+        mockErc20.transfer(YIELD_FARM, deposit);
+
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.deposit(deposit2, ALLOCATOR);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after deposit");
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            deposit + deposit2,
+            "Strategy should have correct accountingToken balance after deposit"
+        );
+        assertEq(
+            mockErc20.balanceOf(ALLOCATOR),
+            balanceBefore - deposit - deposit2,
+            "Allocator balance should decrease by deposit amount"
+        );
+        assertEq(
+            IERC20(address(flexStrategy)).balanceOf(ALLOCATOR),
+            deposit + deposit2,
+            "Allocator should have correct strategy shares"
+        );
+        assertEq(mockErc20.balanceOf(SAFE), deposit2, "Safe should have correct deposit");
+        assertEq(flexStrategy.computeTotalAssets(), deposit + deposit2, "Computed total assets should match deposit");
+        assertEq(flexStrategy.totalAssets(), deposit + deposit2, "Total assets should match deposit");
+    }
+
     function testFuzz_deposit_revertIfNotAllocator(uint128 deposit) public {
         vm.startPrank(ADMIN);
         flexStrategy.revokeRole(flexStrategy.ALLOCATOR_ROLE(), ALLOCATOR);
@@ -323,27 +375,28 @@ contract FlexStrategyTest is Test {
         );
     }
 
-    function testFuzz_processAccounting_successWhenProcessingRewards(uint128 deposit, uint128 rewards) public {
+    function testFuzz_processAccounting_successWhenProcessingRewards(uint128 deposit) public {
         vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
 
-        uint256 maxRewards = (
-            accountingModule.targetApy() * accountingToken.totalSupply() / accountingModule.DIVISOR()
-                / accountingModule.YEAR()
+        uint128 maxRewards = uint128(
+            uint256(accountingModule.targetApy()) * deposit / accountingModule.DIVISOR() / accountingModule.YEAR()
         );
 
-        vm.assume(rewards <= maxRewards);
+        uint128 rewards = maxRewards;
 
         vm.startPrank(ALLOCATOR);
         flexStrategy.deposit(deposit, ALLOCATOR);
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
+        uint256 shares = flexStrategy.balanceOf(ALLOCATOR);
+        uint256 sharePriceBefore = flexStrategy.convertToAssets(shares);
         accountingModule.processRewards(rewards);
+        assertGt(flexStrategy.convertToAssets(shares), sharePriceBefore, "Share price should increase");
         assertEq(
             accountingToken.balanceOf(address(flexStrategy)),
             deposit + rewards,
             "Strategy should have correct accountingToken balance after processing rewards"
         );
-
         assertEq(flexStrategy.computeTotalAssets(), deposit + rewards, "Computed total assets should include rewards");
         assertEq(flexStrategy.totalAssets(), deposit + rewards, "Total assets should include rewards");
         assertEq(
@@ -358,18 +411,20 @@ contract FlexStrategyTest is Test {
         );
     }
 
-    function testFuzz_processAccounting_successWhenProcessingLosses(uint128 deposit, uint128 losses) public {
+    function testFuzz_processAccounting_successWhenProcessingLosses(uint128 deposit) public {
         vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
 
-        uint256 maxLosses = (accountingToken.totalSupply() * accountingModule.lowerBound() / accountingModule.DIVISOR());
-
-        vm.assume(losses <= maxLosses);
+        uint128 maxLosses = uint128((deposit * uint256(accountingModule.lowerBound()) / accountingModule.DIVISOR()));
+        uint128 losses = maxLosses;
 
         vm.startPrank(ALLOCATOR);
         flexStrategy.deposit(deposit, ALLOCATOR);
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
+        uint256 shares = flexStrategy.balanceOf(ALLOCATOR);
+        uint256 sharePriceBefore = flexStrategy.convertToAssets(shares);
         accountingModule.processLosses(losses);
+        assertLt(flexStrategy.convertToAssets(shares), sharePriceBefore, "Share price should decrease");
         assertEq(
             accountingToken.balanceOf(address(flexStrategy)),
             deposit - losses,
