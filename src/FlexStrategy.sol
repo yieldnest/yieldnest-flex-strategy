@@ -7,7 +7,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IAccountingModule } from "./AccountingModule.sol";
 
 interface IFlexStrategy {
-    error OnlyBaseAsset();
     error NoAccountingModule();
     error InvariantViolation();
 
@@ -142,11 +141,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         onlyAllocator
         checkInvariantsAfter
     {
-        // check if the asset is withdrawable
-        if (!_getBaseStrategyStorage().isAssetWithdrawable[asset_]) {
-            revert AssetNotWithdrawable();
-        }
-
         // call the base strategy withdraw function for accounting
         _subTotalAssets(_convertAssetToBase(asset_, assets));
 
@@ -222,6 +216,21 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @dev Overridden. MUST always be false for flex strategy, because accounting is done virtually
      */
     function setAlwaysComputeTotalAssets(bool) external virtual override onlyRole(ASSET_MANAGER_ROLE) {
+        revert InvariantViolation();
+    }
+
+    /**
+     * @notice Adds a new asset to the vault.
+     *
+     */
+    function addAsset(address, uint8, bool, bool) public virtual override onlyRole(ASSET_MANAGER_ROLE) {
+        revert InvariantViolation();
+    }
+
+    /**
+     * @notice Adds a new asset to the vault.
+     */
+    function addAsset(address, bool, bool) external virtual override onlyRole(ASSET_MANAGER_ROLE) {
         revert InvariantViolation();
     }
 
