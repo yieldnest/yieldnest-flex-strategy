@@ -18,6 +18,7 @@ contract FlexStrategyTest is Test {
 
     address public ADMIN = address(0xd34db33f);
     address public ALLOCATOR = address(0x0b0b);
+    address public YIELD_FARM = address(0x8888);
     address public SAFE = address(0x1111);
     address public SAFE_MANAGER = address(0x5afe);
     address public ACCOUNTING_PROCESSOR = address(0x1234);
@@ -257,7 +258,7 @@ contract FlexStrategyTest is Test {
 
         vm.startPrank(ALLOCATOR);
         vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
-        flexStrategy.withdrawAsset(address(wrongAsset), 100, ALLOCATOR, ALLOCATOR);
+        flexStrategy.withdrawAsset(address(wrongAsset), 100, WITHDRAW_RECEIVER, ALLOCATOR);
     }
 
     // Deposit
@@ -413,10 +414,11 @@ contract FlexStrategyTest is Test {
         flexStrategy.withdraw(deposit, WITHDRAW_RECEIVER, ALLOCATOR);
     }
 
-    function testFuzz_withdraw_success(uint128 deposit) public {
+    function testFuzz_withdraw_whenFundsAreInSafe_success(uint128 deposit) public {
         vm.startPrank(ALLOCATOR);
         flexStrategy.deposit(deposit, ALLOCATOR);
 
+        vm.startPrank(ALLOCATOR);
         flexStrategy.withdraw(deposit, WITHDRAW_RECEIVER, ALLOCATOR);
         assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after withdrawal");
         assertEq(mockErc20.balanceOf(WITHDRAW_RECEIVER), deposit, "Receiver balance should be correct after withdrawal");
@@ -427,6 +429,48 @@ contract FlexStrategyTest is Test {
         );
         assertEq(IERC20(address(flexStrategy)).balanceOf(ALLOCATOR), 0, "Allocator should have correct strategy shares");
         assertEq(mockErc20.balanceOf(SAFE), 0, "Safe should have correct deposit");
+    }
+
+    function testFuzz_withdraw_whenFundsAreInFarm_success(uint128 deposit) public {
+        vm.assume(deposit > 0 && deposit < type(uint128).max / 2);
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.deposit(deposit, ALLOCATOR);
+
+        vm.startPrank(SAFE);
+        // sim yield farming
+        uint128 depositAmountIntoFarm = uint128(deposit * uint256(9) / 10); // deposit 90% to yield farm
+        uint128 someAmountOfYield = uint128(deposit / uint256(10_000)); // some rewards, 0.0001% of deposit
+        mockErc20.transfer(YIELD_FARM, depositAmountIntoFarm);
+        mockErc20.mint(someAmountOfYield);
+
+        uint256 accountTokensBefore = accountingToken.balanceOf(address(flexStrategy));
+        uint256 sharesBefore = IERC20(address(flexStrategy)).balanceOf(ALLOCATOR);
+        vm.startPrank(ALLOCATOR);
+        uint128 expectedMaxWithdraw = deposit - depositAmountIntoFarm + someAmountOfYield;
+        uint128 actualMaxWithdraw = uint128(flexStrategy.maxWithdrawAsset(address(mockErc20), ALLOCATOR));
+        assertEq(expectedMaxWithdraw, actualMaxWithdraw);
+
+        uint256 withdrawAmount = actualMaxWithdraw;
+        flexStrategy.withdraw(withdrawAmount, WITHDRAW_RECEIVER, ALLOCATOR);
+
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after withdrawal");
+        assertEq(
+            mockErc20.balanceOf(WITHDRAW_RECEIVER),
+            withdrawAmount,
+            "Receiver balance should be correct after withdrawal"
+        );
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            accountTokensBefore - withdrawAmount,
+            "Strategy accountingToken balance should be correct after withdrawal"
+        );
+        assertEq(
+            IERC20(address(flexStrategy)).balanceOf(ALLOCATOR),
+            sharesBefore - flexStrategy.convertToShares(withdrawAmount),
+            "Allocator should have correct strategy shares"
+        );
+        assertEq(mockErc20.balanceOf(SAFE), 0, "Safe should have correct deposit");
+        assertEq(mockErc20.balanceOf(YIELD_FARM), depositAmountIntoFarm, "Yield farm should have correct deposit");
     }
 
     function testFuzz_withdraw_revertIfNotAllocator(uint128 deposit) public {
