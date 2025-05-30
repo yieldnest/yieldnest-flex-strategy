@@ -10,8 +10,9 @@ import { AccountingToken } from "../../src/AccountingToken.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { FixedRateProvider } from "../../src/FixedRateProvider.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { MultiFixedRateProvider } from "../mocks/MultiFixedRateProvider.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
 contract FlexStrategyTest is Test {
     using stdStorage for StdStorage;
@@ -228,7 +229,7 @@ contract FlexStrategyTest is Test {
         assertEq(mockErc20.balanceOf(SAFE), 2e18, "Safe should have received both deposit and initial balance");
     }
 
-    function test_operations_revertWhenNotBaseAsset2() public {
+    function test_operations_edgeCaseBehavior() public {
         uint128 deposit = 100e18;
         vm.prank(ALLOCATOR);
         flexStrategy.deposit(deposit, ALLOCATOR);
@@ -366,12 +367,19 @@ contract FlexStrategyTest is Test {
     function testFuzz_processAccounting_success(uint128 deposit) public {
         vm.startPrank(ALLOCATOR);
         flexStrategy.deposit(deposit, ALLOCATOR);
+        uint256 sharePriceBefore = flexStrategy.convertToAssets(flexStrategy.balanceOf(ALLOCATOR));
+
         assertEq(flexStrategy.computeTotalAssets(), deposit, "Computed total assets should match deposit");
         assertEq(flexStrategy.totalAssets(), deposit, "Total assets should match deposit amount");
         flexStrategy.processAccounting();
         assertEq(flexStrategy.computeTotalAssets(), deposit, "Computed total assets should remain unchanged");
         assertEq(
             flexStrategy.totalAssets(), deposit, "Total assets should remain unchanged after processing accounting"
+        );
+        assertEq(
+            flexStrategy.convertToAssets(flexStrategy.balanceOf(ALLOCATOR)),
+            sharePriceBefore,
+            "Share price should remain unchanged after processing accounting"
         );
     }
 
@@ -444,6 +452,33 @@ contract FlexStrategyTest is Test {
     }
 
     // Withdraw
+    function testFuzz_withdraw_revertIfNotOwnerAndNoAllowance(uint128 deposit) public {
+        vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
+
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.deposit(deposit, ALLOCATOR);
+
+        vm.startPrank(WITHDRAW_RECEIVER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                WITHDRAW_RECEIVER,
+                flexStrategy.ALLOCATOR_ROLE()
+            )
+        );
+        flexStrategy.withdraw(deposit, WITHDRAW_RECEIVER, ALLOCATOR);
+
+        vm.startPrank(ADMIN);
+        flexStrategy.grantRole(flexStrategy.ALLOCATOR_ROLE(), WITHDRAW_RECEIVER);
+
+        vm.startPrank(WITHDRAW_RECEIVER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, WITHDRAW_RECEIVER, 0, deposit)
+        );
+        flexStrategy.withdraw(deposit, WITHDRAW_RECEIVER, ALLOCATOR);
+    }
 
     function testFuzz_withdraw_revertIfAssetNotWithdrawable(uint128 deposit) public {
         vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);

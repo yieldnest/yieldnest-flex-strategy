@@ -80,9 +80,15 @@ contract AccountingModuleTest is Test {
         uint256 deposit = amount;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit);
-        assertEq(mockErc20.balanceOf(address(SAFE)), deposit);
-        assertEq(mockErc20.balanceOf(address(BOB)), initialBalance - deposit);
+        assertEq(
+            accountingToken.balanceOf(address(mockStrategy)),
+            deposit,
+            "accountingToken balance should increase by deposit amount"
+        );
+        assertEq(mockErc20.balanceOf(address(SAFE)), deposit, "Safe balance should increase by deposit amount");
+        assertEq(
+            mockErc20.balanceOf(address(BOB)), initialBalance - deposit, "Bob balance should decrease by deposit amount"
+        );
     }
 
     function test_withdraw_revertIfNotStrategy() public {
@@ -101,9 +107,13 @@ contract AccountingModuleTest is Test {
         uint256 withdraw = amount;
         mockStrategy.withdraw(withdraw, BOB);
 
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - withdraw);
-        assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw);
-        assertEq(mockErc20.balanceOf(SAFE), deposit - withdraw);
+        assertEq(
+            accountingToken.balanceOf(address(mockStrategy)),
+            deposit - withdraw,
+            "accountingToken balance should decrease by withdraw amount"
+        );
+        assertEq(mockErc20.balanceOf(BOB) - bobBefore, withdraw, "Bob balance should increase by withdraw amount");
+        assertEq(mockErc20.balanceOf(SAFE), deposit - withdraw, "Safe balance should decrease by withdraw amount");
     }
 
     function test_processRewards_revertIfNoAccountingProcessorRole() public {
@@ -179,11 +189,19 @@ contract AccountingModuleTest is Test {
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processRewards(1e6);
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit + 1e6);
+        assertEq(
+            accountingToken.balanceOf(address(mockStrategy)),
+            deposit + 1e6,
+            "accountingToken balance should increase by rewards amount"
+        );
 
         skip(3601);
         accountingModule.processRewards(1e6);
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit + 1e6 + 1e6);
+        assertEq(
+            accountingToken.balanceOf(address(mockStrategy)),
+            deposit + 1e6 + 1e6,
+            "accountingToken balance should increase by rewards amounts"
+        );
     }
 
     function testFuzz_processRewards(uint96 processedAmount) public {
@@ -202,7 +220,11 @@ contract AccountingModuleTest is Test {
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processRewards(processedAmount);
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), supply + processedAmount);
+        assertEq(
+            accountingToken.balanceOf(address(mockStrategy)),
+            supply + processedAmount,
+            "accountingToken balance should increase by rewards amount"
+        );
     }
 
     function test_processLosses_revertIfNoAccountingProcessorRole() public {
@@ -282,11 +304,19 @@ contract AccountingModuleTest is Test {
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processLosses(1e6);
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - 1e6);
+        assertEq(
+            accountingToken.balanceOf(address(mockStrategy)),
+            deposit - 1e6,
+            "accountingToken balance should decrease by loss amount"
+        );
 
         skip(3601);
         accountingModule.processLosses(1e6);
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), deposit - 1e6 - 1e6);
+        assertEq(
+            accountingToken.balanceOf(address(mockStrategy)),
+            deposit - 1e6 - 1e6,
+            "accountingToken balance should decrease by loss amounts"
+        );
     }
 
     function testFuzz_processLosses(uint96 processedAmount) public {
@@ -302,7 +332,11 @@ contract AccountingModuleTest is Test {
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processLosses(processedAmount);
-        assertEq(accountingToken.balanceOf(address(mockStrategy)), supply - processedAmount);
+        assertEq(
+            accountingToken.balanceOf(address(mockStrategy)),
+            supply - processedAmount,
+            "accountingToken balance should decrease by loss amount"
+        );
     }
 
     function test_setTargetApy_revertIfNoSafeManagerRole() public {
