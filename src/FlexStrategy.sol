@@ -141,6 +141,10 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         onlyAllocator
         checkInvariantsAfter
     {
+        if (asset_ != asset()) {
+            revert InvalidAsset(asset_);
+        }
+
         // call the base strategy withdraw function for accounting
         _subTotalAssets(_convertAssetToBase(asset_, assets));
 

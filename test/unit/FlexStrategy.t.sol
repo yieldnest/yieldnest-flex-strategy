@@ -229,41 +229,7 @@ contract FlexStrategyTest is Test {
         assertEq(mockErc20.balanceOf(SAFE), 2e18, "Safe should have received both deposit and initial balance");
     }
 
-    function test_operations_edgeCaseBehavior() public {
-        uint128 deposit = 100e18;
-        vm.prank(ALLOCATOR);
-        flexStrategy.deposit(deposit, ALLOCATOR);
-
-        vm.startPrank(ADMIN);
-        // break invariant via bad settings
-        MockERC20 wrongAsset = new MockERC20("WRONG", "WRONG", 18);
-        MultiFixedRateProvider provider2 = new MultiFixedRateProvider();
-        provider2.addAsset(address(mockErc20));
-
-        // we need the wrong asset to be in provider to break invariant
-        provider2.addAsset(address(wrongAsset));
-        flexStrategy.setProvider(address(provider2));
-
-        vm.startPrank(ALLOCATOR);
-        vm.expectRevert(IVault.AssetNotActive.selector);
-        flexStrategy.depositAsset(address(wrongAsset), 100, ALLOCATOR);
-
-        // bad settings to break invariant on withdraw
-        vm.startPrank(SAFE);
-        wrongAsset.mint(10_000e18);
-
-        vm.startPrank(ADMIN);
-        assertEq(flexStrategy.maxWithdrawAsset(address(wrongAsset), ALLOCATOR), 0);
-        flexStrategy.setAssetWithdrawable(address(wrongAsset), true);
-        assertEq(flexStrategy.maxWithdrawAsset(address(wrongAsset), ALLOCATOR), 100);
-
-        vm.startPrank(ALLOCATOR);
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
-        flexStrategy.withdrawAsset(address(wrongAsset), 100, WITHDRAW_RECEIVER, ALLOCATOR);
-    }
-
     // Deposit
-
     function testFuzz_deposit_success(uint128 deposit) public {
         uint256 balanceBefore = mockErc20.balanceOf(ALLOCATOR);
         vm.startPrank(ALLOCATOR);
@@ -452,6 +418,39 @@ contract FlexStrategyTest is Test {
     }
 
     // Withdraw
+    function test_withdraw_invalidAsset() public {
+        uint128 deposit = 100e18;
+        vm.prank(ALLOCATOR);
+        flexStrategy.deposit(deposit, ALLOCATOR);
+
+        vm.startPrank(ADMIN);
+        // break invariant via bad settings
+        MockERC20 wrongAsset = new MockERC20("WRONG", "WRONG", 18);
+        MultiFixedRateProvider provider2 = new MultiFixedRateProvider();
+        provider2.addAsset(address(mockErc20));
+
+        // we need the wrong asset to be in provider to break invariant
+        provider2.addAsset(address(wrongAsset));
+        flexStrategy.setProvider(address(provider2));
+
+        vm.startPrank(ALLOCATOR);
+        vm.expectRevert(IVault.AssetNotActive.selector);
+        flexStrategy.depositAsset(address(wrongAsset), 100, ALLOCATOR);
+
+        // bad settings to break invariant on withdraw
+        vm.startPrank(SAFE);
+        wrongAsset.mint(10_000e18);
+
+        vm.startPrank(ADMIN);
+        assertEq(flexStrategy.maxWithdrawAsset(address(wrongAsset), ALLOCATOR), 0);
+        flexStrategy.setAssetWithdrawable(address(wrongAsset), true);
+        assertEq(flexStrategy.maxWithdrawAsset(address(wrongAsset), ALLOCATOR), 100);
+
+        vm.startPrank(ALLOCATOR);
+        vm.expectRevert(abi.encodeWithSelector(IVault.InvalidAsset.selector, address(wrongAsset)));
+        flexStrategy.withdrawAsset(address(wrongAsset), 100, WITHDRAW_RECEIVER, ALLOCATOR);
+    }
+
     function testFuzz_withdraw_revertIfNotOwnerAndNoAllowance(uint128 deposit) public {
         vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
 
