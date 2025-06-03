@@ -47,6 +47,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         virtual
         initializer
     {
+        if (admin == address(0)) revert ZeroAddress();
+
         _initialize(
             admin,
             name,
@@ -57,8 +59,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
             false, // alwaysComputeTotalAssets. MUST be false. totalAssets == total accounting tokens in strategy
             0 // defaultAssetIndex. MUST be 0. baseAsset is default, and only, asset
         );
-
-        if (admin == address(0)) revert ZeroAddress();
 
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
         _setAssetWithdrawable(baseAsset, true);
