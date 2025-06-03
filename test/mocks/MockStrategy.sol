@@ -19,9 +19,8 @@ contract MockStrategy is IFlexStrategy {
         am.deposit(amount);
     }
 
-    function withdraw(uint256 amount) public {
-        am.withdraw(amount);
-        IERC20(am.BASE_ASSET()).transfer(msg.sender, amount);
+    function withdraw(uint256 amount, address recipient) public {
+        am.withdraw(amount, recipient);
     }
 
     function processAccounting() public { }

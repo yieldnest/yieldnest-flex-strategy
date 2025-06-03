@@ -4,7 +4,6 @@ pragma solidity ^0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IAccountingToken } from "./AccountingToken.sol";
-import { IFlexStrategy } from "./FlexStrategy.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -22,7 +21,7 @@ interface IAccountingModule {
     error TvlTooLow();
 
     function deposit(uint256 amount) external;
-    function withdraw(uint256 amount) external;
+    function withdraw(uint256 amount, address recipient) external;
     function processRewards(uint256 amount) external;
     function processLosses(uint256 amount) external;
 
@@ -119,10 +118,11 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @notice Proxies withdraw of base assets from associated SAFE to caller,
      * and burns an equiv amount of accounting tokens
      * @param amount amount to deposit
+     * @param recipient address to receive the base assets
      */
-    function withdraw(uint256 amount) external onlyStrategy {
+    function withdraw(uint256 amount, address recipient) external onlyStrategy {
         accountingToken.burnFrom(msg.sender, amount);
-        IERC20(BASE_ASSET).safeTransferFrom(safe, msg.sender, amount);
+        IERC20(BASE_ASSET).safeTransferFrom(safe, recipient, amount);
     }
 
     /**

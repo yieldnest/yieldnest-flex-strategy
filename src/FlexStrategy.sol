@@ -7,7 +7,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IAccountingModule } from "./AccountingModule.sol";
 
 interface IFlexStrategy {
-    error OnlyBaseAsset();
     error NoAccountingModule();
     error InvariantViolation();
 
@@ -48,16 +47,19 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         virtual
         initializer
     {
+        if (admin == address(0)) revert ZeroAddress();
+
         _initialize(
             admin,
             name,
             symbol,
             decimals_,
             paused_,
-            false, // countNativeAsset. MUST be false. accounting is done virtually.
-            false, // alwaysComputeTotalAssets. MUST be false. accounting is done virtually.
-            0 // defaultAssetIndex. MUST be 0. baseAsset is default
+            false, // countNativeAsset. MUST be false. strategy is assumed to hold no native assets
+            false, // alwaysComputeTotalAssets. MUST be false. totalAssets == total accounting tokens in strategy
+            0 // defaultAssetIndex. MUST be 0. baseAsset is default, and only, asset
         );
+
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
         _setAssetWithdrawable(baseAsset, true);
     }
@@ -67,9 +69,21 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         _;
     }
 
-    modifier checkInvariantAfter() {
+    modifier checkInvariantsAfter() {
+        IERC20 asset = IERC20(asset());
+        uint256 balance = asset.balanceOf(address(this));
+
+        if (balance != 0) {
+            asset.safeTransfer(accountingModule.safe(), balance);
+        }
+
         _;
+
         if (totalAssets() != IERC20(accountingModule.accountingToken()).balanceOf(address(this))) {
+            revert InvariantViolation();
+        }
+
+        if (asset.balanceOf(address(this)) != 0) {
             revert InvariantViolation();
         }
     }
@@ -95,7 +109,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         virtual
         override
         hasAccountingModule
-        checkInvariantAfter
+        checkInvariantsAfter
     {
         // call the base strategy deposit function for accounting
         super._deposit(asset_, caller, receiver, assets, shares, baseAssets);
@@ -125,11 +139,10 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         virtual
         override
         onlyAllocator
-        checkInvariantAfter
+        checkInvariantsAfter
     {
-        // check if the asset is withdrawable
-        if (!_getBaseStrategyStorage().isAssetWithdrawable[asset_]) {
-            revert AssetNotWithdrawable();
+        if (asset_ != asset()) {
+            revert InvalidAsset(asset_);
         }
 
         // call the base strategy withdraw function for accounting
@@ -143,7 +156,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         _burn(owner, shares);
 
         // burn virtual tokens
-        accountingModule.withdraw(assets);
+        accountingModule.withdraw(assets, receiver);
         emit WithdrawAsset(caller, receiver, owner, asset_, assets, shares);
     }
 
@@ -171,7 +184,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @dev This function iterates through the list of assets, gets their balances and rates,
      *      and updates the total assets denominated in the base asset.
      */
-    function processAccounting() public virtual override nonReentrant checkInvariantAfter {
+    function processAccounting() public virtual override nonReentrant checkInvariantsAfter {
         _processAccounting();
     }
 
@@ -207,6 +220,21 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @dev Overridden. MUST always be false for flex strategy, because accounting is done virtually
      */
     function setAlwaysComputeTotalAssets(bool) external virtual override onlyRole(ASSET_MANAGER_ROLE) {
+        revert InvariantViolation();
+    }
+
+    /**
+     * @notice Adds a new asset to the vault.
+     *
+     */
+    function addAsset(address, uint8, bool, bool) public virtual override onlyRole(ASSET_MANAGER_ROLE) {
+        revert InvariantViolation();
+    }
+
+    /**
+     * @notice Adds a new asset to the vault.
+     */
+    function addAsset(address, bool, bool) external virtual override onlyRole(ASSET_MANAGER_ROLE) {
         revert InvariantViolation();
     }
 
