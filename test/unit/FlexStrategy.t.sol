@@ -585,4 +585,44 @@ contract FlexStrategyTest is Test {
         assertEq(flexStrategy.totalAssets(), 0, "Total assets should be 0 when no deposits made");
         assertEq(flexStrategy.computeTotalAssets(), 0, "Computed total assets should be 0 when no deposits made");
     }
+
+    function testFuzz_mint_success(uint128 deposit) public {
+        uint256 balanceBefore = mockErc20.balanceOf(ALLOCATOR);
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.mint(deposit, ALLOCATOR);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after deposit");
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            deposit,
+            "Strategy should have correct accountingToken balance after deposit"
+        );
+        assertEq(
+            mockErc20.balanceOf(ALLOCATOR),
+            balanceBefore - deposit,
+            "Allocator balance should decrease by deposit amount"
+        );
+        assertEq(
+            IERC20(address(flexStrategy)).balanceOf(ALLOCATOR), deposit, "Allocator should have correct strategy shares"
+        );
+        assertEq(mockErc20.balanceOf(SAFE), deposit, "Safe should have correct deposit");
+        assertEq(flexStrategy.computeTotalAssets(), deposit, "Computed total assets should match deposit");
+        assertEq(flexStrategy.totalAssets(), deposit, "Total assets should match deposit");
+    }
+
+    function testFuzz_redeem_whenFundsAreInSafe_success(uint128 deposit) public {
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.deposit(deposit, ALLOCATOR);
+
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.withdraw(deposit, WITHDRAW_RECEIVER, ALLOCATOR);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after withdrawal");
+        assertEq(mockErc20.balanceOf(WITHDRAW_RECEIVER), deposit, "Receiver balance should be correct after withdrawal");
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            0,
+            "Strategy accountingToken balance should be correct after withdrawal"
+        );
+        assertEq(IERC20(address(flexStrategy)).balanceOf(ALLOCATOR), 0, "Allocator should have correct strategy shares");
+        assertEq(mockErc20.balanceOf(SAFE), 0, "Safe should have correct deposit");
+    }
 }

@@ -138,6 +138,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         internal
         virtual
         override
+        hasAccountingModule
         onlyAllocator
         checkInvariantsAfter
     {
