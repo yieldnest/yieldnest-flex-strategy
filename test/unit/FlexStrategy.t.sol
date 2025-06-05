@@ -417,6 +417,33 @@ contract FlexStrategyTest is Test {
         );
     }
 
+
+    function testFuzz_processAccounting_preventsRewardsExceedingTargetApy(uint128 deposit) public {
+        vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
+
+        uint128 maxRewards = uint128(
+            uint256(accountingModule.targetApy()) * deposit / accountingModule.DIVISOR() / accountingModule.YEAR()
+        );
+
+        uint128 rewards = maxRewards;
+
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.deposit(deposit, ALLOCATOR);
+
+        vm.startPrank(ACCOUNTING_PROCESSOR);
+        uint256 shares = flexStrategy.balanceOf(ALLOCATOR);
+        uint256 sharePriceBefore = flexStrategy.convertToAssets(shares);
+        accountingModule.processRewards(rewards);
+        assertGt(flexStrategy.convertToAssets(shares), sharePriceBefore, "Share price should increase");
+
+        // Advance time by 2 hours to simulate time passing for APY calculations
+        vm.warp(block.timestamp + 2 hours);
+
+        // Try to process rewards again - should revert due to APY limit
+        vm.expectRevert();
+        accountingModule.processRewards(rewards);
+    }
+
     // Withdraw
     function test_withdraw_invalidAsset() public {
         uint128 deposit = 100e18;
@@ -625,4 +652,6 @@ contract FlexStrategyTest is Test {
         assertEq(IERC20(address(flexStrategy)).balanceOf(ALLOCATOR), 0, "Allocator should have correct strategy shares");
         assertEq(mockErc20.balanceOf(SAFE), 0, "Safe should have correct deposit");
     }
+
+    
 }
