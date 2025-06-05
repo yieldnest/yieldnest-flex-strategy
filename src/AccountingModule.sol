@@ -125,6 +125,16 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         IERC20(BASE_ASSET).safeTransferFrom(safe, recipient, amount);
     }
 
+
+    struct RewardSnapshot {
+        uint64 timestamp;
+        uint256 totalSupply;
+        uint256 pricePerShare;
+        uint256 rewardAmount;
+    }
+
+    RewardSnapshot[] public snapshots;
+
     /**
      * @notice Process rewards by minting accounting tokens
      * @param amount profits to mint
@@ -133,12 +143,74 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         uint256 totalSupply = accountingToken.totalSupply();
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
-        // check for upper bound
-        // targetApy / year * token.totalsupply()
-        if (amount > targetApy * totalSupply / DIVISOR / YEAR) revert AccountingLimitsExceeded();
+        IVault strategy = IVault(STRATEGY);
+
+        // Take snapshot of current state
+        uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
+        
+        snapshots.push(RewardSnapshot({
+            timestamp: uint64(block.timestamp),
+            totalSupply: totalSupply,
+            pricePerShare: currentPricePerShare,
+            rewardAmount: amount
+        }));
+
+
+        // Calculate annualized return based on snapshots
+        uint256 annualizedReturn = _calculateAnnualizedReturn();
+        
+        // Check if processing this reward would exceed target APY
+        uint256 projectedReturn = _calculateProjectedReturn(amount, totalSupply, currentPricePerShare);
+        
+        if (annualizedReturn + projectedReturn > targetApy) {
+            revert AccountingLimitsExceeded();
+        }
 
         accountingToken.mintTo(STRATEGY, amount);
         IVault(STRATEGY).processAccounting();
+    }
+
+    /**
+     * @notice Calculate annualized return based on snapshots
+     */
+    function _calculateAnnualizedReturn() internal view returns (uint256) {
+        if (snapshots.length < 2) return 0;
+        
+        uint256 oldestIndex = 0;
+        uint256 newestIndex = snapshots.length - 1;
+        
+        RewardSnapshot memory oldest = snapshots[oldestIndex];
+        RewardSnapshot memory newest = snapshots[newestIndex];
+        
+        if (newest.timestamp <= oldest.timestamp) return 0;
+        
+        uint256 timeDiff = newest.timestamp - oldest.timestamp;
+        if (timeDiff == 0) return 0;
+        
+        // Calculate price appreciation
+        uint256 priceGrowth = newest.pricePerShare > oldest.pricePerShare ?
+            ((newest.pricePerShare - oldest.pricePerShare) * DIVISOR) / oldest.pricePerShare : 0;
+        
+        // Annualize the return
+        return (priceGrowth * YEAR) / timeDiff;
+    }
+
+    /**
+     * @notice Calculate projected return impact of new reward
+     */
+    function _calculateProjectedReturn(
+        uint256 rewardAmount, 
+        uint256 currentSupply, 
+        uint256 currentPricePerShare
+    ) internal view returns (uint256) {
+        if (currentSupply == 0) return 0;
+        
+        // Calculate new price per share after reward
+        uint256 newPricePerShare = ((IERC20(BASE_ASSET).balanceOf(safe) + rewardAmount) * 1e18) / currentSupply;
+        
+        // Calculate immediate return impact
+        return newPricePerShare > currentPricePerShare ?
+            ((newPricePerShare - currentPricePerShare) * DIVISOR) / currentPricePerShare : 0;
     }
 
     /**
