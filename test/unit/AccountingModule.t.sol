@@ -19,7 +19,7 @@ contract AccountingModuleTest is Test {
     AccountingModule public accountingModule;
     AccountingToken public accountingToken;
     MockStrategy public mockStrategy;
-    uint16 public constant TARGET_APY = 1000;
+    uint256 public constant TARGET_APY = 0.1 ether; // 10%
     uint16 public constant LOWER_BOUND = 1000;
 
     function setUp() public {

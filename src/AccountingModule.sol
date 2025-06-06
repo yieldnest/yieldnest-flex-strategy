@@ -9,8 +9,8 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
 interface IAccountingModule {
-    event LowerBoundUpdated(uint16 newValue, uint16 oldValue);
-    event TargetApyUpdated(uint16 newValue, uint16 oldValue);
+    event LowerBoundUpdated(uint256 newValue, uint256 oldValue);
+    event TargetApyUpdated(uint256 newValue, uint256 oldValue);
     event CooldownSecondsUpdated(uint16 newValue, uint16 oldValue);
     event SafeUpdated(address newValue, address oldValue);
 
@@ -46,7 +46,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     bytes32 public constant ACCOUNTING_PROCESSOR_ROLE = keccak256("ACCOUNTING_PROCESSOR_ROLE");
 
     uint256 public constant YEAR = 365.25 days;
-    uint256 public constant DIVISOR = 10_000;
+    uint256 public constant DIVISOR = 1e18;
     address public immutable BASE_ASSET;
     address public immutable STRATEGY;
 
@@ -54,8 +54,10 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     address public safe;
     uint64 public nextRewardWindow;
     uint16 public cooldownSeconds;
-    uint16 public targetApy; // in bips;
-    uint16 public lowerBound; // in bips; % of tvl
+    uint256 public targetApy; // in bips;
+    uint256 public lowerBound; // in bips; % of tvl
+
+    RewardsSnapshot[] public snapshots;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address strategy, address baseAsset) {
@@ -76,8 +78,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         address admin,
         address safe_,
         IAccountingToken accountingToken_,
-        uint16 targetApy_,
-        uint16 lowerBound_
+        uint256 targetApy_,
+        uint256 lowerBound_
     )
         external
         virtual
@@ -91,6 +93,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         targetApy = targetApy_;
         lowerBound = lowerBound_;
         cooldownSeconds = 3600;
+
+        createRewardsSnapshot();
     }
 
     modifier checkAndResetCooldown() {
@@ -125,15 +129,10 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         IERC20(BASE_ASSET).safeTransferFrom(safe, recipient, amount);
     }
 
-
-    struct RewardSnapshot {
+    struct RewardsSnapshot {
         uint64 timestamp;
-        uint256 totalSupply;
         uint256 pricePerShare;
-        uint256 rewardAmount;
     }
-
-    RewardSnapshot[] public snapshots;
 
     /**
      * @notice Process rewards by minting accounting tokens
@@ -145,72 +144,61 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         IVault strategy = IVault(STRATEGY);
 
+        accountingToken.mintTo(STRATEGY, amount);
+        strategy.processAccounting();
+
+        RewardsSnapshot memory previousSnapshot = snapshots[snapshots.length - 1];
+
+        uint256 currentPricePerShare = createRewardsSnapshot().pricePerShare;
+
+        // Check if APR is within acceptable bounds
+        uint256 aprSinceLastSnapshot = calculateApr(
+            previousSnapshot.pricePerShare, previousSnapshot.timestamp, currentPricePerShare, block.timestamp
+        );
+
+        if (aprSinceLastSnapshot > targetApy) revert AccountingLimitsExceeded();
+    }
+
+    function createRewardsSnapshot() internal returns (RewardsSnapshot memory) {
+        IVault strategy = IVault(STRATEGY);
+
         // Take snapshot of current state
         uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
-        
-        snapshots.push(RewardSnapshot({
-            timestamp: uint64(block.timestamp),
-            totalSupply: totalSupply,
-            pricePerShare: currentPricePerShare,
-            rewardAmount: amount
-        }));
 
+        RewardsSnapshot memory snapshot =
+            RewardsSnapshot({ timestamp: uint64(block.timestamp), pricePerShare: currentPricePerShare });
 
-        // Calculate annualized return based on snapshots
-        uint256 annualizedReturn = _calculateAnnualizedReturn();
-        
-        // Check if processing this reward would exceed target APY
-        uint256 projectedReturn = _calculateProjectedReturn(amount, totalSupply, currentPricePerShare);
-        
-        if (annualizedReturn + projectedReturn > targetApy) {
-            revert AccountingLimitsExceeded();
-        }
+        snapshots.push(snapshot);
 
-        accountingToken.mintTo(STRATEGY, amount);
-        IVault(STRATEGY).processAccounting();
+        return snapshot;
     }
 
     /**
-     * @notice Calculate annualized return based on snapshots
+     * @notice Calculate APR based on price per share changes over time
+     * @param previousPricePerShare The price per share at the start of the period
+     * @param previousTimestamp The timestamp at the start of the period
+     * @param currentPricePerShare The price per share at the end of the period
+     * @param currentTimestamp The timestamp at the end of the period
+     * @return apr The calculated APR in basis points
      */
-    function _calculateAnnualizedReturn() internal view returns (uint256) {
-        if (snapshots.length < 2) return 0;
-        
-        uint256 oldestIndex = 0;
-        uint256 newestIndex = snapshots.length - 1;
-        
-        RewardSnapshot memory oldest = snapshots[oldestIndex];
-        RewardSnapshot memory newest = snapshots[newestIndex];
-        
-        if (newest.timestamp <= oldest.timestamp) return 0;
-        
-        uint256 timeDiff = newest.timestamp - oldest.timestamp;
-        if (timeDiff == 0) return 0;
-        
-        // Calculate price appreciation
-        uint256 priceGrowth = newest.pricePerShare > oldest.pricePerShare ?
-            ((newest.pricePerShare - oldest.pricePerShare) * DIVISOR) / oldest.pricePerShare : 0;
-        
-        // Annualize the return
-        return (priceGrowth * YEAR) / timeDiff;
-    }
-
-    /**
-     * @notice Calculate projected return impact of new reward
-     */
-    function _calculateProjectedReturn(
-        uint256 rewardAmount, 
-        uint256 currentSupply, 
-        uint256 currentPricePerShare
-    ) internal view returns (uint256) {
-        if (currentSupply == 0) return 0;
-        
-        // Calculate new price per share after reward
-        uint256 newPricePerShare = ((IERC20(BASE_ASSET).balanceOf(safe) + rewardAmount) * 1e18) / currentSupply;
-        
-        // Calculate immediate return impact
-        return newPricePerShare > currentPricePerShare ?
-            ((newPricePerShare - currentPricePerShare) * DIVISOR) / currentPricePerShare : 0;
+    function calculateApr(
+        uint256 previousPricePerShare,
+        uint256 previousTimestamp,
+        uint256 currentPricePerShare,
+        uint256 currentTimestamp
+    )
+        internal
+        pure
+        returns (uint256 apr)
+    {
+        /*
+        ppsStart - Price per share at the start of the period
+        ppsEnd - Price per share at the end of the period
+        t - Time period in years*
+        Formula: (ppsEnd - ppsStart) / (ppsStart * t)
+        */
+        return (currentPricePerShare - previousPricePerShare) / previousPricePerShare * YEAR * DIVISOR
+            / (currentTimestamp - previousTimestamp);
     }
 
     /**
@@ -226,6 +214,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         accountingToken.burnFrom(STRATEGY, amount);
         IVault(STRATEGY).processAccounting();
+
+        createRewardsSnapshot();
     }
 
     /**

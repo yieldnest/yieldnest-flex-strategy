@@ -4,9 +4,16 @@ pragma solidity ^0.8.28;
 import { IAccountingModule } from "../../src/AccountingModule.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IFlexStrategy } from "../../src/FlexStrategy.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract MockStrategy is IFlexStrategy {
+    using Math for uint256;
+
     IAccountingModule am;
+
+    uint256 rate;
+
+    constructor() { }
 
     function setAccountingModule(IAccountingModule am_) public {
         am = am_;
@@ -24,4 +31,17 @@ contract MockStrategy is IFlexStrategy {
     }
 
     function processAccounting() public { }
+
+    function decimals() public pure returns (uint8) {
+        return 18;
+    }
+
+    function convertToAssets(uint256 shares) public view returns (uint256) {
+        uint256 assets = shares.mulDiv(rate, 1e18, Math.Rounding.Floor);
+        return assets;
+    }
+
+    function setRate(uint256 rate_) public {
+        rate = rate_;
+    }
 }
