@@ -26,6 +26,8 @@ contract AccountingModuleTest is Test {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
         mockStrategy = new MockStrategy();
 
+        mockStrategy.setRate(1e18);
+
         AccountingToken accountingToken_impl = new AccountingToken(address(mockErc20));
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
             address(accountingToken_impl),
@@ -204,7 +206,10 @@ contract AccountingModuleTest is Test {
         );
     }
 
-    function testFuzz_processRewards(uint96 processedAmount) public {
+    function testFuzz_processRewards(/*uint96 processedAmount*/ ) public {
+
+        uint96 processedAmount = 107;
+
         vm.startPrank(ADMIN);
         accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
 

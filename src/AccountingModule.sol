@@ -7,6 +7,7 @@ import { IAccountingToken } from "./AccountingToken.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { console } from "forge-std/console.sol";
 
 interface IAccountingModule {
     event LowerBoundUpdated(uint256 newValue, uint256 oldValue);
@@ -19,6 +20,7 @@ interface IAccountingModule {
     error AccountingLimitsExceeded();
     error InvariantViolation();
     error TvlTooLow();
+    error CurrentTimestampBeforePreviousTimestamp();
 
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount, address recipient) external;
@@ -151,10 +153,14 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         uint256 currentPricePerShare = createRewardsSnapshot().pricePerShare;
 
+        console.log("currentPricePerShare", currentPricePerShare);
+
         // Check if APR is within acceptable bounds
         uint256 aprSinceLastSnapshot = calculateApr(
             previousSnapshot.pricePerShare, previousSnapshot.timestamp, currentPricePerShare, block.timestamp
         );
+
+        console.log("aprSinceLastSnapshot", aprSinceLastSnapshot);
 
         if (aprSinceLastSnapshot > targetApy) revert AccountingLimitsExceeded();
     }
@@ -197,7 +203,16 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         t - Time period in years*
         Formula: (ppsEnd - ppsStart) / (ppsStart * t)
         */
-        return (currentPricePerShare - previousPricePerShare) / previousPricePerShare * YEAR * DIVISOR
+
+        console.log("currentPricePerShare", currentPricePerShare);
+        console.log("previousPricePerShare", previousPricePerShare);
+        console.log("currentTimestamp", currentTimestamp);
+        console.log("previousTimestamp", previousTimestamp);
+
+        // Ensure timestamps are ordered (current should be after previous)
+        if (currentTimestamp <= previousTimestamp) revert CurrentTimestampBeforePreviousTimestamp();
+
+        return (currentPricePerShare - previousPricePerShare) * YEAR * DIVISOR / previousPricePerShare
             / (currentTimestamp - previousTimestamp);
     }
 
