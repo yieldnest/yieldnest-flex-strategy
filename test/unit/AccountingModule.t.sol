@@ -375,7 +375,7 @@ contract AccountingModuleTest is Test {
         accountingModule.setTargetApy(1e4);
 
         vm.expectRevert(IAccountingModule.InvariantViolation.selector);
-        accountingModule.setTargetApy(10_001);
+        accountingModule.setTargetApy(1e18 + 1);
     }
 
     function test_setTargetApy_success() public {
@@ -403,7 +403,7 @@ contract AccountingModuleTest is Test {
         vm.startPrank(SAFE_MANAGER);
 
         vm.expectRevert(IAccountingModule.InvariantViolation.selector);
-        accountingModule.setLowerBound(1e4);
+        accountingModule.setLowerBound(1e18 + 1);
     }
 
     function test_setLowerBound_success() public {

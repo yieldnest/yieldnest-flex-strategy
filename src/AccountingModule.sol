@@ -240,7 +240,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param targetApyInBips in bips
      * @dev hard max of 100% targetApy
      */
-    function setTargetApy(uint16 targetApyInBips) external onlyRole(SAFE_MANAGER_ROLE) {
+    function setTargetApy(uint256 targetApyInBips) external onlyRole(SAFE_MANAGER_ROLE) {
         if (targetApyInBips > DIVISOR) revert InvariantViolation();
 
         emit TargetApyUpdated(targetApyInBips, targetApy);
@@ -252,7 +252,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param _lowerBound in bips, as a function of % of tvl
      * @dev hard max of 50% of tvl
      */
-    function setLowerBound(uint16 _lowerBound) external onlyRole(SAFE_MANAGER_ROLE) {
+    function setLowerBound(uint256 _lowerBound) external onlyRole(SAFE_MANAGER_ROLE) {
         if (_lowerBound > (DIVISOR / 2)) revert InvariantViolation();
 
         emit LowerBoundUpdated(_lowerBound, lowerBound);
