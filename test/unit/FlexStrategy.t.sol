@@ -81,7 +81,8 @@ contract FlexStrategyTest is Test {
         flexStrategy.grantRole(flexStrategy.ASSET_MANAGER_ROLE(), ADMIN);
         flexStrategy.grantRole(flexStrategy.ALLOCATOR_ROLE(), ALLOCATOR);
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+        accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+        accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
 
         accountingToken.setAccountingModule(address(accountingModule));
         flexStrategy.setAccountingModule(address(accountingModule));

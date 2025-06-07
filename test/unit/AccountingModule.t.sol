@@ -59,6 +59,11 @@ contract AccountingModuleTest is Test {
 
         vm.prank(SAFE);
         mockErc20.approve(address(accountingModule), type(uint256).max);
+
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+        accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+        vm.stopPrank();
     }
 
     function test_setup_success() public view {
@@ -129,17 +134,13 @@ contract AccountingModuleTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                BOB,
-                accountingModule.ACCOUNTING_PROCESSOR_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, accountingModule.REWARDS_PROCESSOR_ROLE()
             )
         );
         accountingModule.processRewards(1e6);
     }
 
     function test_processRewards_revertIfTvlTooLow() public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
         vm.startPrank(BOB);
         uint256 deposit = 1e6;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -151,9 +152,6 @@ contract AccountingModuleTest is Test {
     }
 
     function test_processRewards_revertIfUpperBoundExceed() public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -171,9 +169,6 @@ contract AccountingModuleTest is Test {
     }
 
     function test_processRewards_revertIfTooEarly() public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -193,9 +188,6 @@ contract AccountingModuleTest is Test {
     }
 
     function test_processRewards_success_After_1_hour() public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         skip(3601);
 
         vm.startPrank(BOB);
@@ -228,9 +220,6 @@ contract AccountingModuleTest is Test {
 
         uint96 processedAmount = 2000e18;
 
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         uint256 supply = 10_000_000e18;
 
         vm.startPrank(BOB);
@@ -251,9 +240,6 @@ contract AccountingModuleTest is Test {
     function testFuzz_processRewards(uint96 processedAmount) public {
         uint256 timePassed = 1 days;
         skip(timePassed);
-
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
 
         uint256 supply = 10_000_000e18;
         vm.assume(
@@ -280,9 +266,6 @@ contract AccountingModuleTest is Test {
     }
 
     function test_processLosses_revertIfNoAccountingProcessorRole() public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -290,18 +273,13 @@ contract AccountingModuleTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector,
-                BOB,
-                accountingModule.ACCOUNTING_PROCESSOR_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, accountingModule.LOSS_PROCESSOR_ROLE()
             )
         );
         accountingModule.processLosses(1e6);
     }
 
     function test_processLosses_revertIfTvlTooLow() public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         vm.startPrank(BOB);
         uint256 deposit = 1e6;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -313,9 +291,6 @@ contract AccountingModuleTest is Test {
     }
 
     function test_processLosses_revertIfLowerBoundExceed() public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -327,9 +302,6 @@ contract AccountingModuleTest is Test {
     }
 
     function test_processLosses_revertIfTooEarly() public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -346,9 +318,6 @@ contract AccountingModuleTest is Test {
     }
 
     function test_processLosses_success() public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
@@ -372,9 +341,6 @@ contract AccountingModuleTest is Test {
     }
 
     function testFuzz_processLosses(uint96 processedAmount) public {
-        vm.startPrank(ADMIN);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
-
         uint256 supply = 10_000_000e18;
         vm.assume(processedAmount <= (supply * accountingModule.lowerBound() / accountingModule.DIVISOR()));
 

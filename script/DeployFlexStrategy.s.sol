@@ -182,7 +182,8 @@ contract DeployFlexStrategy is BaseScript {
         strategy.setAccountingModule(address(accountingModule));
 
         // set accounting processor role
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), accountingProcessor);
+        accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), accountingProcessor);
+        accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), accountingProcessor);
 
         strategy.unpause();
 

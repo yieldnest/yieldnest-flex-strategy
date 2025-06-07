@@ -31,7 +31,8 @@ interface IAccountingModule {
     function accountingToken() external view returns (IAccountingToken);
     function safe() external view returns (address);
     function SAFE_MANAGER_ROLE() external view returns (bytes32);
-    function ACCOUNTING_PROCESSOR_ROLE() external view returns (bytes32);
+    function REWARDS_PROCESSOR_ROLE() external view returns (bytes32);
+    function LOSS_PROCESSOR_ROLE() external view returns (bytes32);
 }
 /**
  * Module to configure strategy params,
@@ -45,7 +46,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     bytes32 public constant SAFE_MANAGER_ROLE = keccak256("SAFE_MANAGER_ROLE");
 
     /// @notice Role for processing rewards/losses
-    bytes32 public constant ACCOUNTING_PROCESSOR_ROLE = keccak256("ACCOUNTING_PROCESSOR_ROLE");
+    bytes32 public constant REWARDS_PROCESSOR_ROLE = keccak256("REWARDS_PROCESSOR_ROLE");
+    bytes32 public constant LOSS_PROCESSOR_ROLE = keccak256("LOSS_PROCESSOR_ROLE");
 
     uint256 public constant YEAR = 365.25 days;
     uint256 public constant DIVISOR = 1e18;
@@ -65,7 +67,6 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         uint64 timestamp;
         uint256 pricePerShare;
     }
-
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address strategy, address baseAsset) {
@@ -141,7 +142,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @notice Process rewards by minting accounting tokens
      * @param amount profits to mint
      */
-    function processRewards(uint256 amount) external onlyRole(ACCOUNTING_PROCESSOR_ROLE) checkAndResetCooldown {
+    function processRewards(uint256 amount) external onlyRole(REWARDS_PROCESSOR_ROLE) checkAndResetCooldown {
         uint256 totalSupply = accountingToken.totalSupply();
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
@@ -221,7 +222,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @notice Process losses by burning accounting tokens
      * @param amount losses to burn
      */
-    function processLosses(uint256 amount) external onlyRole(ACCOUNTING_PROCESSOR_ROLE) checkAndResetCooldown {
+    function processLosses(uint256 amount) external onlyRole(LOSS_PROCESSOR_ROLE) checkAndResetCooldown {
         uint256 totalSupply = accountingToken.totalSupply();
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 

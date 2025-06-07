@@ -31,11 +31,11 @@ contract VerifyFlexStrategy is BaseScript, Test {
         assertEq(accountingModule.targetApy(), 1000, "targetApy is not set");
         assertEq(accountingModule.lowerBound(), 1000, "lowerBound is not set");
         RolesVerification.verifyRole(
-            accountingModule,
-            safe,
-            accountingModule.ACCOUNTING_PROCESSOR_ROLE(),
-            true,
-            "safe has accounting processor role"
+            accountingModule, safe, accountingModule.REWARDS_PROCESSOR_ROLE(), true, "safe has rewards processor role"
+        );
+
+        RolesVerification.verifyRole(
+            accountingModule, safe, accountingModule.LOSS_PROCESSOR_ROLE(), true, "safe has loss processor role"
         );
     }
 
