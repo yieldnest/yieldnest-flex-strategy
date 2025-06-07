@@ -50,6 +50,16 @@ contract FlexStrategyTest is Test {
             ADMIN,
             abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
         );
+
+        {
+            vm.startPrank(ADMIN);
+            flexStrategy.grantRole(flexStrategy.PROVIDER_MANAGER_ROLE(), ADMIN);
+            FixedRateProvider provider = new FixedRateProvider(address(mockErc20));
+
+            flexStrategy.setProvider(address(provider));
+            vm.stopPrank();
+        }
+
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
         bytes memory am_initData = abi.encodeWithSelector(
@@ -63,11 +73,7 @@ contract FlexStrategyTest is Test {
         accountingModule = AccountingModule(payable(address(am_tu)));
         accountingModule2 = AccountingModule(payable(address(am_tu2)));
 
-        FixedRateProvider provider = new FixedRateProvider(address(mockErc20));
-
         vm.startPrank(ADMIN);
-        flexStrategy.grantRole(flexStrategy.PROVIDER_MANAGER_ROLE(), ADMIN);
-        flexStrategy.setProvider(address(provider));
         flexStrategy.grantRole(flexStrategy.UNPAUSER_ROLE(), ADMIN);
         flexStrategy.unpause();
         flexStrategy.grantRole(flexStrategy.ALLOCATOR_MANAGER_ROLE(), ADMIN);

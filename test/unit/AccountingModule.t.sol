@@ -159,6 +159,12 @@ contract AccountingModuleTest is Test {
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
+        // Skip 1 day to accumulate rewards
+        skip(3600 * 24);
+
+        // double the rate to exceed the upper bound
+        mockStrategy.setRate((deposit + deposit).mulDiv(1e18, deposit, Math.Rounding.Floor));
+
         vm.startPrank(ACCOUNTING_PROCESSOR);
         vm.expectRevert(IAccountingModule.AccountingLimitsExceeded.selector);
         accountingModule.processRewards(deposit);
@@ -186,28 +192,33 @@ contract AccountingModuleTest is Test {
         accountingModule.processRewards(1e6);
     }
 
-    function test_processRewards_success() public {
+    function test_processRewards_success_After_1_hour() public {
         vm.startPrank(ADMIN);
         accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
+        skip(3601);
 
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
 
+        uint256 rewardsAmount = 1e6;
+        mockStrategy.setRate((deposit + rewardsAmount).mulDiv(1e18, deposit, Math.Rounding.Floor));
+
         vm.startPrank(ACCOUNTING_PROCESSOR);
-        accountingModule.processRewards(1e6);
+        accountingModule.processRewards(rewardsAmount);
         assertEq(
             accountingToken.balanceOf(address(mockStrategy)),
-            deposit + 1e6,
+            deposit + rewardsAmount,
             "accountingToken balance should increase by rewards amount"
         );
 
         skip(3601);
-        accountingModule.processRewards(1e6);
+        accountingModule.processRewards(rewardsAmount);
         assertEq(
             accountingToken.balanceOf(address(mockStrategy)),
-            deposit + 1e6 + 1e6,
+            deposit + rewardsAmount + rewardsAmount,
             "accountingToken balance should increase by rewards amounts"
         );
     }
