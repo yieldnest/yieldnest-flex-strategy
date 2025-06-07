@@ -23,7 +23,7 @@ contract AccountingModuleTest is Test {
     AccountingToken public accountingToken;
     MockStrategy public mockStrategy;
     uint256 public constant TARGET_APY = 0.1 ether; // 10%
-    uint16 public constant LOWER_BOUND = 1000;
+    uint256 public constant LOWER_BOUND = 0.5 ether; // 50%
 
     function setUp() public {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
@@ -172,6 +172,9 @@ contract AccountingModuleTest is Test {
         uint256 deposit = 20e18;
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(deposit);
+
+        // Skip 1 hour to accumulate rewards
+        skip(3600);
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processRewards(1e6);

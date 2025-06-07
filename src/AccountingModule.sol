@@ -193,7 +193,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         uint256 currentPricePerShare,
         uint256 currentTimestamp
     )
-        internal
+        public
         pure
         returns (uint256 apr)
     {
