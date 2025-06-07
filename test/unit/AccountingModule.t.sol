@@ -206,7 +206,8 @@ contract AccountingModuleTest is Test {
         );
     }
 
-    function testFuzz_processRewards(/*uint96 processedAmount*/ ) public {
+    function testFuzz_processRewards( /*uint96 processedAmount*/ ) public {
+        skip(1 days);
 
         uint96 processedAmount = 107;
 
