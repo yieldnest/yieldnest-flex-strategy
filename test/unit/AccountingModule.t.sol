@@ -209,7 +209,7 @@ contract AccountingModuleTest is Test {
         );
     }
 
-    function testFuzz_processRewards_After_1_day() public {
+    function test_processRewards_After_1_day() public {
         skip(1 days);
 
         uint96 processedAmount = 2000e18;
@@ -234,19 +234,21 @@ contract AccountingModuleTest is Test {
         );
     }
 
-    function testFuzz_processRewards( /*uint96 processedAmount*/ ) public {
-        skip(1 days);
-
-        uint96 processedAmount = 2000e18;
+    function testFuzz_processRewards(uint96 processedAmount) public {
+        uint256 timePassed = 1 days;
+        skip(timePassed);
 
         vm.startPrank(ADMIN);
         accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
 
         uint256 supply = 10_000_000e18;
-        // vm.assume(
-        //     processedAmount
-        //         <= (accountingModule.targetApy() * supply / accountingModule.DIVISOR() / accountingModule.YEAR())
-        // );
+        vm.assume(
+            processedAmount
+                <= (
+                    accountingModule.targetApy() * supply * timePassed / accountingModule.DIVISOR()
+                        / accountingModule.YEAR()
+                )
+        );
 
         vm.startPrank(BOB);
         mockErc20.approve(address(mockStrategy), type(uint256).max);
