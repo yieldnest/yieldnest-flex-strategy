@@ -8,8 +8,11 @@ import { MockStrategy } from "../mocks/MockStrategy.sol";
 import { AccountingModule, IAccountingModule } from "../../src/AccountingModule.sol";
 import { AccountingToken } from "../../src/AccountingToken.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract AccountingModuleTest is Test {
+    using Math for uint256;
+
     address public ADMIN = address(0xd34db33f);
     address public BOB = address(0x0b0b);
     address public SAFE = address(0x1111);
@@ -206,23 +209,50 @@ contract AccountingModuleTest is Test {
         );
     }
 
-    function testFuzz_processRewards( /*uint96 processedAmount*/ ) public {
+    function testFuzz_processRewards_After_1_day() public {
         skip(1 days);
 
-        uint96 processedAmount = 107;
+        uint96 processedAmount = 2000e18;
 
         vm.startPrank(ADMIN);
         accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
 
         uint256 supply = 10_000_000e18;
-        vm.assume(
-            processedAmount
-                <= (accountingModule.targetApy() * supply / accountingModule.DIVISOR() / accountingModule.YEAR())
-        );
 
         vm.startPrank(BOB);
         mockErc20.approve(address(mockStrategy), type(uint256).max);
         mockStrategy.deposit(supply);
+
+        mockStrategy.setRate((processedAmount + supply).mulDiv(1e18, supply, Math.Rounding.Floor));
+
+        vm.startPrank(ACCOUNTING_PROCESSOR);
+        accountingModule.processRewards(processedAmount);
+        assertEq(
+            accountingToken.balanceOf(address(mockStrategy)),
+            supply + processedAmount,
+            "accountingToken balance should increase by rewards amount"
+        );
+    }
+
+    function testFuzz_processRewards( /*uint96 processedAmount*/ ) public {
+        skip(1 days);
+
+        uint96 processedAmount = 2000e18;
+
+        vm.startPrank(ADMIN);
+        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+
+        uint256 supply = 10_000_000e18;
+        // vm.assume(
+        //     processedAmount
+        //         <= (accountingModule.targetApy() * supply / accountingModule.DIVISOR() / accountingModule.YEAR())
+        // );
+
+        vm.startPrank(BOB);
+        mockErc20.approve(address(mockStrategy), type(uint256).max);
+        mockStrategy.deposit(supply);
+
+        mockStrategy.setRate((processedAmount + supply).mulDiv(1e18, supply, Math.Rounding.Floor));
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         accountingModule.processRewards(processedAmount);
