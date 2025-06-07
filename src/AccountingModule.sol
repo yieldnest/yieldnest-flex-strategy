@@ -59,7 +59,13 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     uint256 public targetApy; // in bips;
     uint256 public lowerBound; // in bips; % of tvl
 
-    RewardsSnapshot[] public snapshots;
+    StrategySnapshot[] public snapshots;
+
+    struct StrategySnapshot {
+        uint64 timestamp;
+        uint256 pricePerShare;
+    }
+
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address strategy, address baseAsset) {
@@ -96,7 +102,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         lowerBound = lowerBound_;
         cooldownSeconds = 3600;
 
-        createRewardsSnapshot();
+        createStrategySnapshot();
     }
 
     modifier checkAndResetCooldown() {
@@ -131,11 +137,6 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         IERC20(BASE_ASSET).safeTransferFrom(safe, recipient, amount);
     }
 
-    struct RewardsSnapshot {
-        uint64 timestamp;
-        uint256 pricePerShare;
-    }
-
     /**
      * @notice Process rewards by minting accounting tokens
      * @param amount profits to mint
@@ -149,9 +150,9 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         accountingToken.mintTo(STRATEGY, amount);
         strategy.processAccounting();
 
-        RewardsSnapshot memory previousSnapshot = snapshots[snapshots.length - 1];
+        StrategySnapshot memory previousSnapshot = snapshots[snapshots.length - 1];
 
-        uint256 currentPricePerShare = createRewardsSnapshot().pricePerShare;
+        uint256 currentPricePerShare = createStrategySnapshot().pricePerShare;
 
         console.log("currentPricePerShare", currentPricePerShare);
 
@@ -165,14 +166,14 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         if (aprSinceLastSnapshot > targetApy) revert AccountingLimitsExceeded();
     }
 
-    function createRewardsSnapshot() internal returns (RewardsSnapshot memory) {
+    function createStrategySnapshot() internal returns (StrategySnapshot memory) {
         IVault strategy = IVault(STRATEGY);
 
         // Take snapshot of current state
         uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
 
-        RewardsSnapshot memory snapshot =
-            RewardsSnapshot({ timestamp: uint64(block.timestamp), pricePerShare: currentPricePerShare });
+        StrategySnapshot memory snapshot =
+            StrategySnapshot({ timestamp: uint64(block.timestamp), pricePerShare: currentPricePerShare });
 
         snapshots.push(snapshot);
 
@@ -230,7 +231,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         accountingToken.burnFrom(STRATEGY, amount);
         IVault(STRATEGY).processAccounting();
 
-        createRewardsSnapshot();
+        createStrategySnapshot();
     }
 
     /**
