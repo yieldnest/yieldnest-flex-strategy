@@ -5,6 +5,7 @@ import { BaseStrategy } from "@yieldnest-vault/strategy/BaseStrategy.sol";
 import { IERC20, IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IAccountingModule } from "./AccountingModule.sol";
+import { VaultLib } from "lib/yieldnest-vault/src/library/VaultLib.sol";
 
 interface IFlexStrategy {
     error NoAccountingModule();
@@ -41,7 +42,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         string memory symbol,
         uint8 decimals_,
         address baseAsset,
-        bool paused_
+        bool paused_,
+        address provider
     )
         external
         virtual
@@ -62,6 +64,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
 
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
         _setAssetWithdrawable(baseAsset, true);
+
+        VaultLib.setProvider(provider);
     }
 
     modifier hasAccountingModule() {

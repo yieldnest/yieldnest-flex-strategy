@@ -37,10 +37,15 @@ contract FlexStrategyTest is Test {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
 
         FlexStrategy strat_impl = new FlexStrategy();
+
+        FixedRateProvider provider = new FixedRateProvider(address(mockErc20));
+
         TransparentUpgradeableProxy strat_tu = new TransparentUpgradeableProxy(
             address(strat_impl),
             ADMIN,
-            abi.encodeWithSelector(FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, mockErc20, true)
+            abi.encodeWithSelector(
+                FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, mockErc20, true, address(provider)
+            )
         );
         flexStrategy = FlexStrategy(payable(address(strat_tu)));
 
@@ -50,15 +55,6 @@ contract FlexStrategyTest is Test {
             ADMIN,
             abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
         );
-
-        {
-            vm.startPrank(ADMIN);
-            flexStrategy.grantRole(flexStrategy.PROVIDER_MANAGER_ROLE(), ADMIN);
-            FixedRateProvider provider = new FixedRateProvider(address(mockErc20));
-
-            flexStrategy.setProvider(address(provider));
-            vm.stopPrank();
-        }
 
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
@@ -80,6 +76,7 @@ contract FlexStrategyTest is Test {
         flexStrategy.setHasAllocator(true);
         flexStrategy.grantRole(flexStrategy.ASSET_MANAGER_ROLE(), ADMIN);
         flexStrategy.grantRole(flexStrategy.ALLOCATOR_ROLE(), ALLOCATOR);
+        flexStrategy.grantRole(flexStrategy.PROVIDER_MANAGER_ROLE(), ADMIN);
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
         accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
         accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);

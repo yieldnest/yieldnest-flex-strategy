@@ -28,8 +28,8 @@ contract VerifyFlexStrategy is BaseScript, Test {
         RolesVerification.verifyRole(
             strategy, allocator, strategy.ALLOCATOR_ROLE(), true, "parent vault has allocator role"
         );
-        assertEq(accountingModule.targetApy(), 1000, "targetApy is not set");
-        assertEq(accountingModule.lowerBound(), 1000, "lowerBound is not set");
+        assertEq(accountingModule.targetApy(), 0.1 ether, "targetApy is not set");
+        assertEq(accountingModule.lowerBound(), 0.1 ether, "lowerBound is not set");
         RolesVerification.verifyRole(
             accountingModule, safe, accountingModule.REWARDS_PROCESSOR_ROLE(), true, "safe has rewards processor role"
         );

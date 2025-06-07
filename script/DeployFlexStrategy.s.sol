@@ -66,8 +66,8 @@ contract DeployFlexStrategy is BaseScript {
         allocator = contracts.YNETHX();
         baseAsset = IVault(allocator).asset();
 
-        targetApy = 1000; // max rewards per day: 10% of tvl / 365.25
-        lowerBound = 1000; // max loss: 10% of tvl
+        targetApy = 0.1 ether; // max rewards per year: 10% of tvl
+        lowerBound = 0.1 ether; // max loss: 10% of tvl
         safe = 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64;
         accountingProcessor = safe;
     }
@@ -118,7 +118,14 @@ contract DeployFlexStrategy is BaseScript {
                         address(strategyImplementation),
                         address(timelock),
                         abi.encodeWithSelector(
-                            FlexStrategy.initialize.selector, admin, name, symbol_, decimals, baseAsset, paused
+                            FlexStrategy.initialize.selector,
+                            admin,
+                            name,
+                            symbol_,
+                            decimals,
+                            baseAsset,
+                            paused,
+                            address(rateProvider)
                         )
                     )
                 )
@@ -165,9 +172,6 @@ contract DeployFlexStrategy is BaseScript {
     function configureStrategy() internal {
         BaseRoles.configureDefaultRolesStrategy(strategy, accountingModule, accountingToken, address(timelock), actors);
         BaseRoles.configureTemporaryRolesStrategy(strategy, accountingModule, accountingToken, deployer);
-
-        // set provider
-        strategy.setProvider(address(rateProvider));
 
         // set has allocator
         strategy.setHasAllocator(true);
