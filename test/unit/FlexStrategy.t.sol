@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
-import { Test, stdStorage, StdStorage, console } from "forge-std/Test.sol";
+import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { TransparentUpgradeableProxy } from "@yieldnest-vault/Common.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { FlexStrategy, IFlexStrategy } from "../../src/FlexStrategy.sol";
@@ -24,8 +24,8 @@ contract FlexStrategyTest is Test {
     address public SAFE_MANAGER = address(0x5afe);
     address public ACCOUNTING_PROCESSOR = address(0x1234);
     address public WITHDRAW_RECEIVER = address(0x2222);
-    uint16 public constant TARGET_APY = 1000;
-    uint16 public constant LOWER_BOUND = 1000;
+    uint256 public constant TARGET_APY = 0.1 ether;
+    uint256 public constant LOWER_BOUND = 0.5 ether;
 
     MockERC20 public mockErc20;
     FlexStrategy public flexStrategy;
@@ -356,14 +356,14 @@ contract FlexStrategyTest is Test {
     function testFuzz_processAccounting_successWhenProcessingRewards(uint128 deposit) public {
         vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
 
-        uint128 maxRewards = uint128(
-            uint256(accountingModule.targetApy()) * deposit / accountingModule.DIVISOR() / accountingModule.YEAR()
-        );
+        uint128 maxRewards = uint128(uint256(accountingModule.targetApy()) * deposit / accountingModule.DIVISOR() / 366);
 
         uint128 rewards = maxRewards;
 
         vm.startPrank(ALLOCATOR);
         flexStrategy.deposit(deposit, ALLOCATOR);
+
+        skip(1 days);
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         uint256 shares = flexStrategy.balanceOf(ALLOCATOR);
@@ -422,38 +422,16 @@ contract FlexStrategyTest is Test {
     }
 
     function testFuzz_processAccounting_preventsRewardsExceedingTargetApy(uint128 deposit) public {
-        /**
-         * Issues:
-         *         1. The stragegy has a cooldown set to 1 hour but it's always checking amount per day.
-         *         You  can boostrap it to the right amount (1 day) but you still have thie issue that
-         *         if set to a different value it messes up how much APY can accumulate.
-         *         Example: if cooldown is 1 hour, i can call it 24 times each day, and exceed targetAPY by 24x,
-         *                  so the limit is defeated.
-         *
-         *         2.  The DENOMINATOR is too low precision. say there's a target APY of 10% so 1000.
-         *             The most forgiving interpretation here is that you calculate 1 targetAPY per day.
-         *             1000 / 365 = 2.74. the uint256 division in solidity rounds down so you'l get 2.
-         *             That's a 27% delta from the desired limit. A per/hour APY limit is not even representable
-         *             with this precison.
-         *
-         *         3.  the Variable is called targetAPY but that's not what it is. it is actually APR.
-         *             So assuming all the other issues are perfectly fixed, setting it to 15% (APR) means you're
-         * capping at 16%+ APY per year.
-         *
-         *         4.  Assuming all other issues addressed, The approach can still be operationally difficult.
-         *             Assume that you have  a per day targetAPY value. if rewards are not processed for multiple days
-         * in a row,
-         *             You've essentially missed slots, and you potentially can't reach targetAPY because it does not
-         * factor
-         *             in how much time passed since last processRewards.
-         */
         vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
 
         uint128 maxRewards = uint128(
-            uint256(accountingModule.targetApy()) * deposit / accountingModule.DIVISOR() / accountingModule.YEAR()
+            uint256(accountingModule.targetApy()) * deposit / accountingModule.DIVISOR() / 366 // days
         );
 
         uint128 rewards = maxRewards;
+
+        // Advance time by 1 day to allow for proper APY calculations
+        vm.warp(block.timestamp + 1 days);
 
         vm.startPrank(ALLOCATOR);
         flexStrategy.deposit(deposit, ALLOCATOR);
@@ -461,6 +439,7 @@ contract FlexStrategyTest is Test {
         vm.startPrank(ACCOUNTING_PROCESSOR);
         uint256 shares = flexStrategy.balanceOf(ALLOCATOR);
         uint256 sharePriceBefore = flexStrategy.convertToAssets(shares);
+
         accountingModule.processRewards(rewards);
         assertGt(flexStrategy.convertToAssets(shares), sharePriceBefore, "Share price should increase");
 
