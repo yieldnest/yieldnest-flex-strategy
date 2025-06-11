@@ -7,7 +7,6 @@ import { IAccountingToken } from "./AccountingToken.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import { console } from "forge-std/console.sol";
 
 interface IAccountingModule {
     event LowerBoundUpdated(uint256 newValue, uint256 oldValue);
@@ -155,14 +154,10 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         uint256 currentPricePerShare = createStrategySnapshot().pricePerShare;
 
-        console.log("currentPricePerShare", currentPricePerShare);
-
         // Check if APR is within acceptable bounds
         uint256 aprSinceLastSnapshot = calculateApr(
             previousSnapshot.pricePerShare, previousSnapshot.timestamp, currentPricePerShare, block.timestamp
         );
-
-        console.log("aprSinceLastSnapshot", aprSinceLastSnapshot);
 
         if (aprSinceLastSnapshot > targetApy) revert AccountingLimitsExceeded();
     }
@@ -205,11 +200,6 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         t - Time period in years*
         Formula: (ppsEnd - ppsStart) / (ppsStart * t)
         */
-
-        console.log("currentPricePerShare", currentPricePerShare);
-        console.log("previousPricePerShare", previousPricePerShare);
-        console.log("currentTimestamp", currentTimestamp);
-        console.log("previousTimestamp", previousTimestamp);
 
         // Ensure timestamps are ordered (current should be after previous)
         if (currentTimestamp <= previousTimestamp) revert CurrentTimestampBeforePreviousTimestamp();
