@@ -22,7 +22,7 @@ contract BaseIntegrationTest is Test {
     IAccountingModule public accountingModule;
     IAccountingToken public accountingToken;
 
-    function setUp() public {
+    function setUp() public virtual {
         deployment = new DeployFlexStrategy();
         deployment.setEnv(BaseScript.Env.TEST);
         deployment.run();
