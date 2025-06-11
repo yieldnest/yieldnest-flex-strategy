@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import { Test, console } from "forge-std/Test.sol";
-import { DeployFlexStrategy } from "script/DeployFlexStrategy.s.sol";
 import { VerifyFlexStrategy } from "script/verification/VerifyFlexStrategy.s.sol";
 import { FlexStrategy } from "src/FlexStrategy.sol";
 import { AccountingModule } from "src/AccountingModule.sol";
@@ -14,17 +13,9 @@ import { UpgradeUtils } from "script/UpgradeUtils.sol";
 import { MainnetActors } from "@yieldnest-vault-script/Actors.sol";
 import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
 import { RolesVerification } from "script/verification/RolesVerification.sol";
+import { BaseIntegrationTest } from "./BaseIntegrationTest.sol";
 
-contract FlexStrategyDeployment is Test {
-    DeployFlexStrategy public deployment;
-    address DEPLOYER = address(0xd34db33f);
-
-    function setUp() public {
-        deployment = new DeployFlexStrategy();
-        deployment.setEnv(BaseScript.Env.TEST);
-        deployment.run();
-    }
-
+contract FlexStrategyDeployment is BaseIntegrationTest {
     function test_verify_setup() public {
         VerifyFlexStrategy verify = new VerifyFlexStrategy();
         verify.setEnv(BaseScript.Env.TEST);
