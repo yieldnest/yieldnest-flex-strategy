@@ -7,10 +7,11 @@ import { IAccountingToken } from "./AccountingToken.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { console } from "forge-std/console.sol";
 
 interface IAccountingModule {
-    event LowerBoundUpdated(uint16 newValue, uint16 oldValue);
-    event TargetApyUpdated(uint16 newValue, uint16 oldValue);
+    event LowerBoundUpdated(uint256 newValue, uint256 oldValue);
+    event TargetApyUpdated(uint256 newValue, uint256 oldValue);
     event CooldownSecondsUpdated(uint16 newValue, uint16 oldValue);
     event SafeUpdated(address newValue, address oldValue);
 
@@ -19,6 +20,7 @@ interface IAccountingModule {
     error AccountingLimitsExceeded();
     error InvariantViolation();
     error TvlTooLow();
+    error CurrentTimestampBeforePreviousTimestamp();
 
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount, address recipient) external;
@@ -29,7 +31,8 @@ interface IAccountingModule {
     function accountingToken() external view returns (IAccountingToken);
     function safe() external view returns (address);
     function SAFE_MANAGER_ROLE() external view returns (bytes32);
-    function ACCOUNTING_PROCESSOR_ROLE() external view returns (bytes32);
+    function REWARDS_PROCESSOR_ROLE() external view returns (bytes32);
+    function LOSS_PROCESSOR_ROLE() external view returns (bytes32);
 }
 /**
  * Module to configure strategy params,
@@ -43,10 +46,11 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     bytes32 public constant SAFE_MANAGER_ROLE = keccak256("SAFE_MANAGER_ROLE");
 
     /// @notice Role for processing rewards/losses
-    bytes32 public constant ACCOUNTING_PROCESSOR_ROLE = keccak256("ACCOUNTING_PROCESSOR_ROLE");
+    bytes32 public constant REWARDS_PROCESSOR_ROLE = keccak256("REWARDS_PROCESSOR_ROLE");
+    bytes32 public constant LOSS_PROCESSOR_ROLE = keccak256("LOSS_PROCESSOR_ROLE");
 
     uint256 public constant YEAR = 365.25 days;
-    uint256 public constant DIVISOR = 10_000;
+    uint256 public constant DIVISOR = 1e18;
     address public immutable BASE_ASSET;
     address public immutable STRATEGY;
 
@@ -54,8 +58,15 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     address public safe;
     uint64 public nextRewardWindow;
     uint16 public cooldownSeconds;
-    uint16 public targetApy; // in bips;
-    uint16 public lowerBound; // in bips; % of tvl
+    uint256 public targetApy; // in bips;
+    uint256 public lowerBound; // in bips; % of tvl
+
+    StrategySnapshot[] public snapshots;
+
+    struct StrategySnapshot {
+        uint64 timestamp;
+        uint256 pricePerShare;
+    }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address strategy, address baseAsset) {
@@ -76,8 +87,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         address admin,
         address safe_,
         IAccountingToken accountingToken_,
-        uint16 targetApy_,
-        uint16 lowerBound_
+        uint256 targetApy_,
+        uint256 lowerBound_
     )
         external
         virtual
@@ -91,6 +102,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         targetApy = targetApy_;
         lowerBound = lowerBound_;
         cooldownSeconds = 3600;
+
+        createStrategySnapshot();
     }
 
     modifier checkAndResetCooldown() {
@@ -129,23 +142,87 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @notice Process rewards by minting accounting tokens
      * @param amount profits to mint
      */
-    function processRewards(uint256 amount) external onlyRole(ACCOUNTING_PROCESSOR_ROLE) checkAndResetCooldown {
+    function processRewards(uint256 amount) external onlyRole(REWARDS_PROCESSOR_ROLE) checkAndResetCooldown {
         uint256 totalSupply = accountingToken.totalSupply();
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
-        // check for upper bound
-        // targetApy / year * token.totalsupply()
-        if (amount > targetApy * totalSupply / DIVISOR / YEAR) revert AccountingLimitsExceeded();
+        IVault strategy = IVault(STRATEGY);
 
         accountingToken.mintTo(STRATEGY, amount);
-        IVault(STRATEGY).processAccounting();
+        strategy.processAccounting();
+
+        StrategySnapshot memory previousSnapshot = snapshots[snapshots.length - 1];
+
+        uint256 currentPricePerShare = createStrategySnapshot().pricePerShare;
+
+        console.log("currentPricePerShare", currentPricePerShare);
+
+        // Check if APR is within acceptable bounds
+        uint256 aprSinceLastSnapshot = calculateApr(
+            previousSnapshot.pricePerShare, previousSnapshot.timestamp, currentPricePerShare, block.timestamp
+        );
+
+        console.log("aprSinceLastSnapshot", aprSinceLastSnapshot);
+
+        if (aprSinceLastSnapshot > targetApy) revert AccountingLimitsExceeded();
+    }
+
+    function createStrategySnapshot() internal returns (StrategySnapshot memory) {
+        IVault strategy = IVault(STRATEGY);
+
+        // Take snapshot of current state
+        uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
+
+        StrategySnapshot memory snapshot =
+            StrategySnapshot({ timestamp: uint64(block.timestamp), pricePerShare: currentPricePerShare });
+
+        snapshots.push(snapshot);
+
+        return snapshot;
+    }
+
+    /**
+     * @notice Calculate APR based on price per share changes over time
+     * @param previousPricePerShare The price per share at the start of the period
+     * @param previousTimestamp The timestamp at the start of the period
+     * @param currentPricePerShare The price per share at the end of the period
+     * @param currentTimestamp The timestamp at the end of the period
+     * @return apr The calculated APR in basis points
+     */
+    function calculateApr(
+        uint256 previousPricePerShare,
+        uint256 previousTimestamp,
+        uint256 currentPricePerShare,
+        uint256 currentTimestamp
+    )
+        public
+        pure
+        returns (uint256 apr)
+    {
+        /*
+        ppsStart - Price per share at the start of the period
+        ppsEnd - Price per share at the end of the period
+        t - Time period in years*
+        Formula: (ppsEnd - ppsStart) / (ppsStart * t)
+        */
+
+        console.log("currentPricePerShare", currentPricePerShare);
+        console.log("previousPricePerShare", previousPricePerShare);
+        console.log("currentTimestamp", currentTimestamp);
+        console.log("previousTimestamp", previousTimestamp);
+
+        // Ensure timestamps are ordered (current should be after previous)
+        if (currentTimestamp <= previousTimestamp) revert CurrentTimestampBeforePreviousTimestamp();
+
+        return (currentPricePerShare - previousPricePerShare) * YEAR * DIVISOR / previousPricePerShare
+            / (currentTimestamp - previousTimestamp);
     }
 
     /**
      * @notice Process losses by burning accounting tokens
      * @param amount losses to burn
      */
-    function processLosses(uint256 amount) external onlyRole(ACCOUNTING_PROCESSOR_ROLE) checkAndResetCooldown {
+    function processLosses(uint256 amount) external onlyRole(LOSS_PROCESSOR_ROLE) checkAndResetCooldown {
         uint256 totalSupply = accountingToken.totalSupply();
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
@@ -154,6 +231,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         accountingToken.burnFrom(STRATEGY, amount);
         IVault(STRATEGY).processAccounting();
+
+        createStrategySnapshot();
     }
 
     /**
@@ -161,7 +240,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param targetApyInBips in bips
      * @dev hard max of 100% targetApy
      */
-    function setTargetApy(uint16 targetApyInBips) external onlyRole(SAFE_MANAGER_ROLE) {
+    function setTargetApy(uint256 targetApyInBips) external onlyRole(SAFE_MANAGER_ROLE) {
         if (targetApyInBips > DIVISOR) revert InvariantViolation();
 
         emit TargetApyUpdated(targetApyInBips, targetApy);
@@ -173,7 +252,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param _lowerBound in bips, as a function of % of tvl
      * @dev hard max of 50% of tvl
      */
-    function setLowerBound(uint16 _lowerBound) external onlyRole(SAFE_MANAGER_ROLE) {
+    function setLowerBound(uint256 _lowerBound) external onlyRole(SAFE_MANAGER_ROLE) {
         if (_lowerBound > (DIVISOR / 2)) revert InvariantViolation();
 
         emit LowerBoundUpdated(_lowerBound, lowerBound);

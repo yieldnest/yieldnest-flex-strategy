@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
-import { Test, stdStorage, StdStorage, console } from "forge-std/Test.sol";
+import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { TransparentUpgradeableProxy } from "@yieldnest-vault/Common.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { FlexStrategy, IFlexStrategy } from "../../src/FlexStrategy.sol";
@@ -24,8 +24,8 @@ contract FlexStrategyTest is Test {
     address public SAFE_MANAGER = address(0x5afe);
     address public ACCOUNTING_PROCESSOR = address(0x1234);
     address public WITHDRAW_RECEIVER = address(0x2222);
-    uint16 public constant TARGET_APY = 1000;
-    uint16 public constant LOWER_BOUND = 1000;
+    uint256 public constant TARGET_APY = 0.1 ether;
+    uint256 public constant LOWER_BOUND = 0.5 ether;
 
     MockERC20 public mockErc20;
     FlexStrategy public flexStrategy;
@@ -37,10 +37,15 @@ contract FlexStrategyTest is Test {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
 
         FlexStrategy strat_impl = new FlexStrategy();
+
+        FixedRateProvider provider = new FixedRateProvider(address(mockErc20));
+
         TransparentUpgradeableProxy strat_tu = new TransparentUpgradeableProxy(
             address(strat_impl),
             ADMIN,
-            abi.encodeWithSelector(FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, mockErc20, true)
+            abi.encodeWithSelector(
+                FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, mockErc20, true, address(provider)
+            )
         );
         flexStrategy = FlexStrategy(payable(address(strat_tu)));
 
@@ -50,6 +55,7 @@ contract FlexStrategyTest is Test {
             ADMIN,
             abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
         );
+
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
         bytes memory am_initData = abi.encodeWithSelector(
@@ -63,19 +69,17 @@ contract FlexStrategyTest is Test {
         accountingModule = AccountingModule(payable(address(am_tu)));
         accountingModule2 = AccountingModule(payable(address(am_tu2)));
 
-        FixedRateProvider provider = new FixedRateProvider(address(mockErc20));
-
         vm.startPrank(ADMIN);
-        flexStrategy.grantRole(flexStrategy.PROVIDER_MANAGER_ROLE(), ADMIN);
-        flexStrategy.setProvider(address(provider));
         flexStrategy.grantRole(flexStrategy.UNPAUSER_ROLE(), ADMIN);
         flexStrategy.unpause();
         flexStrategy.grantRole(flexStrategy.ALLOCATOR_MANAGER_ROLE(), ADMIN);
         flexStrategy.setHasAllocator(true);
         flexStrategy.grantRole(flexStrategy.ASSET_MANAGER_ROLE(), ADMIN);
         flexStrategy.grantRole(flexStrategy.ALLOCATOR_ROLE(), ALLOCATOR);
+        flexStrategy.grantRole(flexStrategy.PROVIDER_MANAGER_ROLE(), ADMIN);
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+        accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
+        accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), ACCOUNTING_PROCESSOR);
 
         accountingToken.setAccountingModule(address(accountingModule));
         flexStrategy.setAccountingModule(address(accountingModule));
@@ -352,14 +356,14 @@ contract FlexStrategyTest is Test {
     function testFuzz_processAccounting_successWhenProcessingRewards(uint128 deposit) public {
         vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
 
-        uint128 maxRewards = uint128(
-            uint256(accountingModule.targetApy()) * deposit / accountingModule.DIVISOR() / accountingModule.YEAR()
-        );
+        uint128 maxRewards = uint128(uint256(accountingModule.targetApy()) * deposit / accountingModule.DIVISOR() / 366);
 
         uint128 rewards = maxRewards;
 
         vm.startPrank(ALLOCATOR);
         flexStrategy.deposit(deposit, ALLOCATOR);
+
+        skip(1 days);
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
         uint256 shares = flexStrategy.balanceOf(ALLOCATOR);
@@ -415,6 +419,36 @@ contract FlexStrategyTest is Test {
         assertEq(
             mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any tokens after processing losses"
         );
+    }
+
+    function testFuzz_processAccounting_preventsRewardsExceedingTargetApy(uint128 deposit) public {
+        vm.assume(deposit > 10 ** accountingToken.decimals() && deposit < type(uint128).max / 2);
+
+        uint128 maxRewards = uint128(
+            uint256(accountingModule.targetApy()) * deposit / accountingModule.DIVISOR() / 366 // days
+        );
+
+        uint128 rewards = maxRewards;
+
+        // Advance time by 1 day to allow for proper APY calculations
+        vm.warp(block.timestamp + 1 days);
+
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.deposit(deposit, ALLOCATOR);
+
+        vm.startPrank(ACCOUNTING_PROCESSOR);
+        uint256 shares = flexStrategy.balanceOf(ALLOCATOR);
+        uint256 sharePriceBefore = flexStrategy.convertToAssets(shares);
+
+        accountingModule.processRewards(rewards);
+        assertGt(flexStrategy.convertToAssets(shares), sharePriceBefore, "Share price should increase");
+
+        // Advance time by 2 hours to simulate time passing for APY calculations
+        vm.warp(block.timestamp + 2 hours);
+
+        // Try to process rewards again - should revert due to APY limit
+        vm.expectRevert();
+        accountingModule.processRewards(rewards);
     }
 
     // Withdraw
@@ -584,5 +618,45 @@ contract FlexStrategyTest is Test {
 
         assertEq(flexStrategy.totalAssets(), 0, "Total assets should be 0 when no deposits made");
         assertEq(flexStrategy.computeTotalAssets(), 0, "Computed total assets should be 0 when no deposits made");
+    }
+
+    function testFuzz_mint_success(uint128 deposit) public {
+        uint256 balanceBefore = mockErc20.balanceOf(ALLOCATOR);
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.mint(deposit, ALLOCATOR);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after deposit");
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            deposit,
+            "Strategy should have correct accountingToken balance after deposit"
+        );
+        assertEq(
+            mockErc20.balanceOf(ALLOCATOR),
+            balanceBefore - deposit,
+            "Allocator balance should decrease by deposit amount"
+        );
+        assertEq(
+            IERC20(address(flexStrategy)).balanceOf(ALLOCATOR), deposit, "Allocator should have correct strategy shares"
+        );
+        assertEq(mockErc20.balanceOf(SAFE), deposit, "Safe should have correct deposit");
+        assertEq(flexStrategy.computeTotalAssets(), deposit, "Computed total assets should match deposit");
+        assertEq(flexStrategy.totalAssets(), deposit, "Total assets should match deposit");
+    }
+
+    function testFuzz_redeem_whenFundsAreInSafe_success(uint128 deposit) public {
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.deposit(deposit, ALLOCATOR);
+
+        vm.startPrank(ALLOCATOR);
+        flexStrategy.withdraw(deposit, WITHDRAW_RECEIVER, ALLOCATOR);
+        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should not hold any assets after withdrawal");
+        assertEq(mockErc20.balanceOf(WITHDRAW_RECEIVER), deposit, "Receiver balance should be correct after withdrawal");
+        assertEq(
+            accountingToken.balanceOf(address(flexStrategy)),
+            0,
+            "Strategy accountingToken balance should be correct after withdrawal"
+        );
+        assertEq(IERC20(address(flexStrategy)).balanceOf(ALLOCATOR), 0, "Allocator should have correct strategy shares");
+        assertEq(mockErc20.balanceOf(SAFE), 0, "Safe should have correct deposit");
     }
 }
