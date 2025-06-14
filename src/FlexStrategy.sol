@@ -10,6 +10,7 @@ import { VaultLib } from "lib/yieldnest-vault/src/library/VaultLib.sol";
 interface IFlexStrategy {
     error NoAccountingModule();
     error InvariantViolation();
+    error AccountingTokenMismatch();
 
     event AccountingModuleUpdated(address newValue, address oldValue);
 }
@@ -178,6 +179,10 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
 
         if (address(oldAccounting) != address(0)) {
             IERC20(asset()).approve(address(oldAccounting), 0);
+
+            if (IAccountingModule(accountingModule_).accountingToken() != oldAccounting.accountingToken()) {
+                revert AccountingTokenMismatch();
+            }
         }
 
         accountingModule = IAccountingModule(accountingModule_);
