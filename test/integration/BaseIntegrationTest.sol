@@ -30,5 +30,10 @@ contract BaseIntegrationTest is Test {
         strategy = FlexStrategy(deployment.strategy());
         accountingModule = strategy.accountingModule();
         accountingToken = accountingModule.accountingToken();
+
+        // Give safe permissions
+        vm.startPrank(accountingModule.safe());
+        IERC20(strategy.asset()).approve(address(accountingModule), type(uint256).max);
+        vm.stopPrank();
     }
 }

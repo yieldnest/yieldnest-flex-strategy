@@ -154,7 +154,7 @@ contract DepositIntegrationTest is BaseIntegrationTest {
         assertEq(shares, expectedShares, "Shares should be calculated correctly");
     }
 
-    function skip_test_withdraw_success() public {
+    function test_withdraw_success() public {
         uint256 amount = 1e18;
 
         IERC20 baseAsset = IERC20(strategy.asset());
@@ -174,7 +174,7 @@ contract DepositIntegrationTest is BaseIntegrationTest {
         // Alice deposits first
         vm.startPrank(alice);
         baseAsset.approve(address(strategy), amount);
-        uint256 shares = strategy.mint(amount, alice);
+        uint256 shares = strategy.deposit(amount, alice);
         vm.stopPrank();
 
         // Now withdraw half
