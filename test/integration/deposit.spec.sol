@@ -90,4 +90,148 @@ contract DepositIntegrationTest is BaseIntegrationTest {
         uint256 expectedShares = totalSupplyBefore == 0 ? amount : amount * totalSupplyBefore / totalAssetsBefore;
         assertEq(shares, expectedShares, "Shares should be calculated correctly");
     }
+
+    function test_initial_mint(uint256 amount) public {
+        amount = bound(amount, 1, 1_000_000 ether);
+
+        IERC20 baseAsset = IERC20(strategy.asset());
+
+        // Give Alice some tokens to mint
+        deal(address(baseAsset), alice, amount);
+
+        // Setup initial balances
+        uint256 aliceInitialBalance = baseAsset.balanceOf(alice);
+        uint256 aliceInitialShares = strategy.balanceOf(alice);
+        uint256 safeInitialBalance = baseAsset.balanceOf(accountingModule.safe());
+        uint256 strategyInitialAccountingTokens = accountingToken.balanceOf(address(strategy));
+        uint256 strategyInitialBalance = baseAsset.balanceOf(address(strategy));
+        uint256 totalSupplyBefore = strategy.totalSupply();
+        uint256 totalAssetsBefore = strategy.totalAssets();
+
+        // Alice approves and mints
+        vm.startPrank(alice);
+        baseAsset.approve(address(strategy), amount);
+        uint256 shares = strategy.mint(amount, alice);
+        vm.stopPrank();
+
+        // Assert Alice's balance decreased by mint amount
+        assertEq(
+            baseAsset.balanceOf(alice), aliceInitialBalance - amount, "Alice's balance should decrease by mint amount"
+        );
+
+        // Assert Alice received shares
+        assertEq(strategy.balanceOf(alice), aliceInitialShares + shares, "Alice should receive shares for mint");
+
+        // Assert safe received the base assets
+        assertEq(
+            baseAsset.balanceOf(accountingModule.safe()),
+            safeInitialBalance + amount,
+            "Safe should receive the minted assets"
+        );
+
+        // Assert strategy received accounting tokens
+        assertEq(
+            accountingToken.balanceOf(address(strategy)),
+            strategyInitialAccountingTokens + amount,
+            "Strategy should receive accounting tokens equal to mint amount"
+        );
+
+        // Assert total supply increased
+        assertEq(strategy.totalSupply(), totalSupplyBefore + shares, "Total supply should increase by shares minted");
+
+        // Assert total assets increased
+        assertEq(strategy.totalAssets(), totalAssetsBefore + amount, "Total assets should increase by mint amount");
+
+        // Assert strategy's base asset balance stayed the same (assets go to safe, not strategy)
+        assertEq(
+            baseAsset.balanceOf(address(strategy)),
+            strategyInitialBalance,
+            "Strategy's base asset balance should remain unchanged"
+        );
+
+        // Assert shares are correctly calculated (1:1 ratio for first mint or based on current ratio)
+        uint256 expectedShares = totalSupplyBefore == 0 ? amount : amount * totalSupplyBefore / totalAssetsBefore;
+        assertEq(shares, expectedShares, "Shares should be calculated correctly");
+    }
+
+    function skip_test_withdraw_success() public {
+        uint256 amount = 1e18;
+
+        IERC20 baseAsset = IERC20(strategy.asset());
+
+        // Give Alice some tokens to deposit
+        deal(address(baseAsset), alice, amount);
+
+        // Initial balances
+        uint256 aliceInitialBalance = baseAsset.balanceOf(alice);
+        uint256 aliceInitialShares = strategy.balanceOf(alice);
+        uint256 safeInitialBalance = baseAsset.balanceOf(accountingModule.safe());
+        uint256 strategyInitialAccountingTokens = accountingToken.balanceOf(address(strategy));
+        uint256 strategyInitialBalance = baseAsset.balanceOf(address(strategy));
+        uint256 totalSupplyBefore = strategy.totalSupply();
+        uint256 totalAssetsBefore = strategy.totalAssets();
+
+        // Alice deposits first
+        vm.startPrank(alice);
+        baseAsset.approve(address(strategy), amount);
+        uint256 shares = strategy.mint(amount, alice);
+        vm.stopPrank();
+
+        // Now withdraw half
+        uint256 withdrawAmount = amount / 2;
+        uint256 sharesToBurn = strategy.previewWithdraw(withdrawAmount);
+
+        vm.startPrank(alice);
+        strategy.withdraw(withdrawAmount, alice, alice);
+        vm.stopPrank();
+
+        // Assert Alice's balance increased by withdraw amount
+        assertEq(
+            baseAsset.balanceOf(alice),
+            aliceInitialBalance - amount + withdrawAmount,
+            "Alice's balance should increase by withdraw amount"
+        );
+
+        // Assert Alice's shares decreased
+        assertEq(
+            strategy.balanceOf(alice),
+            aliceInitialShares + shares - sharesToBurn,
+            "Alice's shares should decrease by burned shares"
+        );
+
+        // Assert safe's balance decreased
+        assertEq(
+            baseAsset.balanceOf(accountingModule.safe()),
+            safeInitialBalance + amount - withdrawAmount,
+            "Safe's balance should decrease by withdraw amount"
+        );
+
+        // Assert strategy's accounting tokens decreased
+        assertEq(
+            accountingToken.balanceOf(address(strategy)),
+            strategyInitialAccountingTokens + amount - withdrawAmount,
+            "Strategy's accounting tokens should decrease by withdraw amount"
+        );
+
+        // Assert total supply decreased
+        assertEq(
+            strategy.totalSupply(),
+            totalSupplyBefore + shares - sharesToBurn,
+            "Total supply should decrease by burned shares"
+        );
+
+        // Assert total assets decreased
+        assertEq(
+            strategy.totalAssets(),
+            totalAssetsBefore + amount - withdrawAmount,
+            "Total assets should decrease by withdraw amount"
+        );
+
+        // Assert strategy's base asset balance stayed the same
+        assertEq(
+            baseAsset.balanceOf(address(strategy)),
+            strategyInitialBalance,
+            "Strategy's base asset balance should remain unchanged"
+        );
+    }
 }
