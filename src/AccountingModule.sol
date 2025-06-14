@@ -123,8 +123,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param amount amount to deposit
      */
     function deposit(uint256 amount) external onlyStrategy {
-        IERC20(BASE_ASSET).safeTransferFrom(msg.sender, safe, amount);
-        accountingToken.mintTo(msg.sender, amount);
+        IERC20(BASE_ASSET).safeTransferFrom(STRATEGY, safe, amount);
+        accountingToken.mintTo(STRATEGY, amount);
     }
 
     /**
@@ -134,7 +134,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param recipient address to receive the base assets
      */
     function withdraw(uint256 amount, address recipient) external onlyStrategy {
-        accountingToken.burnFrom(msg.sender, amount);
+        accountingToken.burnFrom(STRATEGY, amount);
         IERC20(BASE_ASSET).safeTransferFrom(safe, recipient, amount);
     }
 
