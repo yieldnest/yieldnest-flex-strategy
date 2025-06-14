@@ -28,8 +28,8 @@ abstract contract BaseScript is Script {
     string public accountTokenSymbol;
     uint8 public decimals;
     bool public paused;
-    uint16 public targetApy;
-    uint16 public lowerBound;
+    uint256 public targetApy;
+    uint256 public lowerBound;
     address public accountingProcessor;
     address public baseAsset;
     address public allocator;
