@@ -56,7 +56,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
     IAccountingToken public accountingToken;
     address public safe;
-    uint64 public nextRewardWindow;
+    uint64 public nextUpdateWindow;
     uint16 public cooldownSeconds;
     uint256 public targetApy; // in bips;
     uint256 public lowerBound; // in bips; % of tvl
@@ -107,8 +107,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     }
 
     modifier checkAndResetCooldown() {
-        if (block.timestamp < nextRewardWindow) revert TooEarly();
-        nextRewardWindow = (uint64(block.timestamp) + cooldownSeconds);
+        if (block.timestamp < nextUpdateWindow) revert TooEarly();
+        nextUpdateWindow = (uint64(block.timestamp) + cooldownSeconds);
         _;
     }
 
