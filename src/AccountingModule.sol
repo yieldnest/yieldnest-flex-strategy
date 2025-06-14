@@ -16,7 +16,8 @@ interface IAccountingModule {
 
     error TooEarly();
     error NotStrategy();
-    error AccountingLimitsExceeded();
+    error AccountingLimitsExceeded(uint256 aprSinceLastSnapshot, uint256 targetApr);
+    error LossLimitExceeded(uint256 amount, uint256 lowerBoundAmount);
     error InvariantViolation();
     error TvlTooLow();
     error CurrentTimestampBeforePreviousTimestamp();
@@ -164,7 +165,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
             previousSnapshot.pricePerShare, previousSnapshot.timestamp, currentPricePerShare, block.timestamp
         );
 
-        if (aprSinceLastSnapshot > targetApy) revert AccountingLimitsExceeded();
+        if (aprSinceLastSnapshot > targetApy) revert AccountingLimitsExceeded(aprSinceLastSnapshot, targetApy);
     }
 
     function createStrategySnapshot() internal returns (StrategySnapshot memory) {
@@ -222,7 +223,9 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
         // check lower bound - 10% of tvl (in bips)
-        if (amount > totalSupply * lowerBound / DIVISOR) revert AccountingLimitsExceeded();
+        if (amount > totalSupply * lowerBound / DIVISOR) {
+            revert LossLimitExceeded(amount, totalSupply * lowerBound / DIVISOR);
+        }
 
         accountingToken.burnFrom(STRATEGY, amount);
         IVault(STRATEGY).processAccounting();
