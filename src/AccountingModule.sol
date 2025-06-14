@@ -52,6 +52,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     uint256 public constant DIVISOR = 1e18;
     address public immutable BASE_ASSET;
     address public immutable STRATEGY;
+    uint256 constant MAX_LOWER_BOUND = DIVISOR / 2;
 
     IAccountingToken public accountingToken;
     address public safe;
@@ -243,7 +244,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @dev hard max of 50% of tvl
      */
     function setLowerBound(uint256 _lowerBound) external onlyRole(SAFE_MANAGER_ROLE) {
-        if (_lowerBound > (DIVISOR / 2)) revert InvariantViolation();
+        if (_lowerBound > (MAX_LOWER_BOUND)) revert InvariantViolation();
 
         emit LowerBoundUpdated(_lowerBound, lowerBound);
         lowerBound = _lowerBound;
