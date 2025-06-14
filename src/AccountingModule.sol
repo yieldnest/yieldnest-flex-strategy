@@ -27,8 +27,12 @@ interface IAccountingModule {
     function processLosses(uint256 amount) external;
 
     function BASE_ASSET() external view returns (address);
+    function DIVISOR() external view returns (uint256);
     function accountingToken() external view returns (IAccountingToken);
     function safe() external view returns (address);
+    function targetApy() external view returns (uint256);
+    function lowerBound() external view returns (uint256);
+    function cooldownSeconds() external view returns (uint16);
     function SAFE_MANAGER_ROLE() external view returns (bytes32);
     function REWARDS_PROCESSOR_ROLE() external view returns (bytes32);
     function LOSS_PROCESSOR_ROLE() external view returns (bytes32);
