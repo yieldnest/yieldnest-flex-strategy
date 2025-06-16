@@ -17,7 +17,7 @@ interface IAccountingModule {
     error TooEarly();
     error NotStrategy();
     error AccountingLimitsExceeded(uint256 aprSinceLastSnapshot, uint256 targetApr);
-    error LossLimitExceeded(uint256 amount, uint256 lowerBoundAmount);
+    error LossLimitsExceeded(uint256 amount, uint256 lowerBoundAmount);
     error InvariantViolation();
     error TvlTooLow();
     error CurrentTimestampBeforePreviousTimestamp();
@@ -224,7 +224,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         // check lower bound - 10% of tvl (in bips)
         if (amount > totalSupply * lowerBound / DIVISOR) {
-            revert LossLimitExceeded(amount, totalSupply * lowerBound / DIVISOR);
+            revert LossLimitsExceeded(amount, totalSupply * lowerBound / DIVISOR);
         }
 
         accountingToken.burnFrom(STRATEGY, amount);

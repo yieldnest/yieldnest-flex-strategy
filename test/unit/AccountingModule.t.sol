@@ -164,7 +164,13 @@ contract AccountingModuleTest is Test {
         mockStrategy.setRate((deposit + deposit).mulDiv(1e18, deposit, Math.Rounding.Floor));
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
-        vm.expectRevert(IAccountingModule.AccountingLimitsExceeded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccountingModule.AccountingLimitsExceeded.selector,
+                365250000000000000000,
+                100000000000000000
+            )
+        );
         accountingModule.processRewards(deposit);
     }
 
@@ -297,7 +303,13 @@ contract AccountingModuleTest is Test {
         mockStrategy.deposit(deposit);
 
         vm.startPrank(ACCOUNTING_PROCESSOR);
-        vm.expectRevert(IAccountingModule.AccountingLimitsExceeded.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccountingModule.LossLimitsExceeded.selector,
+                deposit,
+                deposit * accountingModule.lowerBound() / accountingModule.DIVISOR()
+            )
+        );
         accountingModule.processLosses(deposit);
     }
 
