@@ -167,8 +167,8 @@ contract AccountingModuleTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccountingModule.AccountingLimitsExceeded.selector,
-                365250000000000000000,
-                100000000000000000
+                365_250_000_000_000_000_000,
+                100_000_000_000_000_000
             )
         );
         accountingModule.processRewards(deposit);

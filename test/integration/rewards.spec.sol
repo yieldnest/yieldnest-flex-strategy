@@ -105,6 +105,7 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
             "Strategy's base asset balance should remain unchanged"
         );
     }
+
     function test_processRewards_daily_for_one_year() public {
         uint256 depositAmount = 1_000_000 ether;
         uint256 expectedMinApy = 1000; // 10% APY in basis points
@@ -131,8 +132,9 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
 
             // Calculate daily reward based on current total supply
             uint256 currentTotalSupply = accountingToken.totalSupply();
-            uint256 dailyRewardAmount = (currentTotalSupply * accountingModule.targetApy()) * 1e18 
-                / (accountingModule.DIVISOR() * 365.5 ether); // slightly below max APR with 365.5 days
+            uint256 dailyRewardAmount =
+                (currentTotalSupply * accountingModule.targetApy()) * 1e18 / (accountingModule.DIVISOR() * 365.5 ether); // slightly
+                // below max APR with 365.5 days
 
             // Process rewards
             vm.startPrank(accountingModule.safe());
