@@ -222,7 +222,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         uint256 totalSupply = accountingToken.totalSupply();
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
-        // check lower bound - 10% of tvl (in bips)
+        // check bound on losses
         if (amount > totalSupply * lowerBound / DIVISOR) {
             revert LossLimitsExceeded(amount, totalSupply * lowerBound / DIVISOR);
         }
