@@ -105,14 +105,10 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
             "Strategy's base asset balance should remain unchanged"
         );
     }
-
-    function test_processRewards_daily_for_month() public {
+    function test_processRewards_daily_for_one_year() public {
         uint256 depositAmount = 1_000_000 ether;
-
-        uint256 dailyRewardAmount =
-            (depositAmount * accountingModule.targetApy()) * 1e18 / (accountingModule.DIVISOR() * 365.25 ether); // Daily
-            // reward based on target APY
-        uint256 maxApy = 5000; // 50% APY in basis points
+        uint256 expectedMinApy = 1000; // 10% APY in basis points
+        uint256 maxApy = 1053; // 10.53% APY in basis points
 
         IERC20 baseAsset = IERC20(strategy.asset());
 
@@ -125,23 +121,32 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         strategy.deposit(depositAmount, alice);
         vm.stopPrank();
 
+        uint256 dayCount = 365;
+
+        uint256 totalRewards;
         // Process rewards daily for a month
-        for (uint256 i = 0; i < 30; i++) {
+        for (uint256 i = 0; i < dayCount; i++) {
             // Advance time by 1 day
             vm.warp(block.timestamp + 1 days);
+
+            // Calculate daily reward based on current total supply
+            uint256 currentTotalSupply = accountingToken.totalSupply();
+            uint256 dailyRewardAmount = (currentTotalSupply * accountingModule.targetApy()) * 1e18 
+                / (accountingModule.DIVISOR() * 365.5 ether); // slightly below max APR with 365.5 days
 
             // Process rewards
             vm.startPrank(accountingModule.safe());
             accountingModule.processRewards(dailyRewardAmount);
             vm.stopPrank();
+
+            totalRewards += dailyRewardAmount;
         }
 
         // Calculate final APY
-        uint256 totalRewards = dailyRewardAmount * 30;
         uint256 totalAssets = strategy.totalAssets();
-        uint256 apy = (totalRewards * 365 days * 10_000) / (depositAmount * 30 days);
-
+        uint256 apy = (totalRewards * 365 days * 10_000) / (depositAmount * (dayCount * 1 days));
         // Assert APY is within acceptable range
         assertLt(apy, maxApy, "APY should be less than maximum allowed");
+        assertGt(apy, expectedMinApy, "APY should be greater than minimum allowed");
     }
 }
