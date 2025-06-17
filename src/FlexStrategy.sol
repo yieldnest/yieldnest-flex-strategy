@@ -75,20 +75,11 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     }
 
     modifier checkInvariantsAfter() {
-        IERC20 asset = IERC20(asset());
-        uint256 balance = asset.balanceOf(address(this));
-
-        if (balance != 0) {
-            asset.safeTransfer(accountingModule.safe(), balance);
-        }
-
         _;
 
-        if (totalAssets() != IERC20(accountingModule.accountingToken()).balanceOf(address(this))) {
-            revert InvariantViolation();
-        }
+        IERC20 asset = IERC20(asset());
 
-        if (asset.balanceOf(address(this)) != 0) {
+        if (totalAssets() != IERC20(accountingModule.accountingToken()).balanceOf(address(this))) {
             revert InvariantViolation();
         }
     }

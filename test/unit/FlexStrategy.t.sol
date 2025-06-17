@@ -221,16 +221,37 @@ contract FlexStrategyTest is Test {
         flexStrategy.addAsset(address(mockErc20_2), decimals, depositable, withdrawable);
     }
 
-    function test_invariant_initialBalanceZero() public {
+    function testFuzz_baseAsset_NonZeroBalanceForStrategy(uint128 transferAmount, uint128 depositAmount) public {
+        vm.assume(transferAmount > 0 && transferAmount < 100_000 ether);
+        vm.assume(depositAmount > 0 && depositAmount < 100_000 ether);
+
+        uint256 initialSafeBalance = mockErc20.balanceOf(SAFE);
+        uint256 initialTotalAssets = flexStrategy.totalAssets();
+
         vm.prank(ALLOCATOR);
-        mockErc20.transfer(address(flexStrategy), 1e18);
+        mockErc20.transfer(address(flexStrategy), transferAmount);
+
+        uint256 initialStrategyBalance = mockErc20.balanceOf(address(flexStrategy));
 
         // Any operation should trigger the invariant check and transfer
         vm.prank(ALLOCATOR);
-        flexStrategy.deposit(1e18, ALLOCATOR);
+        flexStrategy.deposit(depositAmount, ALLOCATOR);
 
-        assertEq(mockErc20.balanceOf(address(flexStrategy)), 0, "Strategy should have transferred initial balance");
-        assertEq(mockErc20.balanceOf(SAFE), 2e18, "Safe should have received both deposit and initial balance");
+        assertEq(
+            mockErc20.balanceOf(address(flexStrategy)), 
+            initialStrategyBalance, 
+            "Strategy balance should remain unchanged"
+        );
+        assertEq(
+            mockErc20.balanceOf(SAFE), 
+            initialSafeBalance + depositAmount, 
+            "Safe balance should increase by deposit amount"
+        );
+        assertEq(
+            flexStrategy.totalAssets(), 
+            initialTotalAssets + depositAmount, 
+            "Total assets should increase by deposit amount"
+        );
     }
 
     // Deposit
