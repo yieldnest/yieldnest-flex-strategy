@@ -31,6 +31,7 @@ interface IAccountingModule {
     function DIVISOR() external view returns (uint256);
     function accountingToken() external view returns (IAccountingToken);
     function safe() external view returns (address);
+    function nextUpdateWindow() external view returns (uint64);
     function targetApy() external view returns (uint256);
     function lowerBound() external view returns (uint256);
     function cooldownSeconds() external view returns (uint16);
