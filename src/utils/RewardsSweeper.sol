@@ -42,8 +42,6 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         accountingModule = IAccountingModule(accountingModule_);
     }
 
-
-
     function sweepRewardsUpToAPRMax() public {
 
         // Calculate max rewards based on current TVL and target APY

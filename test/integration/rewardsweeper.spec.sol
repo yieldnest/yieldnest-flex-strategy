@@ -6,6 +6,7 @@ import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
 import { IAccountingModule } from "src/AccountingModule.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
+import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 contract RewardsSweeperTest is BaseIntegrationTest {
     RewardsSweeper public rewardsSweeper;
@@ -17,14 +18,32 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         super.setUp();
         
         // Deploy rewards sweeper
-        rewardsSweeper = new RewardsSweeper();
-        rewardsSweeper.initialize(address(this), address(accountingModule));
+        // Deploy RewardsSweeper behind a TransparentUpgradeableProxy
+        RewardsSweeper implementation = new RewardsSweeper();
+        bytes memory data = abi.encodeWithSelector(
+            RewardsSweeper.initialize.selector,
+            address(this),
+            address(accountingModule)
+        );
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            address(this), // admin
+            data
+        );
+        rewardsSweeper = RewardsSweeper(address(proxy));
         
         // Grant rewards sweeper role
         rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), REWARDS_SWEEPER);
         
-        // Grant rewards processor role to rewards sweeper
+        // Grant rewards processor role to rewards sweeper as ADMIN
+        vm.startPrank(deployment.actors().ADMIN());
         IAccessControl(address(accountingModule)).grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), address(rewardsSweeper));
+        vm.stopPrank();
+
+        // Grant BOB allocator role using ADMIN
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.grantRole(strategy.ALLOCATOR_ROLE(), BOB);
+        vm.stopPrank();
     }
 
     function test_rewardsSweeper_basicSweep() public {
@@ -32,7 +51,10 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         
         // Set initial balance
         uint256 initialBalance = baseAsset.balanceOf(accountingModule.safe());
-        
+
+        // Give BOB WETH (baseAsset)
+        deal(address(baseAsset), BOB, 100_000_000e18);
+
         // Initial deposit
         vm.startPrank(BOB);
         uint256 depositAmount = 100e18;
@@ -40,11 +62,11 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         strategy.deposit(depositAmount, BOB);
         vm.stopPrank();
         
-        // Skip time to allow rewards processing
-        skip(3601); // Just over 1 hour cooldown
+        // Advance time by 1 month to allow rewards processing
+        skip(30 days);
         
         // Fund rewards sweeper with some tokens to sweep
-        uint256 rewardsToSweep = 5e18;
+        uint256 rewardsToSweep = 0.1 ether;
         deal(address(baseAsset), address(rewardsSweeper), rewardsToSweep);
         
         // Verify initial state
