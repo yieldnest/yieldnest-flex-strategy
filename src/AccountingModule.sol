@@ -35,6 +35,7 @@ interface IAccountingModule {
     function targetApy() external view returns (uint256);
     function lowerBound() external view returns (uint256);
     function cooldownSeconds() external view returns (uint16);
+    function STRATEGY() external view returns (address);
     function SAFE_MANAGER_ROLE() external view returns (bytes32);
     function REWARDS_PROCESSOR_ROLE() external view returns (bytes32);
     function LOSS_PROCESSOR_ROLE() external view returns (bytes32);

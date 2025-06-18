@@ -6,7 +6,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IAccountingModule } from "../AccountingModule.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 /**
  * @title RewardsSweeper
  * @notice Contract to sweep rewards from a strategy and process them through the accounting module
@@ -20,6 +20,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
 
     error Unauthorized();
     error TransferFailed();
+    error CannotSweepRewards();
 
     event RewardsSwept(uint256 amount);
     event AccountingModuleUpdated(address newModule, address oldModule);
@@ -41,11 +42,32 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         accountingModule = IAccountingModule(accountingModule_);
     }
 
+
+
+    function sweepRewardsUpToAPRMax() public {
+
+        // Calculate max rewards based on current TVL and target APY
+        uint256 totalAssets = IERC4626(accountingModule.STRATEGY()).totalAssets();
+
+        uint256 timeElapsed = block.timestamp - accountingModule.nextUpdateWindow();
+        uint256 maxRewards = (totalAssets * accountingModule.targetApy() * timeElapsed) 
+            / (365 days * accountingModule.DIVISOR());
+
+        // Get current balance and use the minimum of maxRewards and balance
+        uint256 currentBalance = IERC20(accountingModule.BASE_ASSET()).balanceOf(address(this));
+        uint256 amountToSweep = maxRewards < currentBalance ? maxRewards : currentBalance;
+
+        if (amountToSweep > 0) {
+            sweepRewards(amountToSweep);
+        }
+    }
+
     /**
      * @notice Sweeps rewards from the strategy and processes them through the accounting module
      * @param amount Amount of rewards to sweep
      */
-    function sweepRewards(uint256 amount) external onlyRole(REWARDS_SWEEPER_ROLE) {
+    function sweepRewards(uint256 amount) public onlyRole(REWARDS_SWEEPER_ROLE) {
+        if (!canSweepRewards()) revert CannotSweepRewards();
         // Transfer rewards to safe
         IERC20(accountingModule.BASE_ASSET()).safeTransfer(accountingModule.safe(), amount);
 
@@ -58,11 +80,11 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @notice Checks if rewards can be swept based on cooldown period and base asset balance
      * @return bool True if rewards can be swept, false otherwise
      */
-    function canSweepRewards() public view returns (bool) {
-        return block.timestamp >= accountingModule.nextUpdateWindow() && 
-               IERC20(accountingModule.BASE_ASSET()).balanceOf(address(this)) > 0;
-    }
 
+    function canSweepRewards() public view returns (bool) {
+        return block.timestamp >= accountingModule.nextUpdateWindow()
+            && IERC20(accountingModule.BASE_ASSET()).balanceOf(address(this)) > 0;
+    }
     /**
      * @notice Updates the accounting module address
      * @param accountingModule_ New accounting module address
