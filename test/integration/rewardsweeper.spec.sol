@@ -10,34 +10,33 @@ import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/trans
 
 contract RewardsSweeperTest is BaseIntegrationTest {
     RewardsSweeper public rewardsSweeper;
-    
+
     address public constant REWARDS_SWEEPER = address(0x1234567890123456789012345678901234567890);
     address public constant BOB = address(0x4567890123456789012345678901234567890123);
 
     function setUp() public override {
         super.setUp();
-        
+
         // Deploy rewards sweeper
         // Deploy RewardsSweeper behind a TransparentUpgradeableProxy
         RewardsSweeper implementation = new RewardsSweeper();
-        bytes memory data = abi.encodeWithSelector(
-            RewardsSweeper.initialize.selector,
-            address(this),
-            address(accountingModule)
-        );
+        bytes memory data =
+            abi.encodeWithSelector(RewardsSweeper.initialize.selector, address(this), address(accountingModule));
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
             address(this), // admin
             data
         );
         rewardsSweeper = RewardsSweeper(address(proxy));
-        
+
         // Grant rewards sweeper role
         rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), REWARDS_SWEEPER);
-        
+
         // Grant rewards processor role to rewards sweeper as ADMIN
         vm.startPrank(deployment.actors().ADMIN());
-        IAccessControl(address(accountingModule)).grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), address(rewardsSweeper));
+        IAccessControl(address(accountingModule)).grantRole(
+            accountingModule.REWARDS_PROCESSOR_ROLE(), address(rewardsSweeper)
+        );
         vm.stopPrank();
 
         // Grant BOB allocator role using ADMIN
@@ -46,49 +45,59 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
-    function test_rewardsSweeper_basicSweep() public {
+    function test_rewardsSweeper_basicSweep(uint256 depositAmount, uint256 rewardsToSweep) public {
+        // Bound depositAmount to reasonable range (1e18 to 1000e18)
+        depositAmount = bound(depositAmount, 1e18, 1000e18);
+
+        // Calculate max APY based on time (30 days = ~1 month)
+        uint256 timeElapsed = 30 days;
+        uint256 maxApy = accountingModule.targetApy();
+
+        // Calculate maximum possible rewards based on APY and time
+        // APY is in basis points, so divide by 10000 to get percentage
+        uint256 maxRewards = (depositAmount * maxApy * timeElapsed) / (365.25 days * accountingModule.DIVISOR());
+
+        rewardsToSweep = bound(rewardsToSweep, 1e6, maxRewards);
+
         IERC20 baseAsset = IERC20(strategy.asset());
-        
+
         // Set initial balance
         uint256 initialBalance = baseAsset.balanceOf(accountingModule.safe());
+        uint256 initialAccountingTokenBalance = accountingToken.balanceOf(address(strategy));
 
         // Give BOB WETH (baseAsset)
         deal(address(baseAsset), BOB, 100_000_000e18);
 
         // Initial deposit
         vm.startPrank(BOB);
-        uint256 depositAmount = 100e18;
         baseAsset.approve(address(strategy), type(uint256).max);
         strategy.deposit(depositAmount, BOB);
         vm.stopPrank();
-        
+
         // Advance time by 1 month to allow rewards processing
-        skip(30 days);
-        
-        // Fund rewards sweeper with some tokens to sweep
-        uint256 rewardsToSweep = 0.1 ether;
+        skip(timeElapsed);
+
         deal(address(baseAsset), address(rewardsSweeper), rewardsToSweep);
-        
+
         // Verify initial state
         assertEq(baseAsset.balanceOf(address(rewardsSweeper)), rewardsToSweep, "Rewards sweeper should have tokens");
         assertEq(accountingToken.balanceOf(address(strategy)), depositAmount, "Initial accounting token balance");
-        
+
         // Sweep rewards
         vm.startPrank(REWARDS_SWEEPER);
         rewardsSweeper.sweepRewards(rewardsToSweep);
-        
+
         // Verify rewards were processed
         assertEq(baseAsset.balanceOf(address(rewardsSweeper)), 0, "Rewards sweeper should have no tokens left");
         assertEq(
-            accountingToken.balanceOf(address(strategy)), 
-            depositAmount + rewardsToSweep, 
+            accountingToken.balanceOf(address(strategy)),
+            initialAccountingTokenBalance + depositAmount + rewardsToSweep,
             "Accounting token balance should include swept rewards"
         );
         assertEq(
-            baseAsset.balanceOf(accountingModule.safe()), 
-            initialBalance + depositAmount + rewardsToSweep, 
+            baseAsset.balanceOf(accountingModule.safe()),
+            initialBalance + depositAmount + rewardsToSweep,
             "Safe should have received swept rewards"
         );
     }
 }
-

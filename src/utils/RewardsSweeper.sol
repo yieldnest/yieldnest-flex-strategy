@@ -11,6 +11,7 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
  * @title RewardsSweeper
  * @notice Contract to sweep rewards from a strategy and process them through the accounting module
  */
+
 contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
@@ -43,13 +44,12 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     }
 
     function sweepRewardsUpToAPRMax() public {
-
         // Calculate max rewards based on current TVL and target APY
         uint256 totalAssets = IERC4626(accountingModule.STRATEGY()).totalAssets();
 
         uint256 timeElapsed = block.timestamp - accountingModule.nextUpdateWindow();
-        uint256 maxRewards = (totalAssets * accountingModule.targetApy() * timeElapsed) 
-            / (365 days * accountingModule.DIVISOR());
+        uint256 maxRewards =
+            (totalAssets * accountingModule.targetApy() * timeElapsed) / (365 days * accountingModule.DIVISOR());
 
         // Get current balance and use the minimum of maxRewards and balance
         uint256 currentBalance = IERC20(accountingModule.BASE_ASSET()).balanceOf(address(this));
@@ -87,6 +87,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @notice Updates the accounting module address
      * @param accountingModule_ New accounting module address
      */
+
     function setAccountingModule(address accountingModule_) external onlyRole(DEFAULT_ADMIN_ROLE) {
         emit AccountingModuleUpdated(accountingModule_, address(accountingModule));
         accountingModule = IAccountingModule(accountingModule_);
