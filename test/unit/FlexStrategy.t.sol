@@ -238,18 +238,18 @@ contract FlexStrategyTest is Test {
         flexStrategy.deposit(depositAmount, ALLOCATOR);
 
         assertEq(
-            mockErc20.balanceOf(address(flexStrategy)), 
-            initialStrategyBalance, 
+            mockErc20.balanceOf(address(flexStrategy)),
+            initialStrategyBalance,
             "Strategy balance should remain unchanged"
         );
         assertEq(
-            mockErc20.balanceOf(SAFE), 
-            initialSafeBalance + depositAmount, 
+            mockErc20.balanceOf(SAFE),
+            initialSafeBalance + depositAmount,
             "Safe balance should increase by deposit amount"
         );
         assertEq(
-            flexStrategy.totalAssets(), 
-            initialTotalAssets + depositAmount, 
+            flexStrategy.totalAssets(),
+            initialTotalAssets + depositAmount,
             "Total assets should increase by deposit amount"
         );
     }
