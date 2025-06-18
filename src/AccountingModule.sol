@@ -157,6 +157,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         accountingToken.mintTo(STRATEGY, amount);
         strategy.processAccounting();
 
+        // check if apr is within acceptable bounds
+
         StrategySnapshot memory previousSnapshot = snapshots[snapshots.length - 1];
 
         uint256 currentPricePerShare = createStrategySnapshot().pricePerShare;
