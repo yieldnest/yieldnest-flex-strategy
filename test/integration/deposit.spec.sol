@@ -153,4 +153,163 @@ contract DepositIntegrationTest is BaseIntegrationTest {
         uint256 expectedShares = totalSupplyBefore == 0 ? amount : amount * totalSupplyBefore / totalAssetsBefore;
         assertEq(shares, expectedShares, "Shares should be calculated correctly");
     }
+
+    struct DepositTestData {
+        uint256 deposit1;
+        uint256 deposit2;
+        uint256 deposit3;
+        uint32 timeBetweenDeposits;
+        IERC20 baseAsset;
+        address bob;
+        address charlie;
+        uint256 aliceInitialBalance;
+        uint256 bobInitialBalance;
+        uint256 charlieInitialBalance;
+        uint256 safeInitialBalance;
+        uint256 strategyInitialAccountingTokens;
+        uint256 strategyInitialBalance;
+        uint256 totalSupplyBefore;
+        uint256 totalAssetsBefore;
+        uint256 aliceShares;
+        uint256 bobShares;
+        uint256 charlieShares;
+    }
+
+    function testFuzz_threeSubsequentDeposits_success(
+        uint256 deposit1,
+        uint256 deposit2,
+        uint256 deposit3,
+        uint32 timeBetweenDeposits
+    )
+        public
+    {
+        deposit1 = bound(deposit1, 1 ether, 1_000_000 ether);
+        deposit2 = bound(deposit2, 1 ether, 1_000_000 ether);
+        deposit3 = bound(deposit3, 1 ether, 1_000_000 ether);
+        timeBetweenDeposits = uint32(bound(timeBetweenDeposits, 1, 30 days));
+
+        DepositTestData memory data;
+        data.deposit1 = deposit1;
+        data.deposit2 = deposit2;
+        data.deposit3 = deposit3;
+        data.timeBetweenDeposits = timeBetweenDeposits;
+        data.baseAsset = IERC20(strategy.asset());
+        data.bob = address(0x456);
+        data.charlie = address(0x789);
+
+        // Grant ALLOCATOR_ROLE to bob and charlie
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.grantRole(strategy.ALLOCATOR_ROLE(), data.bob);
+        strategy.grantRole(strategy.ALLOCATOR_ROLE(), data.charlie);
+        vm.stopPrank();
+
+        // Give tokens to all users
+        deal(address(data.baseAsset), alice, data.deposit1);
+        deal(address(data.baseAsset), data.bob, data.deposit2);
+        deal(address(data.baseAsset), data.charlie, data.deposit3);
+
+        // Initial balances
+        data.aliceInitialBalance = data.baseAsset.balanceOf(alice);
+        data.bobInitialBalance = data.baseAsset.balanceOf(data.bob);
+        data.charlieInitialBalance = data.baseAsset.balanceOf(data.charlie);
+        data.safeInitialBalance = data.baseAsset.balanceOf(accountingModule.safe());
+        data.strategyInitialAccountingTokens = accountingToken.balanceOf(address(strategy));
+        data.strategyInitialBalance = data.baseAsset.balanceOf(address(strategy));
+        data.totalSupplyBefore = strategy.totalSupply();
+        data.totalAssetsBefore = strategy.totalAssets();
+
+        // First deposit - Alice
+        vm.startPrank(alice);
+        data.baseAsset.approve(address(strategy), data.deposit1);
+        data.aliceShares = strategy.deposit(data.deposit1, alice);
+        vm.stopPrank();
+
+        // Advance time
+        vm.warp(block.timestamp + data.timeBetweenDeposits);
+
+        // Second deposit - Bob
+        vm.startPrank(data.bob);
+        data.baseAsset.approve(address(strategy), data.deposit2);
+        data.bobShares = strategy.deposit(data.deposit2, data.bob);
+        vm.stopPrank();
+
+        // Advance time
+        vm.warp(block.timestamp + data.timeBetweenDeposits);
+
+        // Third deposit - Charlie
+        vm.startPrank(data.charlie);
+        data.baseAsset.approve(address(strategy), data.deposit3);
+        data.charlieShares = strategy.deposit(data.deposit3, data.charlie);
+        vm.stopPrank();
+
+        // Assert all users' balances decreased by their deposit amounts
+        assertEq(
+            data.baseAsset.balanceOf(alice),
+            data.aliceInitialBalance - data.deposit1,
+            "Alice's balance should decrease by deposit1"
+        );
+        assertEq(
+            data.baseAsset.balanceOf(data.bob),
+            data.bobInitialBalance - data.deposit2,
+            "Bob's balance should decrease by deposit2"
+        );
+        assertEq(
+            data.baseAsset.balanceOf(data.charlie),
+            data.charlieInitialBalance - data.deposit3,
+            "Charlie's balance should decrease by deposit3"
+        );
+
+        // Assert all users received shares
+        assertEq(strategy.balanceOf(alice), data.aliceShares, "Alice should have correct shares");
+        assertEq(strategy.balanceOf(data.bob), data.bobShares, "Bob should have correct shares");
+        assertEq(strategy.balanceOf(data.charlie), data.charlieShares, "Charlie should have correct shares");
+
+        // Assert safe received all the base assets
+        assertEq(
+            data.baseAsset.balanceOf(accountingModule.safe()),
+            data.safeInitialBalance + data.deposit1 + data.deposit2 + data.deposit3,
+            "Safe should receive all deposited assets"
+        );
+
+        // Assert strategy received accounting tokens for all deposits
+        assertEq(
+            accountingToken.balanceOf(address(strategy)),
+            data.strategyInitialAccountingTokens + data.deposit1 + data.deposit2 + data.deposit3,
+            "Strategy should receive accounting tokens for all deposits"
+        );
+
+        // Assert total supply increased by all shares
+        assertEq(
+            strategy.totalSupply(),
+            data.totalSupplyBefore + data.aliceShares + data.bobShares + data.charlieShares,
+            "Total supply should increase by all shares"
+        );
+
+        // Assert total assets increased by all deposits
+        assertEq(
+            strategy.totalAssets(),
+            data.totalAssetsBefore + data.deposit1 + data.deposit2 + data.deposit3,
+            "Total assets should increase by all deposits"
+        );
+
+        // Assert strategy's base asset balance stayed the same (assets go to safe, not strategy)
+        assertEq(
+            data.baseAsset.balanceOf(address(strategy)),
+            data.strategyInitialBalance,
+            "Strategy's base asset balance should remain unchanged"
+        );
+
+        // Assert share calculations are correct for subsequent deposits
+        uint256 expectedAliceShares = data.totalSupplyBefore == 0
+            ? data.deposit1
+            : data.deposit1 * data.totalSupplyBefore / data.totalAssetsBefore;
+        uint256 expectedBobShares =
+            data.deposit2 * (data.totalSupplyBefore + data.aliceShares) / (data.totalAssetsBefore + data.deposit1);
+        uint256 expectedCharlieShares = data.deposit3 * (data.totalSupplyBefore + data.aliceShares + data.bobShares)
+            / (data.totalAssetsBefore + data.deposit1 + data.deposit2);
+
+        assertEq(data.aliceShares, expectedAliceShares, "Alice's shares should be calculated correctly");
+        assertEq(data.bobShares, expectedBobShares, "Bob's shares should be calculated correctly");
+        assertEq(data.charlieShares, expectedCharlieShares, "Charlie's shares should be calculated correctly");
+    }
 }

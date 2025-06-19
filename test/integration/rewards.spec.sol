@@ -122,6 +122,14 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         strategy.deposit(depositAmount, alice);
         vm.stopPrank();
 
+        // Store initial values for invariant checks
+        uint256 initialAccountingTokens = accountingToken.balanceOf(address(strategy));
+        uint256 initialTotalAssets = strategy.totalAssets();
+        uint256 initialSafeBalance = baseAsset.balanceOf(accountingModule.safe());
+        uint256 initialStrategyBalance = baseAsset.balanceOf(address(strategy));
+        uint256 initialAliceShares = strategy.balanceOf(alice);
+        uint256 initialTotalSupply = strategy.totalSupply();
+
         uint256 dayCount = 365;
 
         uint256 totalRewards;
@@ -150,5 +158,32 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         // Assert APY is within acceptable range
         assertLt(apy, maxApy, "APY should be less than maximum allowed");
         assertGt(apy, expectedMinApy, "APY should be greater than minimum allowed");
+
+        // Assert other invariants
+        assertEq(
+            accountingToken.balanceOf(address(strategy)),
+            initialAccountingTokens + totalRewards,
+            "Strategy should have accounting tokens equal to initial plus total rewards"
+        );
+
+        assertEq(
+            strategy.totalAssets(),
+            initialTotalAssets + totalRewards,
+            "Strategy total assets should equal initial plus total rewards"
+        );
+
+        assertEq(strategy.totalSupply(), initialTotalSupply, "Strategy total supply should remain unchanged");
+
+        assertEq(
+            baseAsset.balanceOf(accountingModule.safe()), initialSafeBalance, "Safe balance should remain unchanged"
+        );
+
+        assertEq(
+            baseAsset.balanceOf(address(strategy)),
+            initialStrategyBalance,
+            "Strategy base asset balance should remain unchanged"
+        );
+
+        assertEq(strategy.balanceOf(alice), initialAliceShares, "Alice's shares should remain unchanged");
     }
 }
