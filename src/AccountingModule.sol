@@ -9,6 +9,12 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
 interface IAccountingModule {
+
+    struct StrategySnapshot {
+        uint64 timestamp;
+        uint256 pricePerShare;
+    }
+
     event LowerBoundUpdated(uint256 newValue, uint256 oldValue);
     event TargetApyUpdated(uint256 newValue, uint256 oldValue);
     event CooldownSecondsUpdated(uint16 newValue, uint16 oldValue);
@@ -39,6 +45,10 @@ interface IAccountingModule {
     function SAFE_MANAGER_ROLE() external view returns (bytes32);
     function REWARDS_PROCESSOR_ROLE() external view returns (bytes32);
     function LOSS_PROCESSOR_ROLE() external view returns (bytes32);
+
+    function snapshotsLength() external view returns (uint256);
+    function snapshots(uint256 index) external view returns (StrategySnapshot memory);
+    function lastSnapshot() external view returns (StrategySnapshot memory);
 }
 /**
  * Module to configure strategy params,
@@ -68,12 +78,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     uint256 public targetApy; // in bips;
     uint256 public lowerBound; // in bips; % of tvl
 
-    StrategySnapshot[] public snapshots;
-
-    struct StrategySnapshot {
-        uint64 timestamp;
-        uint256 pricePerShare;
-    }
+    StrategySnapshot[] public _snapshots;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address strategy, address baseAsset) {
@@ -160,7 +165,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         // check if apr is within acceptable bounds
 
-        StrategySnapshot memory previousSnapshot = snapshots[snapshots.length - 1];
+        StrategySnapshot memory previousSnapshot = _snapshots[_snapshots.length - 1];
 
         uint256 currentPricePerShare = createStrategySnapshot().pricePerShare;
 
@@ -181,7 +186,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         StrategySnapshot memory snapshot =
             StrategySnapshot({ timestamp: uint64(block.timestamp), pricePerShare: currentPricePerShare });
 
-        snapshots.push(snapshot);
+        _snapshots.push(snapshot);
 
         return snapshot;
     }
@@ -277,5 +282,19 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     function setSafeAddress(address newSafe) external virtual onlyRole(SAFE_MANAGER_ROLE) {
         emit SafeUpdated(newSafe, safe);
         safe = newSafe;
+    }
+
+    /// VIEWS ///
+
+    function snapshotsLength() external view returns (uint256) {
+        return _snapshots.length;
+    }
+
+    function snapshots(uint256 index) external view returns (StrategySnapshot memory) {
+        return _snapshots[index];
+    }
+
+    function lastSnapshot() external view returns (StrategySnapshot memory) {
+        return _snapshots[_snapshots.length - 1];
     }
 }
