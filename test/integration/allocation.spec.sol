@@ -109,4 +109,135 @@ contract AllocationIntegrationTest is BaseIntegrationTest {
             totalSupplyBefore == 0 ? depositAmount : depositAmount * totalSupplyBefore / totalAssetsBefore;
         assertEq(shares, expectedShares, "Shares should be calculated correctly");
     }
+
+    struct TestData {
+        uint256 depositAmount;
+        uint256 allocationAmount;
+        uint256 withdrawAmount;
+        IERC20 baseAsset;
+        uint256 aliceInitialBalance;
+        uint256 strategyInitialBalance;
+        uint256 safeInitialBalance;
+        uint256 aliceInitialShares;
+        uint256 strategyInitialAccountingTokens;
+        uint256 allocationDestinationInitialBalance;
+        uint256 totalSupplyBefore;
+        uint256 totalAssetsBefore;
+        uint256 shares;
+        uint256 withdrawnShares;
+    }
+
+    function test_deposit_allocate_withdraw_success(
+        uint256 depositAmount,
+        uint256 allocationAmount,
+        uint256 withdrawAmount
+    )
+        public
+    {
+        depositAmount = bound(depositAmount, 1 ether, 1_000_000 ether);
+        allocationAmount = bound(allocationAmount, 1 ether, depositAmount);
+        withdrawAmount = bound(withdrawAmount, 1 ether, depositAmount - allocationAmount);
+
+        TestData memory data;
+        data.depositAmount = depositAmount;
+        data.allocationAmount = allocationAmount;
+        data.withdrawAmount = withdrawAmount;
+        data.baseAsset = IERC20(strategy.asset());
+
+        // Grant ALLOCATOR_ROLE to alice so she can deposit
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.grantRole(strategy.ALLOCATOR_ROLE(), alice);
+        vm.stopPrank();
+
+        // Give Alice some tokens to deposit
+        deal(address(data.baseAsset), alice, data.depositAmount);
+
+        // Record initial balances
+        data.aliceInitialBalance = data.baseAsset.balanceOf(alice);
+        data.strategyInitialBalance = data.baseAsset.balanceOf(address(strategy));
+        data.safeInitialBalance = data.baseAsset.balanceOf(accountingModule.safe());
+        data.aliceInitialShares = strategy.balanceOf(alice);
+        data.strategyInitialAccountingTokens = accountingToken.balanceOf(address(strategy));
+        data.allocationDestinationInitialBalance = data.baseAsset.balanceOf(allocationDestination);
+        data.totalSupplyBefore = strategy.totalSupply();
+        data.totalAssetsBefore = strategy.totalAssets();
+
+        // Alice approves and deposits
+        vm.startPrank(alice);
+        data.baseAsset.approve(address(strategy), data.depositAmount);
+        data.shares = strategy.deposit(data.depositAmount, alice);
+        vm.stopPrank();
+
+        // Allocate some funds by transferring from safe to allocation destination
+        vm.startPrank(accountingModule.safe());
+        data.baseAsset.transfer(allocationDestination, data.allocationAmount);
+        vm.stopPrank();
+
+        // Withdraw some funds
+        vm.startPrank(alice);
+        data.withdrawnShares = strategy.withdraw(data.withdrawAmount, alice, alice);
+        vm.stopPrank();
+
+        // Assert Alice's balance decreased by deposit amount but increased by withdrawal
+        assertEq(
+            data.baseAsset.balanceOf(alice),
+            data.aliceInitialBalance - data.depositAmount + data.withdrawAmount,
+            "Alice's balance should decrease by deposit amount but increase by withdrawal"
+        );
+
+        // Assert Alice received shares but then burned some for withdrawal
+        assertEq(
+            strategy.balanceOf(alice),
+            data.aliceInitialShares + data.shares - data.withdrawnShares,
+            "Alice should have remaining shares after withdrawal"
+        );
+
+        // Assert safe received the base assets, transferred some out, and then transferred more out for withdrawal
+        assertEq(
+            data.baseAsset.balanceOf(accountingModule.safe()),
+            data.safeInitialBalance + data.depositAmount - data.allocationAmount - data.withdrawAmount,
+            "Safe should have transferred out allocated and withdrawn assets"
+        );
+
+        // Assert allocation destination received the allocated funds
+        assertEq(
+            data.baseAsset.balanceOf(allocationDestination),
+            data.allocationDestinationInitialBalance + data.allocationAmount,
+            "Allocation destination should receive the allocated funds"
+        );
+
+        // Assert strategy received accounting tokens but then burned some for withdrawal
+        assertEq(
+            accountingToken.balanceOf(address(strategy)),
+            data.strategyInitialAccountingTokens + data.depositAmount - data.withdrawAmount,
+            "Strategy should have remaining accounting tokens after withdrawal"
+        );
+
+        // Assert total supply increased by shares minted but decreased by shares burned
+        assertEq(
+            strategy.totalSupply(),
+            data.totalSupplyBefore + data.shares - data.withdrawnShares,
+            "Total supply should reflect minted and burned shares"
+        );
+
+        // Assert total assets increased by deposit but decreased by allocation and withdrawal
+        assertEq(
+            strategy.totalAssets(),
+            data.totalAssetsBefore + data.depositAmount - data.withdrawAmount,
+            "Total assets should reflect deposit minus allocation and withdrawal"
+        );
+
+        // Assert strategy's base asset balance stayed the same (assets go to safe, not strategy)
+        assertEq(
+            data.baseAsset.balanceOf(address(strategy)),
+            data.strategyInitialBalance,
+            "Strategy's base asset balance should remain unchanged"
+        );
+
+        // Assert share calculations are correct
+        uint256 expectedShares = data.totalSupplyBefore == 0
+            ? data.depositAmount
+            : data.depositAmount * data.totalSupplyBefore / data.totalAssetsBefore;
+        assertEq(data.shares, expectedShares, "Shares should be calculated correctly");
+    }
 }
