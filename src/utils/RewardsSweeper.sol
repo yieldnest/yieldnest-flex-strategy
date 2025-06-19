@@ -12,7 +12,6 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
  * @title RewardsSweeper
  * @notice Contract to sweep rewards from a strategy and process them through the accounting module
  */
-
 contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
@@ -48,7 +47,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         // Calculate max rewards based on current TVL and target APY
         uint256 totalAssets = IERC4626(accountingModule.STRATEGY()).totalAssets();
 
-        uint256 timeElapsed = block.timestamp - accountingModule.lastSnapshot().timestamp   ;
+        uint256 timeElapsed = block.timestamp - accountingModule.lastSnapshot().timestamp;
         uint256 maxRewards =
             (totalAssets * accountingModule.targetApy() * timeElapsed) / (365.25 days * accountingModule.DIVISOR());
 

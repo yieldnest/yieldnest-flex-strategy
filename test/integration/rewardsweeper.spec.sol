@@ -47,7 +47,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
 
     function test_rewardsSweeper_basicSweep(uint256 depositAmount, uint256 rewardsToSweep) public {
         // Bound depositAmount to reasonable range (1e18 to 1000e18)
-        depositAmount = bound(depositAmount, 1e18, 1000e18);
+        depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
 
         // Calculate max APY based on time (30 days = ~1 month)
         uint256 timeElapsed = 30 days;
@@ -101,15 +101,11 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         );
     }
 
-    function test_sweepRewardsUpToAPRMax(
-        uint256 depositAmount,
-        uint256 rewardsAmount
-    ) public {
-
+    function test_sweepRewardsUpToAPRMax(uint256 depositAmount, uint256 rewardsAmount) public {
         // Set specific values for testing
         // Bound depositAmount to reasonable range (1e18 to 1000e18)
         depositAmount = bound(depositAmount, 1e18, 1000e18);
-        
+
         uint256 timeElapsed = 30 days;
         uint256 maxApy = accountingModule.targetApy();
 

@@ -5,12 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { AccountingModule } from "src/AccountingModule.sol";
 
 contract CalculateAprTest is Test {
-    function testFuzz_calculateApr_success(
-        uint256 depositAmount,
-        uint256 rewardAmount,
-        uint256 timePassed
-    ) public {
-
+    function testFuzz_calculateApr_success(uint256 depositAmount, uint256 rewardAmount, uint256 timePassed) public {
         AccountingModule accountingModule = new AccountingModule(address(this), address(this));
         // Bound inputs to reasonable ranges
         depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
@@ -28,10 +23,7 @@ contract CalculateAprTest is Test {
         uint256 currentTimestamp = previousTimestamp + timePassed;
 
         uint256 calculatedApr = accountingModule.calculateApr(
-            previousPricePerShare,
-            previousTimestamp,
-            currentPricePerShare,
-            currentTimestamp
+            previousPricePerShare, previousTimestamp, currentPricePerShare, currentTimestamp
         );
 
         // Verify APR is positive since we added rewards
@@ -43,5 +35,4 @@ contract CalculateAprTest is Test {
         // max delta;  0.0001%
         assertApproxEqRel(calculatedApr, expectedApr, 1e12, "APR calculation should match expected formula");
     }
-
 }
