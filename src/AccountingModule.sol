@@ -9,7 +9,6 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 
 interface IAccountingModule {
-
     struct StrategySnapshot {
         uint64 timestamp;
         uint256 pricePerShare;
@@ -27,6 +26,7 @@ interface IAccountingModule {
     error InvariantViolation();
     error TvlTooLow();
     error CurrentTimestampBeforePreviousTimestamp();
+    error SnapshotIndexOutOfBounds(uint256 index);
 
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount, address recipient) external;
@@ -155,6 +155,33 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param amount profits to mint
      */
     function processRewards(uint256 amount) external onlyRole(REWARDS_PROCESSOR_ROLE) checkAndResetCooldown {
+        _processRewards(amount, _snapshots.length - 1);
+    }
+
+    /**
+     * @notice Process rewards by minting accounting tokens with specific snapshot index
+     * @param amount profits to mint
+     * @param snapshotIndex index of the snapshot to compare against
+     */
+    function processRewards(
+        uint256 amount,
+        uint256 snapshotIndex
+    )
+        external
+        onlyRole(REWARDS_PROCESSOR_ROLE)
+        checkAndResetCooldown
+    {
+        _processRewards(amount, snapshotIndex);
+    }
+
+    /**
+     * @notice Internal function to process rewards with snapshot validation
+     * @param amount profits to mint
+     * @param snapshotIndex index of the snapshot to compare against
+     */
+    function _processRewards(uint256 amount, uint256 snapshotIndex) internal {
+        if (snapshotIndex >= _snapshots.length) revert SnapshotIndexOutOfBounds(snapshotIndex);
+
         uint256 totalSupply = accountingToken.totalSupply();
         if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
 
@@ -165,7 +192,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         // check if apr is within acceptable bounds
 
-        StrategySnapshot memory previousSnapshot = _snapshots[_snapshots.length - 1];
+        StrategySnapshot memory previousSnapshot = _snapshots[snapshotIndex];
 
         uint256 currentPricePerShare = createStrategySnapshot().pricePerShare;
 
