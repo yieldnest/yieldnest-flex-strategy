@@ -136,7 +136,7 @@ contract AllocationIntegrationTest is BaseIntegrationTest {
     {
         depositAmount = bound(depositAmount, 1 ether, 1_000_000 ether);
         allocationAmount = bound(allocationAmount, 1 ether, depositAmount);
-        withdrawAmount = bound(withdrawAmount, 1 ether, depositAmount - allocationAmount);
+        withdrawAmount = bound(withdrawAmount, 0, depositAmount - allocationAmount);
 
         TestData memory data;
         data.depositAmount = depositAmount;
