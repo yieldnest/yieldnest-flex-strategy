@@ -240,4 +240,43 @@ contract AllocationIntegrationTest is BaseIntegrationTest {
             : data.depositAmount * data.totalSupplyBefore / data.totalAssetsBefore;
         assertEq(data.shares, expectedShares, "Shares should be calculated correctly");
     }
+
+    function test_deposit_allocate_withdraw_fail(
+        uint256 depositAmount,
+        uint256 allocationAmount,
+        uint256 withdrawAmount
+    )
+        public
+    {
+        // Bound inputs to reasonable ranges
+        depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
+        allocationAmount = bound(allocationAmount, 1e18, depositAmount);
+        withdrawAmount = bound(withdrawAmount, 1e18, depositAmount);
+
+        // Ensure withdrawal amount is greater than what's available after allocation
+        // This will cause the test to fail
+        vm.assume(withdrawAmount > depositAmount - allocationAmount);
+
+        IERC20 baseAsset = IERC20(strategy.asset());
+
+        // Give Alice some tokens to deposit
+        deal(address(baseAsset), alice, depositAmount);
+
+        // Initial deposit
+        vm.startPrank(alice);
+        baseAsset.approve(address(strategy), depositAmount);
+        strategy.deposit(depositAmount, alice);
+        vm.stopPrank();
+
+        // Allocate some funds by transferring from safe to allocation destination
+        vm.startPrank(accountingModule.safe());
+        baseAsset.transfer(allocationDestination, allocationAmount);
+        vm.stopPrank();
+
+        // Try to withdraw more than available - this should fail
+        vm.startPrank(alice);
+        vm.expectRevert(); // Expect revert due to insufficient funds
+        strategy.withdraw(withdrawAmount, alice, alice);
+        vm.stopPrank();
+    }
 }
