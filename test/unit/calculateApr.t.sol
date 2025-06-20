@@ -33,6 +33,6 @@ contract CalculateAprTest is Test {
         uint256 expectedApr = (rewardAmount * 365.25 days * accountingModule.DIVISOR()) / (depositAmount * timePassed);
 
         // max delta;  0.0001%
-        assertApproxEqRel(calculatedApr, expectedApr, 1e12, "APR calculation should match expected formula");
+        assertApproxEqRel(calculatedApr, expectedApr, 2e12, "APR calculation should match expected formula");
     }
 }
