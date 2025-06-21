@@ -209,11 +209,11 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         vm.warp(block.timestamp + 1 days);
 
         for (uint256 i = 0; i < 5; i++) {
-
             // Calculate daily reward based on current total supply
             uint256 currentTotalSupply = accountingToken.totalSupply();
-            uint256 dailyRewardAmount =
-                (currentTotalSupply * accountingModule.targetApy()) * 1e18 / (accountingModule.DIVISOR() * 365.5 ether);
+            // accumulates at half the rate of the target APY
+            uint256 dailyRewardAmount = (currentTotalSupply * accountingModule.targetApy()) * 1e18
+                / (accountingModule.DIVISOR() * 365.5 ether) / 2;
 
             // Process rewards and store snapshot index
             vm.startPrank(accountingModule.safe());
@@ -231,9 +231,11 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         uint256 pastSnapshotIndex = 1;
         vm.warp(accountingModule.nextUpdateWindow());
 
-        uint256 currentTotalSupply = accountingToken.totalSupply();
+        // Get the total supply at the past snapshot index
+        IAccountingModule.StrategySnapshot memory pastSnapshot = accountingModule.snapshots(pastSnapshotIndex);
+        uint256 totalSupplyAtSnapshot = pastSnapshot.totalSupply;
         uint256 additionalRewardAmount =
-            (currentTotalSupply * accountingModule.targetApy()) * 1e18 / (accountingModule.DIVISOR() * 365.5 ether);
+            (totalSupplyAtSnapshot * accountingModule.targetApy()) * 1e18 / (accountingModule.DIVISOR() * 365.5 ether);
 
         // Process rewards using the past snapshot index
         vm.startPrank(accountingModule.safe());
@@ -259,7 +261,6 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         assertEq(accountingModule.snapshotsLength(), 7, "Should have 7 snapshots (1 initial + 5 daily + 1 final)");
 
         // Verify that the past snapshot index still exists and is valid
-        IAccountingModule.StrategySnapshot memory pastSnapshot = accountingModule.snapshots(pastSnapshotIndex);
         assertGt(pastSnapshot.timestamp, 0, "Past snapshot should have valid timestamp");
         assertGt(pastSnapshot.pricePerShare, 0, "Past snapshot should have valid price per share");
     }

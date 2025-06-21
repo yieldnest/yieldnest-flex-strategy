@@ -54,11 +54,24 @@ interface IAccountingModule {
     function snapshots(uint256 index) external view returns (StrategySnapshot memory);
     function lastSnapshot() external view returns (StrategySnapshot memory);
 }
+
+/**
+ * @notice Storage struct for AccountingModule
+ */
+struct AccountingModuleStorage {
+    IAccountingToken accountingToken;
+    address safe;
+    uint64 nextUpdateWindow;
+    uint16 cooldownSeconds;
+    uint256 targetApy; // in bips;
+    uint256 lowerBound; // in bips; % of tvl
+    IAccountingModule.StrategySnapshot[] _snapshots;
+}
+
 /**
  * Module to configure strategy params,
  *  and mint/burn IOU tokens to represent value accrual/loss.
  */
-
 contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
@@ -76,20 +89,24 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     address public immutable BASE_ASSET;
     address public immutable STRATEGY;
 
-    IAccountingToken public accountingToken;
-    address public safe;
-    uint64 public nextUpdateWindow;
-    uint16 public cooldownSeconds;
-    uint256 public targetApy; // in bips;
-    uint256 public lowerBound; // in bips; % of tvl
-
-    StrategySnapshot[] public _snapshots;
+    /// @notice Storage slot for AccountingModule data
+    bytes32 private constant ACCOUNTING_MODULE_STORAGE_SLOT = keccak256("yieldnest.storage.accountingModule");
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address strategy, address baseAsset) {
         _disableInitializers();
         BASE_ASSET = baseAsset;
         STRATEGY = strategy;
+    }
+
+    /**
+     * @notice Get the storage struct
+     */
+    function _getAccountingModuleStorage() internal pure returns (AccountingModuleStorage storage s) {
+        bytes32 slot = ACCOUNTING_MODULE_STORAGE_SLOT;
+        assembly {
+            s.slot := slot
+        }
     }
 
     /**
@@ -114,18 +131,20 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
-        safe = safe_;
-        accountingToken = accountingToken_;
-        targetApy = targetApy_;
-        lowerBound = lowerBound_;
-        cooldownSeconds = 3600;
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        s.safe = safe_;
+        s.accountingToken = accountingToken_;
+        s.targetApy = targetApy_;
+        s.lowerBound = lowerBound_;
+        s.cooldownSeconds = 3600;
 
         createStrategySnapshot();
     }
 
     modifier checkAndResetCooldown() {
-        if (block.timestamp < nextUpdateWindow) revert TooEarly();
-        nextUpdateWindow = (uint64(block.timestamp) + cooldownSeconds);
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        if (block.timestamp < s.nextUpdateWindow) revert TooEarly();
+        s.nextUpdateWindow = (uint64(block.timestamp) + s.cooldownSeconds);
         _;
     }
 
@@ -142,8 +161,9 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param amount amount to deposit
      */
     function deposit(uint256 amount) external onlyStrategy {
-        IERC20(BASE_ASSET).safeTransferFrom(STRATEGY, safe, amount);
-        accountingToken.mintTo(STRATEGY, amount);
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        IERC20(BASE_ASSET).safeTransferFrom(STRATEGY, s.safe, amount);
+        s.accountingToken.mintTo(STRATEGY, amount);
     }
 
     /**
@@ -153,8 +173,9 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param recipient address to receive the base assets
      */
     function withdraw(uint256 amount, address recipient) external onlyStrategy {
-        accountingToken.burnFrom(STRATEGY, amount);
-        IERC20(BASE_ASSET).safeTransferFrom(safe, recipient, amount);
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        s.accountingToken.burnFrom(STRATEGY, amount);
+        IERC20(BASE_ASSET).safeTransferFrom(s.safe, recipient, amount);
     }
 
     /// REWARDS ///
@@ -164,7 +185,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param amount profits to mint
      */
     function processRewards(uint256 amount) external onlyRole(REWARDS_PROCESSOR_ROLE) checkAndResetCooldown {
-        _processRewards(amount, _snapshots.length - 1);
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        _processRewards(amount, s._snapshots.length - 1);
     }
 
     /**
@@ -212,20 +234,21 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * false positives, while maintaining protection against actual APR manipulation.
      */
     function _processRewards(uint256 amount, uint256 snapshotIndex) internal {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
         // check if snapshot index is valid
-        if (snapshotIndex >= _snapshots.length) revert SnapshotIndexOutOfBounds(snapshotIndex);
+        if (snapshotIndex >= s._snapshots.length) revert SnapshotIndexOutOfBounds(snapshotIndex);
 
-        uint256 totalSupply = accountingToken.totalSupply();
-        if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
+        uint256 totalSupply = s.accountingToken.totalSupply();
+        if (totalSupply < 10 ** s.accountingToken.decimals()) revert TvlTooLow();
 
         IVault strategy = IVault(STRATEGY);
 
-        accountingToken.mintTo(STRATEGY, amount);
+        s.accountingToken.mintTo(STRATEGY, amount);
         strategy.processAccounting();
 
         // check if apr is within acceptable bounds
 
-        StrategySnapshot memory previousSnapshot = _snapshots[snapshotIndex];
+        StrategySnapshot memory previousSnapshot = s._snapshots[snapshotIndex];
 
         uint256 currentPricePerShare = createStrategySnapshot().pricePerShare;
 
@@ -234,10 +257,11 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
             previousSnapshot.pricePerShare, previousSnapshot.timestamp, currentPricePerShare, block.timestamp
         );
 
-        if (aprSinceLastSnapshot > targetApy) revert AccountingLimitsExceeded(aprSinceLastSnapshot, targetApy);
+        if (aprSinceLastSnapshot > s.targetApy) revert AccountingLimitsExceeded(aprSinceLastSnapshot, s.targetApy);
     }
 
     function createStrategySnapshot() internal returns (StrategySnapshot memory) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
         IVault strategy = IVault(STRATEGY);
 
         // Take snapshot of current state
@@ -250,7 +274,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
             totalAssets: strategy.totalAssets()
         });
 
-        _snapshots.push(snapshot);
+        s._snapshots.push(snapshot);
 
         return snapshot;
     }
@@ -297,15 +321,16 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param amount losses to burn
      */
     function processLosses(uint256 amount) external onlyRole(LOSS_PROCESSOR_ROLE) checkAndResetCooldown {
-        uint256 totalSupply = accountingToken.totalSupply();
-        if (totalSupply < 10 ** accountingToken.decimals()) revert TvlTooLow();
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        uint256 totalSupply = s.accountingToken.totalSupply();
+        if (totalSupply < 10 ** s.accountingToken.decimals()) revert TvlTooLow();
 
         // check bound on losses
-        if (amount > totalSupply * lowerBound / DIVISOR) {
-            revert LossLimitsExceeded(amount, totalSupply * lowerBound / DIVISOR);
+        if (amount > totalSupply * s.lowerBound / DIVISOR) {
+            revert LossLimitsExceeded(amount, totalSupply * s.lowerBound / DIVISOR);
         }
 
-        accountingToken.burnFrom(STRATEGY, amount);
+        s.accountingToken.burnFrom(STRATEGY, amount);
         IVault(STRATEGY).processAccounting();
 
         createStrategySnapshot();
@@ -319,10 +344,11 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @dev hard max of 100% targetApy
      */
     function setTargetApy(uint256 targetApyInBips) external onlyRole(SAFE_MANAGER_ROLE) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
         if (targetApyInBips > DIVISOR) revert InvariantViolation();
 
-        emit TargetApyUpdated(targetApyInBips, targetApy);
-        targetApy = targetApyInBips;
+        emit TargetApyUpdated(targetApyInBips, s.targetApy);
+        s.targetApy = targetApyInBips;
     }
 
     /**
@@ -331,10 +357,11 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @dev hard max of 50% of tvl
      */
     function setLowerBound(uint256 _lowerBound) external onlyRole(SAFE_MANAGER_ROLE) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
         if (_lowerBound > (MAX_LOWER_BOUND)) revert InvariantViolation();
 
-        emit LowerBoundUpdated(_lowerBound, lowerBound);
-        lowerBound = _lowerBound;
+        emit LowerBoundUpdated(_lowerBound, s.lowerBound);
+        s.lowerBound = _lowerBound;
     }
 
     /**
@@ -342,8 +369,9 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param cooldownSeconds_ new cooldown seconds
      */
     function setCooldownSeconds(uint16 cooldownSeconds_) external onlyRole(SAFE_MANAGER_ROLE) {
-        emit CooldownSecondsUpdated(cooldownSeconds_, cooldownSeconds);
-        cooldownSeconds = cooldownSeconds_;
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        emit CooldownSecondsUpdated(cooldownSeconds_, s.cooldownSeconds);
+        s.cooldownSeconds = cooldownSeconds_;
     }
 
     /**
@@ -351,22 +379,56 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param newSafe new safe address
      */
     function setSafeAddress(address newSafe) external virtual onlyRole(SAFE_MANAGER_ROLE) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
         if (newSafe == address(0)) revert ZeroAddress();
-        emit SafeUpdated(newSafe, safe);
-        safe = newSafe;
+        emit SafeUpdated(newSafe, s.safe);
+        s.safe = newSafe;
     }
 
     /// VIEWS ///
 
+    function accountingToken() external view returns (IAccountingToken) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        return s.accountingToken;
+    }
+
+    function cooldownSeconds() external view returns (uint16) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        return s.cooldownSeconds;
+    }
+
+    function lowerBound() external view returns (uint256) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        return s.lowerBound;
+    }
+
+    function nextUpdateWindow() external view returns (uint64) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        return s.nextUpdateWindow;
+    }
+
+    function safe() external view returns (address) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        return s.safe;
+    }
+
+    function targetApy() external view returns (uint256) {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        return s.targetApy;
+    }
+
     function snapshotsLength() external view returns (uint256) {
-        return _snapshots.length;
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        return s._snapshots.length;
     }
 
     function snapshots(uint256 index) external view returns (StrategySnapshot memory) {
-        return _snapshots[index];
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        return s._snapshots[index];
     }
 
     function lastSnapshot() external view returns (StrategySnapshot memory) {
-        return _snapshots[_snapshots.length - 1];
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        return s._snapshots[s._snapshots.length - 1];
     }
 }
