@@ -206,9 +206,9 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         uint256[] memory snapshotIndices = new uint256[](5);
         uint256 totalRewards = 0;
 
+        vm.warp(block.timestamp + 1 days);
+
         for (uint256 i = 0; i < 5; i++) {
-            // Fast forward to next update window
-            vm.warp(accountingModule.nextUpdateWindow());
 
             // Calculate daily reward based on current total supply
             uint256 currentTotalSupply = accountingToken.totalSupply();
@@ -222,6 +222,9 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
 
             snapshotIndices[i] = accountingModule.snapshotsLength() - 1;
             totalRewards += dailyRewardAmount;
+
+            // Fast forward to next update window
+            vm.warp(block.timestamp + 1 days);
         }
 
         // Now process rewards using a past snapshot index (e.g., index 1)
