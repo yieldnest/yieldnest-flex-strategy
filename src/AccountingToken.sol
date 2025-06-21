@@ -38,6 +38,8 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
      * @param symbol_ The symbol of accountingToken.
      */
     function initialize(address admin, string memory name_, string memory symbol_) external virtual initializer {
+        if (admin == address(0)) revert ZeroAddress();
+
         __ERC20_init(name_, symbol_);
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
