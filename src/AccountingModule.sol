@@ -178,8 +178,32 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @notice Internal function to process rewards with snapshot validation
      * @param amount profits to mint
      * @param snapshotIndex index of the snapshot to compare against
+     *
+     * @dev This function validates rewards by comparing current PPS against a historical snapshot.
+     * Using a past snapshot (rather than the most recent) helps prevent APR manipulation
+     * by smoothing out reward distribution over time.
+     *
+     *
+     * Example with daily processRewards calls:
+     *
+     * Day 0: PPS = 100  [snapshot 0]
+     * Day 1: PPS = 101  [snapshot 1]
+     * Day 2: PPS = 102  [snapshot 2]
+     * Day 3: PPS = 107  [snapshot 3] ← Big jump due to delayed rewards
+     *
+     * If we only compared Day 2→3 (102→107):
+     *   Daily return: 4.9% → ~720% APR (exceeds cap)
+     *
+     * Instead, compare Day 0→3 (100→107):
+     *   Daily return: ~2.3% → ~240% APR (within sustainable range)
+     *
+     * This approach provides flexibility by allowing irregular reward distributions
+     * while still enforcing APR limits. By comparing against historical snapshots,
+     * the system can accommodate delayed or lump-sum rewards without triggering
+     * false positives, while maintaining protection against actual APR manipulation.
      */
     function _processRewards(uint256 amount, uint256 snapshotIndex) internal {
+        // check if snapshot index is valid
         if (snapshotIndex >= _snapshots.length) revert SnapshotIndexOutOfBounds(snapshotIndex);
 
         uint256 totalSupply = accountingToken.totalSupply();
