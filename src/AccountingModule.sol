@@ -31,6 +31,7 @@ interface IAccountingModule {
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount, address recipient) external;
     function processRewards(uint256 amount) external;
+    function processRewards(uint256 amount, uint256 snapshotIndex) external;
     function processLosses(uint256 amount) external;
 
     function BASE_ASSET() external view returns (address);

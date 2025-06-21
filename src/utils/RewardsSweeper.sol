@@ -44,10 +44,14 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     }
 
     function sweepRewardsUpToAPRMax() public {
+        sweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
+    }
+
+    function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public {
         // Calculate max rewards based on current TVL and target APY
         uint256 totalAssets = IERC4626(accountingModule.STRATEGY()).totalAssets();
 
-        uint256 timeElapsed = block.timestamp - accountingModule.lastSnapshot().timestamp;
+        uint256 timeElapsed = block.timestamp - accountingModule.snapshots(snapshotIndex).timestamp;
         uint256 maxRewards =
             (totalAssets * accountingModule.targetApy() * timeElapsed) / (365.25 days * accountingModule.DIVISOR());
 
@@ -56,7 +60,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         uint256 amountToSweep = maxRewards < currentBalance ? maxRewards : currentBalance;
 
         if (amountToSweep > 0) {
-            sweepRewards(amountToSweep);
+            sweepRewards(amountToSweep, snapshotIndex);
         }
     }
 
@@ -64,13 +68,24 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @notice Sweeps rewards from the strategy and processes them through the accounting module
      * @param amount Amount of rewards to sweep
      */
-    function sweepRewards(uint256 amount) public onlyRole(REWARDS_SWEEPER_ROLE) {
+    function sweepRewards(uint256 amount) public {
+        sweepRewards(amount, accountingModule.snapshotsLength() - 1);
+    }
+
+    /**
+     * @notice Sweeps rewards from the strategy and processes them through the accounting module with specific snapshot
+     * index
+     * @param amount Amount of rewards to sweep
+     * @param snapshotIndex Index of the snapshot to compare against
+     */
+    function sweepRewards(uint256 amount, uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) {
         if (!canSweepRewards()) revert CannotSweepRewards();
+
         // Transfer rewards to safe
         IERC20(accountingModule.BASE_ASSET()).safeTransfer(accountingModule.safe(), amount);
 
-        // Process rewards through accounting module
-        accountingModule.processRewards(amount);
+        // Process rewards through accounting module with specific snapshot index
+        accountingModule.processRewards(amount, snapshotIndex);
 
         emit RewardsSwept(amount);
     }

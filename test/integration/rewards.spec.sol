@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import { Test, console } from "forge-std/Test.sol";
 import { VerifyFlexStrategy } from "script/verification/VerifyFlexStrategy.s.sol";
 import { FlexStrategy } from "src/FlexStrategy.sol";
-import { AccountingModule } from "src/AccountingModule.sol";
+import { AccountingModule, IAccountingModule } from "src/AccountingModule.sol";
 import { AccountingToken } from "src/AccountingToken.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -185,5 +185,79 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         );
 
         assertEq(strategy.balanceOf(alice), initialAliceShares, "Alice's shares should remain unchanged");
+    }
+
+    function test_processRewardsWithMultipleCheckpointsAndPastIndex() public {
+        // Setup initial state
+
+        uint256 depositAmount = 1000e18;
+        {
+            IERC20 baseAsset = IERC20(strategy.asset());
+
+            // Give Alice tokens and deposit
+            deal(address(baseAsset), alice, depositAmount);
+            vm.startPrank(alice);
+            baseAsset.approve(address(strategy), depositAmount);
+            strategy.deposit(depositAmount, alice);
+            vm.stopPrank();
+        }
+
+        // Process rewards multiple times to create several snapshots
+        uint256[] memory snapshotIndices = new uint256[](5);
+        uint256 totalRewards = 0;
+
+        for (uint256 i = 0; i < 5; i++) {
+            // Fast forward to next update window
+            vm.warp(accountingModule.nextUpdateWindow());
+
+            // Calculate daily reward based on current total supply
+            uint256 currentTotalSupply = accountingToken.totalSupply();
+            uint256 dailyRewardAmount =
+                (currentTotalSupply * accountingModule.targetApy()) * 1e18 / (accountingModule.DIVISOR() * 365.5 ether);
+
+            // Process rewards and store snapshot index
+            vm.startPrank(accountingModule.safe());
+            accountingModule.processRewards(dailyRewardAmount);
+            vm.stopPrank();
+
+            snapshotIndices[i] = accountingModule.snapshotsLength() - 1;
+            totalRewards += dailyRewardAmount;
+        }
+
+        // Now process rewards using a past snapshot index (e.g., index 1)
+        uint256 pastSnapshotIndex = 1;
+        vm.warp(accountingModule.nextUpdateWindow());
+
+        uint256 currentTotalSupply = accountingToken.totalSupply();
+        uint256 additionalRewardAmount =
+            (currentTotalSupply * accountingModule.targetApy()) * 1e18 / (accountingModule.DIVISOR() * 365.5 ether);
+
+        // Process rewards using the past snapshot index
+        vm.startPrank(accountingModule.safe());
+        accountingModule.processRewards(additionalRewardAmount, pastSnapshotIndex);
+        vm.stopPrank();
+
+        totalRewards += additionalRewardAmount;
+
+        // Verify the system state
+        assertEq(
+            accountingToken.balanceOf(address(strategy)),
+            depositAmount + totalRewards,
+            "Strategy should have accounting tokens equal to deposit plus total rewards"
+        );
+
+        assertEq(
+            strategy.totalAssets(),
+            depositAmount + totalRewards,
+            "Strategy total assets should equal deposit plus total rewards"
+        );
+
+        // Verify that we have the expected number of snapshots
+        assertEq(accountingModule.snapshotsLength(), 7, "Should have 7 snapshots (1 initial + 5 daily + 1 final)");
+
+        // Verify that the past snapshot index still exists and is valid
+        IAccountingModule.StrategySnapshot memory pastSnapshot = accountingModule.snapshots(pastSnapshotIndex);
+        assertGt(pastSnapshot.timestamp, 0, "Past snapshot should have valid timestamp");
+        assertGt(pastSnapshot.pricePerShare, 0, "Past snapshot should have valid price per share");
     }
 }
