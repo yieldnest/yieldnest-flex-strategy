@@ -12,6 +12,8 @@ interface IAccountingModule {
     struct StrategySnapshot {
         uint64 timestamp;
         uint256 pricePerShare;
+        uint256 totalSupply;
+        uint256 totalAssets;
     }
 
     event LowerBoundUpdated(uint256 newValue, uint256 oldValue);
@@ -70,7 +72,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     uint256 public constant YEAR = 365.25 days;
     uint256 public constant DIVISOR = 1e18;
     uint256 public constant MAX_LOWER_BOUND = DIVISOR / 2;
-    
+
     address public immutable BASE_ASSET;
     address public immutable STRATEGY;
 
@@ -241,8 +243,12 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         // Take snapshot of current state
         uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
 
-        StrategySnapshot memory snapshot =
-            StrategySnapshot({ timestamp: uint64(block.timestamp), pricePerShare: currentPricePerShare });
+        StrategySnapshot memory snapshot = StrategySnapshot({
+            timestamp: uint64(block.timestamp),
+            pricePerShare: currentPricePerShare,
+            totalSupply: strategy.totalSupply(),
+            totalAssets: strategy.totalAssets()
+        });
 
         _snapshots.push(snapshot);
 
@@ -276,7 +282,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         // Ensure timestamps are ordered (current should be after previous)
         if (currentTimestamp <= previousTimestamp) revert CurrentTimestampBeforePreviousTimestamp();
-        
+
         // Prevent division by zero
         if (previousPricePerShare == 0) revert InvariantViolation();
 
