@@ -19,6 +19,7 @@ interface IAccountingModule {
     event CooldownSecondsUpdated(uint16 newValue, uint16 oldValue);
     event SafeUpdated(address newValue, address oldValue);
 
+    error ZeroAddress();
     error TooEarly();
     error NotStrategy();
     error AccountingLimitsExceeded(uint256 aprSinceLastSnapshot, uint256 targetApr);
@@ -68,9 +69,10 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
     uint256 public constant YEAR = 365.25 days;
     uint256 public constant DIVISOR = 1e18;
+    uint256 public constant MAX_LOWER_BOUND = DIVISOR / 2;
+    
     address public immutable BASE_ASSET;
     address public immutable STRATEGY;
-    uint256 constant MAX_LOWER_BOUND = DIVISOR / 2;
 
     IAccountingToken public accountingToken;
     address public safe;
@@ -130,6 +132,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         _;
     }
 
+    /// DEPOSIT/WITHDRAW ///
+
     /**
      * @notice Proxies deposit of base assets from caller to associated SAFE,
      * and mints an equiv amount of accounting tokens
@@ -150,6 +154,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         accountingToken.burnFrom(STRATEGY, amount);
         IERC20(BASE_ASSET).safeTransferFrom(safe, recipient, amount);
     }
+
+    /// REWARDS ///
 
     /**
      * @notice Process rewards by minting accounting tokens
@@ -270,10 +276,15 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         // Ensure timestamps are ordered (current should be after previous)
         if (currentTimestamp <= previousTimestamp) revert CurrentTimestampBeforePreviousTimestamp();
+        
+        // Prevent division by zero
+        if (previousPricePerShare == 0) revert InvariantViolation();
 
         return (currentPricePerShare - previousPricePerShare) * YEAR * DIVISOR / previousPricePerShare
             / (currentTimestamp - previousTimestamp);
     }
+
+    /// LOSS ///
 
     /**
      * @notice Process losses by burning accounting tokens
@@ -293,6 +304,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         createStrategySnapshot();
     }
+
+    /// ADMIN ///
 
     /**
      * @notice Set target APY to determine upper bound. e.g. 1000 = 10% APY
@@ -332,6 +345,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param newSafe new safe address
      */
     function setSafeAddress(address newSafe) external virtual onlyRole(SAFE_MANAGER_ROLE) {
+        if (newSafe == address(0)) revert ZeroAddress();
         emit SafeUpdated(newSafe, safe);
         safe = newSafe;
     }
