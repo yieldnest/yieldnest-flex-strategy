@@ -187,10 +187,19 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         assertEq(strategy.balanceOf(alice), initialAliceShares, "Alice's shares should remain unchanged");
     }
 
-    function test_processRewardsWithMultipleCheckpointsAndPastIndex() public {
-        // Setup initial state
+    function test_processRewardsWithMultipleCheckpointsAndPastIndex(
+        uint256 depositAmount,
+        uint256 timeInterval
+    )
+        public
+    {
+        // Fuzz depositAmount between 0.1 ether and 100_000 ether
+        depositAmount = bound(depositAmount, 1 ether, 100_000 ether);
 
-        uint256 depositAmount = 1000e18;
+        // Fuzz timeInterval between 1 hour and 30 days
+        timeInterval = bound(timeInterval, 1 hours, 30 days);
+
+        // Setup initial state
         {
             IERC20 baseAsset = IERC20(strategy.asset());
 
@@ -206,14 +215,14 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         uint256[] memory snapshotIndices = new uint256[](5);
         uint256 totalRewards = 0;
 
-        vm.warp(block.timestamp + 1 days);
+        vm.warp(block.timestamp + timeInterval);
 
         for (uint256 i = 0; i < 5; i++) {
             // Calculate daily reward based on current total supply
             uint256 currentTotalSupply = accountingToken.totalSupply();
             // accumulates at half the rate of the target APY
-            uint256 dailyRewardAmount = (currentTotalSupply * accountingModule.targetApy()) * 1e18
-                / (accountingModule.DIVISOR() * 365.5 ether) / 2;
+            uint256 dailyRewardAmount = (currentTotalSupply * accountingModule.targetApy() * timeInterval)
+                / (accountingModule.DIVISOR() * 365.5 days) / 2;
 
             // Process rewards and store snapshot index
             vm.startPrank(accountingModule.safe());
@@ -224,7 +233,7 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
             totalRewards += dailyRewardAmount;
 
             // Fast forward to next update window
-            vm.warp(block.timestamp + 1 days);
+            vm.warp(block.timestamp + timeInterval);
         }
 
         // Now process rewards using a past snapshot index (e.g., index 1)
@@ -234,8 +243,8 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         // Get the total supply at the past snapshot index
         IAccountingModule.StrategySnapshot memory pastSnapshot = accountingModule.snapshots(pastSnapshotIndex);
         uint256 totalSupplyAtSnapshot = pastSnapshot.totalSupply;
-        uint256 additionalRewardAmount =
-            (totalSupplyAtSnapshot * accountingModule.targetApy()) * 1e18 / (accountingModule.DIVISOR() * 365.5 ether);
+        uint256 additionalRewardAmount = (totalSupplyAtSnapshot * accountingModule.targetApy() * timeInterval)
+            / (accountingModule.DIVISOR() * 365.5 days);
 
         // Process rewards using the past snapshot index
         vm.startPrank(accountingModule.safe());
