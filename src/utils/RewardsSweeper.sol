@@ -43,11 +43,11 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         accountingModule = IAccountingModule(accountingModule_);
     }
 
-    function sweepRewardsUpToAPRMax() public {
+    function sweepRewardsUpToAPRMax() public onlyRole(REWARDS_SWEEPER_ROLE) {
         sweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
     }
 
-    function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public {
+    function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) {
         // Calculate max rewards based on current TVL and target APY
         uint256 totalAssets = IERC4626(accountingModule.STRATEGY()).totalAssets();
 
@@ -68,7 +68,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @notice Sweeps rewards from the strategy and processes them through the accounting module
      * @param amount Amount of rewards to sweep
      */
-    function sweepRewards(uint256 amount) public {
+    function sweepRewards(uint256 amount) public onlyRole(REWARDS_SWEEPER_ROLE) {
         sweepRewards(amount, accountingModule.snapshotsLength() - 1);
     }
 

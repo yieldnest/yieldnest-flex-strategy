@@ -7,6 +7,7 @@ import { IAccountingModule } from "src/AccountingModule.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import { console } from "forge-std/console.sol";
 
 contract RewardsSweeperTest is BaseIntegrationTest {
     RewardsSweeper public rewardsSweeper;
@@ -161,5 +162,55 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         uint256 remainingInSweeper = baseAsset.balanceOf(address(rewardsSweeper));
         uint256 expectedRemaining = rewardsAmount > maxRewards ? rewardsAmount - maxRewards : 0;
         assertEq(remainingInSweeper, expectedRemaining, "Sweeper should have remaining tokens if rewards exceeded max");
+    }
+
+    function test_sweepRewards_revertIfNotAuthorized() public {
+        // Attempt to sweep rewards without the proper role
+        vm.startPrank(BOB); // BOB does not have the REWARDS_SWEEPER_ROLE
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, rewardsSweeper.REWARDS_SWEEPER_ROLE()
+            )
+        );
+        rewardsSweeper.sweepRewardsUpToAPRMax();
+        vm.stopPrank();
+    }
+
+    function test_sweepRewards_revertIfCannotSweepRewards() public {
+        {
+            IERC20 baseAsset = IERC20(strategy.asset());
+            // Give BOB WETH (baseAsset)
+            deal(address(baseAsset), BOB, 100_000_000e18);
+            uint256 depositAmount = 1000e18;
+
+            // Initial deposit
+            vm.startPrank(BOB);
+            baseAsset.approve(address(strategy), type(uint256).max);
+            strategy.deposit(depositAmount, BOB);
+            vm.stopPrank();
+        }
+
+        vm.startPrank(REWARDS_SWEEPER);
+
+        skip(10 minutes);
+
+        // Do one sweep.
+        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), 1e6);
+        rewardsSweeper.sweepRewardsUpToAPRMax();
+
+        // Set up a scenario where rewards cannot be swept
+        // For example, by ensuring the cooldown period has not passed
+
+        skip(10 minutes);
+
+        // Deal USDC to the rewards sweeper to simulate having rewards available
+        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), 1e6);
+
+        assertFalse(rewardsSweeper.canSweepRewards(), "canSweepRewards should be false");
+
+        // Cannot sweep because time window is not there yet.
+        vm.expectRevert(abi.encodeWithSelector(RewardsSweeper.CannotSweepRewards.selector));
+        rewardsSweeper.sweepRewardsUpToAPRMax();
+        vm.stopPrank();
     }
 }
