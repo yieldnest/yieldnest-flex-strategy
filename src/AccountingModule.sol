@@ -50,6 +50,16 @@ interface IAccountingModule {
     function REWARDS_PROCESSOR_ROLE() external view returns (bytes32);
     function LOSS_PROCESSOR_ROLE() external view returns (bytes32);
 
+    function calculateApr(
+        uint256 previousPricePerShare,
+        uint256 previousTimestamp,
+        uint256 currentPricePerShare,
+        uint256 currentTimestamp
+    )
+        external
+        view
+        returns (uint256 apr);
+
     function snapshotsLength() external view returns (uint256);
     function snapshots(uint256 index) external view returns (StrategySnapshot memory);
     function lastSnapshot() external view returns (StrategySnapshot memory);
