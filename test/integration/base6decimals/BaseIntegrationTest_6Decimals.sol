@@ -44,6 +44,7 @@ contract BaseIntegrationTest_6Decimals is Test {
                 paused: true,
                 targetApy: 0.1 ether,
                 lowerBound: 0.5 ether,
+                minRewardableAssets: 1000e6,
                 accountingProcessor: accountingProcessor,
                 baseAsset: Contracts.USDC,
                 allocator: mockAllocator,

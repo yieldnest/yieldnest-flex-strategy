@@ -75,6 +75,7 @@ struct AccountingModuleStorage {
     uint16 cooldownSeconds;
     uint256 targetApy; // in bips;
     uint256 lowerBound; // in bips; % of tvl
+    uint256 minRewardableAssets;
     IAccountingModule.StrategySnapshot[] _snapshots;
 }
 
@@ -126,13 +127,15 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param accountingToken_ The accountingToken associated with the module.
      * @param targetApy_ The target APY of the strategy.
      * @param lowerBound_ The lower bound of losses of the strategy(as % of TVL).
+     * @param minRewardableAssets_ The minimum rewardable assets.
      */
     function initialize(
         address admin,
         address safe_,
         IAccountingToken accountingToken_,
         uint256 targetApy_,
-        uint256 lowerBound_
+        uint256 lowerBound_,
+        uint256 minRewardableAssets_
     )
         external
         virtual
@@ -147,6 +150,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         s.targetApy = targetApy_;
         s.lowerBound = lowerBound_;
         s.cooldownSeconds = 3600;
+        s.minRewardableAssets = minRewardableAssets_;
 
         createStrategySnapshot();
     }
@@ -249,7 +253,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         if (snapshotIndex >= s._snapshots.length) revert SnapshotIndexOutOfBounds(snapshotIndex);
 
         uint256 totalSupply = s.accountingToken.totalSupply();
-        if (totalSupply < 10 ** s.accountingToken.decimals()) revert TvlTooLow();
+        if (totalSupply < s.minRewardableAssets) revert TvlTooLow();
 
         IVault strategy = IVault(STRATEGY);
 

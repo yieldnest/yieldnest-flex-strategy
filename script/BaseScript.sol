@@ -29,6 +29,7 @@ abstract contract BaseScript is Script {
         bool paused;
         uint256 targetApy;
         uint256 lowerBound;
+        uint256 minRewardableAssets;
         address accountingProcessor;
         address baseAsset;
         address allocator;
@@ -44,6 +45,7 @@ abstract contract BaseScript is Script {
         paused = params.paused;
         targetApy = params.targetApy;
         lowerBound = params.lowerBound;
+        minRewardableAssets = params.minRewardableAssets;
         accountingProcessor = params.accountingProcessor;
         baseAsset = params.baseAsset;
         allocator = params.allocator;
@@ -60,6 +62,7 @@ abstract contract BaseScript is Script {
     bool public paused;
     uint256 public targetApy;
     uint256 public lowerBound;
+    uint256 public minRewardableAssets;
     address public accountingProcessor;
     address public baseAsset;
     address public allocator;

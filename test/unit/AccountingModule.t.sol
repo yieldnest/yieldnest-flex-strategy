@@ -44,7 +44,13 @@ contract AccountingModuleTest is Test {
             address(accountingModule_impl),
             ADMIN,
             abi.encodeWithSelector(
-                AccountingModule.initialize.selector, ADMIN, SAFE, address(accountingToken), TARGET_APY, LOWER_BOUND
+                AccountingModule.initialize.selector,
+                ADMIN,
+                SAFE,
+                address(accountingToken),
+                TARGET_APY,
+                LOWER_BOUND,
+                1e18
             )
         );
         accountingModule = AccountingModule(payable(address(accountingModule_tu)));

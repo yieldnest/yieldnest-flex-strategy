@@ -76,6 +76,7 @@ contract DeployFlexStrategy is BaseScript {
         lowerBound = 0.1 ether; // max loss: 10% of tvl
         safe = 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64;
         accountingProcessor = safe;
+        minRewardableAssets = 1e18;
     }
 
     function _verifyDeploymentParams() internal view virtual {
@@ -165,7 +166,8 @@ contract DeployFlexStrategy is BaseScript {
                             safe,
                             address(accountingToken),
                             targetApy,
-                            lowerBound
+                            lowerBound,
+                            minRewardableAssets
                         )
                     )
                 )

@@ -59,7 +59,7 @@ contract FlexStrategyTest is Test {
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
         bytes memory am_initData = abi.encodeWithSelector(
-            AccountingModule.initialize.selector, ADMIN, SAFE, address(accountingToken), TARGET_APY, LOWER_BOUND
+            AccountingModule.initialize.selector, ADMIN, SAFE, address(accountingToken), TARGET_APY, LOWER_BOUND, 1e18
         );
         AccountingModule am_impl = new AccountingModule(address(flexStrategy), address(mockErc20));
         TransparentUpgradeableProxy am_tu = new TransparentUpgradeableProxy(address(am_impl), ADMIN, am_initData);
