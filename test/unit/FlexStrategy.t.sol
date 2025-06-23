@@ -164,10 +164,16 @@ contract FlexStrategyTest is Test {
         );
     }
 
-    function test_setAlwaysComputeTotalAssets_revert() public {
+    function test_setAlwaysComputeTotalAssets_succeeds() public {
+        uint256 totalAssetsBefore = flexStrategy.totalAssets();
         vm.prank(ADMIN);
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
         flexStrategy.setAlwaysComputeTotalAssets(true);
+        uint256 totalAssetsAfter = flexStrategy.totalAssets();
+        assertEq(
+            totalAssetsBefore,
+            totalAssetsAfter,
+            "Total assets should remain the same before and after setting AlwaysComputeTotalAssets"
+        );
     }
 
     function testFuzz_operations_revertWhenNotBaseAsset(uint128 deposit, uint128 withdraw) public {

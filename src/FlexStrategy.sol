@@ -220,14 +220,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     }
 
     /**
-     * @notice Sets whether the vault should always compute total assets.
-     * @dev Overridden. MUST always be false for flex strategy, because accounting is done virtually
-     */
-    function setAlwaysComputeTotalAssets(bool) external virtual override onlyRole(ASSET_MANAGER_ROLE) {
-        revert InvariantViolation();
-    }
-
-    /**
      * @notice Adds a new asset to the vault.
      *
      */
