@@ -16,6 +16,13 @@ interface IFlexStrategy {
 }
 
 /**
+ * @notice Storage struct for FlexStrategy
+ */
+struct FlexStrategyStorage {
+    IAccountingModule accountingModule;
+}
+
+/**
  * Flex strategy that proxies the deposited base asset to an associated safe,
  * minting IOU accounting tokens in the process to represent transferred assets.
  */
@@ -25,10 +32,21 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     /// @notice The version of the flex strategy contract.
     string public constant FLEX_STRATEGY_VERSION = "0.1.0";
 
-    IAccountingModule public accountingModule;
+    /// @notice Storage slot for FlexStrategy data
+    bytes32 private constant FLEX_STRATEGY_STORAGE_SLOT = keccak256("yieldnest.storage.flexStrategy");
 
     constructor() {
         _disableInitializers();
+    }
+
+    /**
+     * @notice Get the storage struct
+     */
+    function _getFlexStrategyStorage() internal pure returns (FlexStrategyStorage storage s) {
+        bytes32 slot = FLEX_STRATEGY_STORAGE_SLOT;
+        assembly {
+            s.slot := slot
+        }
     }
 
     /**
@@ -73,7 +91,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     }
 
     modifier hasAccountingModule() {
-        if (address(accountingModule) == address(0)) revert NoAccountingModule();
+        if (address(_getFlexStrategyStorage().accountingModule) == address(0)) revert NoAccountingModule();
         _;
     }
 
@@ -82,7 +100,10 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
 
         IERC20 asset = IERC20(asset());
 
-        if (totalAssets() != IERC20(accountingModule.accountingToken()).balanceOf(address(this))) {
+        if (
+            totalAssets()
+                != IERC20(_getFlexStrategyStorage().accountingModule.accountingToken()).balanceOf(address(this))
+        ) {
             revert InvariantViolation();
         }
     }
@@ -114,7 +135,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         super._deposit(asset_, caller, receiver, assets, shares, baseAssets);
 
         // virtual accounting
-        accountingModule.deposit(assets);
+        _getFlexStrategyStorage().accountingModule.deposit(assets);
     }
 
     /**
@@ -156,7 +177,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         _burn(owner, shares);
 
         // burn virtual tokens
-        accountingModule.withdraw(assets, receiver);
+        _getFlexStrategyStorage().accountingModule.withdraw(assets, receiver);
         emit WithdrawAsset(caller, receiver, owner, asset_, assets, shares);
     }
 
@@ -167,9 +188,11 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      */
     function setAccountingModule(address accountingModule_) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
-        emit AccountingModuleUpdated(accountingModule_, address(accountingModule));
 
-        IAccountingModule oldAccounting = accountingModule;
+        FlexStrategyStorage storage flexStorage = _getFlexStrategyStorage();
+        emit AccountingModuleUpdated(accountingModule_, address(flexStorage.accountingModule));
+
+        IAccountingModule oldAccounting = flexStorage.accountingModule;
 
         if (address(oldAccounting) != address(0)) {
             IERC20(asset()).approve(address(oldAccounting), 0);
@@ -179,7 +202,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
             }
         }
 
-        accountingModule = IAccountingModule(accountingModule_);
+        flexStorage.accountingModule = IAccountingModule(accountingModule_);
         IERC20(asset()).approve(accountingModule_, type(uint256).max);
     }
 
@@ -200,7 +223,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      *      It returns the balance of the asset in the associated SAFE.
      */
     function _availableAssets(address asset_) internal view virtual override returns (uint256 availableAssets) {
-        availableAssets = IERC20(asset_).balanceOf(accountingModule.safe());
+        availableAssets = IERC20(asset_).balanceOf(_getFlexStrategyStorage().accountingModule.safe());
     }
 
     /**
@@ -240,6 +263,12 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @dev Overriden to compute total Accounting Tokens in vault.
      */
     function computeTotalAssets() public view virtual override returns (uint256 totalBaseBalance) {
-        totalBaseBalance = IERC20(accountingModule.accountingToken()).balanceOf(address(this));
+        totalBaseBalance = IERC20(_getFlexStrategyStorage().accountingModule.accountingToken()).balanceOf(address(this));
+    }
+
+    /// VIEWS ///
+
+    function accountingModule() public view returns (IAccountingModule) {
+        return _getFlexStrategyStorage().accountingModule;
     }
 }
