@@ -102,10 +102,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
 
         IERC20 asset = IERC20(asset());
 
-        if (
-            totalAssets()
-                != IERC20(_getFlexStrategyStorage().accountingModule.accountingToken()).balanceOf(address(this))
-        ) {
+        IERC20 accountingToken = IERC20(_getFlexStrategyStorage().accountingModule.accountingToken());
+        if (accountingToken.totalSupply() != accountingToken.balanceOf(address(this))) {
             revert InvariantViolation();
         }
     }
@@ -209,15 +207,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     }
 
     /**
-     * @notice Processes the accounting of the vault by calculating the total base balance.
-     * @dev This function iterates through the list of assets, gets their balances and rates,
-     *      and updates the total assets denominated in the base asset.
-     */
-    function processAccounting() public virtual override nonReentrant checkInvariantsAfter {
-        _processAccounting();
-    }
-
-    /**
      * @notice Internal function to get the available amount of assets.
      * @param asset_ The address of the asset.
      * @return availableAssets The available amount of assets.
@@ -230,6 +219,15 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         }
 
         return super._availableAssets(asset_);
+    }
+
+    /**
+     * @notice Processes the accounting of the vault by calculating the total base balance.
+     * @dev This function iterates through the list of assets, gets their balances and rates,
+     *      and updates the total assets denominated in the base asset.
+     */
+    function processAccounting() public virtual override nonReentrant checkInvariantsAfter {
+        _processAccounting();
     }
 
     /**

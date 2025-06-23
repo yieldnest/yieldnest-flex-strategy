@@ -606,9 +606,11 @@ contract FlexStrategyTest is Test {
         vm.startPrank(ALLOCATOR);
         flexStrategy.deposit(deposit, ALLOCATOR);
 
+        address otherAccount = address(0x034ef);
+
         // break invariant by minting some accountingTokens to strategy
         vm.startPrank(address(accountingModule));
-        accountingToken.mintTo(address(flexStrategy), 1e18);
+        accountingToken.mintTo(otherAccount, 1e18);
 
         vm.startPrank(ALLOCATOR);
         vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
