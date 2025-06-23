@@ -542,13 +542,21 @@ contract FlexStrategyTest is Test {
         flexStrategy.depositAsset(address(wrongAsset), 100, ALLOCATOR);
 
         // bad settings to break invariant on withdraw
-        vm.startPrank(SAFE);
+        vm.startPrank(address(flexStrategy));
         wrongAsset.mint(10_000e18);
 
         vm.startPrank(ADMIN);
-        assertEq(flexStrategy.maxWithdrawAsset(address(wrongAsset), ALLOCATOR), 0);
+        assertEq(
+            flexStrategy.maxWithdrawAsset(address(wrongAsset), ALLOCATOR),
+            0,
+            "Max withdraw should be zero for wrong asset"
+        );
         flexStrategy.setAssetWithdrawable(address(wrongAsset), true);
-        assertEq(flexStrategy.maxWithdrawAsset(address(wrongAsset), ALLOCATOR), 100);
+        assertEq(
+            flexStrategy.maxWithdrawAsset(address(wrongAsset), ALLOCATOR),
+            100,
+            "Max withdraw should be 100 for wrong asset"
+        );
 
         vm.startPrank(ALLOCATOR);
         vm.expectRevert(abi.encodeWithSelector(IVault.InvalidAsset.selector, address(wrongAsset)));
