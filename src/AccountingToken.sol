@@ -10,6 +10,8 @@ import { IAccountingModule } from "./AccountingModule.sol";
 interface IAccountingToken is IERC20, IERC20Metadata {
     function burnFrom(address burnAddress, uint256 burnAmount) external;
     function mintTo(address mintAddress, uint256 mintAmount) external;
+
+    function TRACKED_ASSET() external view returns (address);
 }
 
 /**

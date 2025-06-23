@@ -28,15 +28,11 @@ contract DeployFlexStrategy is BaseScript {
     }
 
     function deployRateProvider() internal {
-        rateProvider = IProvider(address(new FixedRateProvider(IVault(allocator).asset())));
+        rateProvider = IProvider(address(new FixedRateProvider(address(accountingToken))));
     }
 
     function _verifySetup() public view override {
         super._verifySetup();
-
-        if (address(rateProvider) == address(0)) {
-            revert InvalidRateProvider();
-        }
     }
 
     function run() public {
@@ -47,7 +43,7 @@ contract DeployFlexStrategy is BaseScript {
         _setup();
         assignDeploymentParameters();
         _verifyDeploymentParams();
-        deployRateProvider();
+
         _deployTimelockController();
         _verifySetup();
 
@@ -118,6 +114,22 @@ contract DeployFlexStrategy is BaseScript {
         strategyImplementation = new FlexStrategy();
         accountingTokenImplementation = new AccountingToken(address(baseAsset));
 
+        accountingToken = AccountingToken(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(accountingTokenImplementation),
+                        address(timelock),
+                        abi.encodeWithSelector(
+                            AccountingToken.initialize.selector, admin, accountTokenName, accountTokenSymbol
+                        )
+                    )
+                )
+            )
+        );
+
+        deployRateProvider();
+
         strategy = FlexStrategy(
             payable(
                 address(
@@ -131,22 +143,9 @@ contract DeployFlexStrategy is BaseScript {
                             symbol_,
                             decimals,
                             baseAsset,
+                            address(accountingToken),
                             paused,
                             address(rateProvider)
-                        )
-                    )
-                )
-            )
-        );
-
-        accountingToken = AccountingToken(
-            payable(
-                address(
-                    new TransparentUpgradeableProxy(
-                        address(accountingTokenImplementation),
-                        address(timelock),
-                        abi.encodeWithSelector(
-                            AccountingToken.initialize.selector, admin, accountTokenName, accountTokenSymbol
                         )
                     )
                 )

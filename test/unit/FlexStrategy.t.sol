@@ -38,23 +38,31 @@ contract FlexStrategyTest is Test {
 
         FlexStrategy strat_impl = new FlexStrategy();
 
-        FixedRateProvider provider = new FixedRateProvider(address(mockErc20));
-
-        TransparentUpgradeableProxy strat_tu = new TransparentUpgradeableProxy(
-            address(strat_impl),
-            ADMIN,
-            abi.encodeWithSelector(
-                FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, mockErc20, true, address(provider)
-            )
-        );
-        flexStrategy = FlexStrategy(payable(address(strat_tu)));
-
         AccountingToken accountingToken_impl = new AccountingToken(address(mockErc20));
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
             address(accountingToken_impl),
             ADMIN,
             abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
         );
+
+        FixedRateProvider provider = new FixedRateProvider(address(accountingToken_tu));
+
+        TransparentUpgradeableProxy strat_tu = new TransparentUpgradeableProxy(
+            address(strat_impl),
+            ADMIN,
+            abi.encodeWithSelector(
+                FlexStrategy.initialize.selector,
+                ADMIN,
+                "FlexStrategy",
+                "FLEX",
+                18,
+                mockErc20,
+                accountingToken_tu,
+                true,
+                address(provider)
+            )
+        );
+        flexStrategy = FlexStrategy(payable(address(strat_tu)));
 
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
@@ -109,13 +117,30 @@ contract FlexStrategyTest is Test {
     // Initialization & param setting
 
     function test_initialize_revertIfZeroAdmin() public {
+        AccountingToken accountingToken_impl = new AccountingToken(address(mockErc20));
+        TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
+            address(accountingToken_impl),
+            ADMIN,
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
+        );
+
+        FixedRateProvider provider = new FixedRateProvider(address(accountingToken_tu));
+
         FlexStrategy implementation = new FlexStrategy();
         vm.expectRevert(IVault.ZeroAddress.selector);
         new TransparentUpgradeableProxy(
             address(implementation),
             ADMIN,
             abi.encodeWithSelector(
-                FlexStrategy.initialize.selector, address(0), "FlexStrategy", "FLEX", 18, address(mockErc20), true
+                FlexStrategy.initialize.selector,
+                address(0),
+                "FlexStrategy",
+                "FLEX",
+                18,
+                address(mockErc20),
+                address(accountingToken),
+                true,
+                address(provider)
             )
         );
     }
@@ -215,16 +240,34 @@ contract FlexStrategyTest is Test {
         assertEq(flexStrategy._feeOnRaw(assets), 0, "Fee on raw should always return 0");
     }
 
-    function testFuzz_addAsset_revertOnNewAsset(uint8 decimals, bool depositable, bool withdrawable) public {
-        vm.assume(decimals > 0 && decimals < 50);
+    function testFuzz_addAsset_withoutDecimals(bool depositable, bool withdrawable) public {
+        uint8 decimals = 18;
 
         MockERC20 mockErc20_2 = new MockERC20("MOCK2", "MOCK2", decimals);
         vm.startPrank(ADMIN);
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
         flexStrategy.addAsset(address(mockErc20_2), depositable, withdrawable);
+        vm.stopPrank();
 
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
+        assertEq(flexStrategy.getAsset(address(mockErc20_2)).active, depositable, "Asset depositable flag mismatch");
+        assertEq(flexStrategy.getAsset(address(mockErc20_2)).decimals, decimals, "decimals mismatch");
+        assertEq(
+            flexStrategy.getAssetWithdrawable(address(mockErc20_2)), withdrawable, "Asset withdrawable status mismatch"
+        );
+    }
+
+    function testFuzz_addAsset_withDecimals(bool depositable, bool withdrawable) public {
+        uint8 decimals = 18;
+
+        MockERC20 mockErc20_2 = new MockERC20("MOCK2", "MOCK2", decimals);
+        vm.startPrank(ADMIN);
         flexStrategy.addAsset(address(mockErc20_2), decimals, depositable, withdrawable);
+        vm.stopPrank();
+
+        assertEq(flexStrategy.getAsset(address(mockErc20_2)).active, depositable, "Asset depositable flag mismatch");
+        assertEq(flexStrategy.getAsset(address(mockErc20_2)).decimals, decimals, "decimals mismatch");
+        assertEq(
+            flexStrategy.getAssetWithdrawable(address(mockErc20_2)), withdrawable, "Asset withdrawable status mismatch"
+        );
     }
 
     function testFuzz_baseAsset_NonZeroBalanceForStrategy(uint128 transferAmount, uint128 depositAmount) public {

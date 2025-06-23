@@ -76,8 +76,9 @@ contract VerifyFlexStrategy is BaseScript, Test {
         assertEq(strategy.alwaysComputeTotalAssets(), false, "always compute total assets is invalid");
 
         address[] memory assets = strategy.getAssets();
-        assertEq(assets.length, 1, "assets length is invalid");
+        assertEq(assets.length, 2, "assets length is invalid");
         assertEq(assets[0], baseAsset, "assets[0] is invalid");
+        assertEq(assets[1], address(accountingToken), "assets[1] is invalid");
         assertFalse(strategy.paused(), "paused is invalid");
 
         RolesVerification.verifyDefaultRoles(strategy, accountingModule, accountingToken, timelock, actors);

@@ -64,6 +64,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         string memory symbol,
         uint8 decimals_,
         address baseAsset,
+        address accountingToken,
         bool paused_,
         address provider
     )
@@ -85,6 +86,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         );
 
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
+        _addAsset(accountingToken, IERC20Metadata(accountingToken).decimals(), false);
         _setAssetWithdrawable(baseAsset, true);
 
         VaultLib.setProvider(provider);
@@ -240,30 +242,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      */
     function _feeOnRaw(uint256) public view virtual override returns (uint256) {
         return 0;
-    }
-
-    /**
-     * @notice Adds a new asset to the vault.
-     *
-     */
-    function addAsset(address, uint8, bool, bool) public virtual override onlyRole(ASSET_MANAGER_ROLE) {
-        revert InvariantViolation();
-    }
-
-    /**
-     * @notice Adds a new asset to the vault.
-     */
-    function addAsset(address, bool, bool) external virtual override onlyRole(ASSET_MANAGER_ROLE) {
-        revert InvariantViolation();
-    }
-
-    /**
-     * @notice Computes the total assets in the vault.
-     * @return totalBaseBalance The total assets in the vault.
-     * @dev Overriden to compute total Accounting Tokens in vault.
-     */
-    function computeTotalAssets() public view virtual override returns (uint256 totalBaseBalance) {
-        totalBaseBalance = IERC20(_getFlexStrategyStorage().accountingModule.accountingToken()).balanceOf(address(this));
     }
 
     /// VIEWS ///
