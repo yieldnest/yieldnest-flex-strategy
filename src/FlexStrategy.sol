@@ -22,6 +22,9 @@ interface IFlexStrategy {
 contract FlexStrategy is IFlexStrategy, BaseStrategy {
     using SafeERC20 for IERC20;
 
+    /// @notice The version of the flex strategy contract.
+    string public constant FLEX_STRATEGY_VERSION = "0.1.0";
+
     IAccountingModule public accountingModule;
 
     constructor() {
