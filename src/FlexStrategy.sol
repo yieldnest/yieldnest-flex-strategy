@@ -66,7 +66,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         address baseAsset,
         address accountingToken,
         bool paused_,
-        address provider
+        address provider,
+        bool alwaysComputeTotalAssets
     )
         external
         virtual
@@ -81,8 +82,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
             decimals_,
             paused_,
             false, // countNativeAsset. MUST be false. strategy is assumed to hold no native assets
-            false, // alwaysComputeTotalAssets. MUST be false. totalAssets == total accounting tokens in strategy
-            0 // defaultAssetIndex. MUST be 0. baseAsset is default, and only, asset
+            alwaysComputeTotalAssets, // alwaysComputeTotalAssets
+            0 // defaultAssetIndex. MUST be 0. baseAsset is default
         );
 
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);

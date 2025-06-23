@@ -34,6 +34,7 @@ abstract contract BaseScript is Script {
         address baseAsset;
         address allocator;
         address safe;
+        bool alwaysComputeTotalAssets;
     }
 
     function setDeploymentParameters(DeploymentParameters memory params) public {
@@ -50,6 +51,7 @@ abstract contract BaseScript is Script {
         baseAsset = params.baseAsset;
         allocator = params.allocator;
         safe = params.safe;
+        alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
     }
 
     Env public deploymentEnv = Env.PROD;
@@ -66,6 +68,7 @@ abstract contract BaseScript is Script {
     address public accountingProcessor;
     address public baseAsset;
     address public allocator;
+    bool public alwaysComputeTotalAssets;
 
     uint256 public minDelay;
     IActors public actors;

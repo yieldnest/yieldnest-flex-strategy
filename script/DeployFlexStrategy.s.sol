@@ -73,6 +73,7 @@ contract DeployFlexStrategy is BaseScript {
         safe = 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64;
         accountingProcessor = safe;
         minRewardableAssets = 1e18;
+        alwaysComputeTotalAssets = true;
     }
 
     function _verifyDeploymentParams() internal view virtual {
@@ -145,7 +146,8 @@ contract DeployFlexStrategy is BaseScript {
                             baseAsset,
                             address(accountingToken),
                             paused,
-                            address(rateProvider)
+                            address(rateProvider),
+                            alwaysComputeTotalAssets
                         )
                     )
                 )

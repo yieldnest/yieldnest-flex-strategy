@@ -47,6 +47,8 @@ contract FlexStrategyTest is Test {
 
         FixedRateProvider provider = new FixedRateProvider(address(accountingToken_tu));
 
+        bool alwaysComputeTotalAssets = false;
+
         TransparentUpgradeableProxy strat_tu = new TransparentUpgradeableProxy(
             address(strat_impl),
             ADMIN,
@@ -59,7 +61,8 @@ contract FlexStrategyTest is Test {
                 mockErc20,
                 accountingToken_tu,
                 true,
-                address(provider)
+                address(provider),
+                alwaysComputeTotalAssets
             )
         );
         flexStrategy = FlexStrategy(payable(address(strat_tu)));
@@ -126,6 +129,8 @@ contract FlexStrategyTest is Test {
 
         FixedRateProvider provider = new FixedRateProvider(address(accountingToken_tu));
 
+        bool alwaysComputeTotalAssets = true;
+
         FlexStrategy implementation = new FlexStrategy();
         vm.expectRevert(IVault.ZeroAddress.selector);
         new TransparentUpgradeableProxy(
@@ -140,7 +145,8 @@ contract FlexStrategyTest is Test {
                 address(mockErc20),
                 address(accountingToken),
                 true,
-                address(provider)
+                address(provider),
+                alwaysComputeTotalAssets
             )
         );
     }

@@ -73,7 +73,7 @@ contract VerifyFlexStrategy is BaseScript, Test {
 
         assertTrue(strategy.getHasAllocator(), "has allocator is invalid");
         assertEq(strategy.countNativeAsset(), false, "count native asset is invalid");
-        assertEq(strategy.alwaysComputeTotalAssets(), false, "always compute total assets is invalid");
+        assertEq(strategy.alwaysComputeTotalAssets(), true, "always compute total assets is invalid");
 
         address[] memory assets = strategy.getAssets();
         assertEq(assets.length, 2, "assets length is invalid");
