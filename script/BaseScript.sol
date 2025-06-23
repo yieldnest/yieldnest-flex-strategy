@@ -20,6 +20,34 @@ abstract contract BaseScript is Script {
         PROD
     }
 
+    struct DeploymentParameters {
+        string name;
+        string symbol_;
+        string accountTokenName;
+        string accountTokenSymbol;
+        uint8 decimals;
+        bool paused;
+        uint256 targetApy;
+        uint256 lowerBound;
+        address accountingProcessor;
+        address baseAsset;
+        address allocator;
+    }
+
+    function setDeploymentParameters(DeploymentParameters memory params) public {
+        name = params.name;
+        symbol_ = params.symbol_;
+        accountTokenName = params.accountTokenName;
+        accountTokenSymbol = params.accountTokenSymbol;
+        decimals = params.decimals;
+        paused = params.paused;
+        targetApy = params.targetApy;
+        lowerBound = params.lowerBound;
+        accountingProcessor = params.accountingProcessor;
+        baseAsset = params.baseAsset;
+        allocator = params.allocator;
+    }
+
     Env public deploymentEnv = Env.PROD;
 
     string public name;

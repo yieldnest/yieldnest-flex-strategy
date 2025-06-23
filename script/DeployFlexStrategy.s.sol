@@ -14,6 +14,7 @@ import {
 } from "script/BaseScript.sol";
 import { BaseRoles } from "script/roles/BaseRoles.sol";
 import { FixedRateProvider } from "src/FixedRateProvider.sol";
+import { console } from "forge-std/console.sol";
 
 // forge script DeployFlexStrategy --rpc-url <MAINNET_RPC_URL>  --slow --broadcast --account
 // <CAST_WALLET_ACCOUNT>  --sender <SENDER_ADDRESS>  --verify --etherscan-api-key <ETHERSCAN_API_KEY>  -vvv
@@ -57,6 +58,11 @@ contract DeployFlexStrategy is BaseScript {
     }
 
     function assignDeploymentParameters() internal virtual {
+        if (decimals > 0) {
+            console.log("Already configured. skipping default settings.");
+            return;
+        }
+
         name = "YieldNest Flex Strategy";
         symbol_ = "ynFlexEth";
         accountTokenName = "YieldNest Flex Strategy IOU";
