@@ -402,43 +402,35 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     /// VIEWS ///
 
     function accountingToken() external view returns (IAccountingToken) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        return s.accountingToken;
+        return _getAccountingModuleStorage().accountingToken;
     }
 
     function cooldownSeconds() external view returns (uint16) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        return s.cooldownSeconds;
+        return _getAccountingModuleStorage().cooldownSeconds;
     }
 
     function lowerBound() external view returns (uint256) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        return s.lowerBound;
+        return _getAccountingModuleStorage().lowerBound;
     }
 
     function nextUpdateWindow() external view returns (uint64) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        return s.nextUpdateWindow;
+        return _getAccountingModuleStorage().nextUpdateWindow;
     }
 
     function safe() external view returns (address) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        return s.safe;
+        return _getAccountingModuleStorage().safe;
     }
 
     function targetApy() external view returns (uint256) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        return s.targetApy;
+        return _getAccountingModuleStorage().targetApy;
     }
 
     function snapshotsLength() external view returns (uint256) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        return s._snapshots.length;
+        return _getAccountingModuleStorage()._snapshots.length;
     }
 
     function snapshots(uint256 index) external view returns (StrategySnapshot memory) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        return s._snapshots[index];
+        return _getAccountingModuleStorage()._snapshots[index];
     }
 
     function lastSnapshot() external view returns (StrategySnapshot memory) {
