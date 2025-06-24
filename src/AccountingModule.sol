@@ -372,7 +372,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      */
     function setLowerBound(uint256 _lowerBound) external onlyRole(SAFE_MANAGER_ROLE) {
         AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        if (_lowerBound > (MAX_LOWER_BOUND)) revert InvariantViolation();
+        if (_lowerBound > MAX_LOWER_BOUND) revert InvariantViolation();
 
         emit LowerBoundUpdated(_lowerBound, s.lowerBound);
         s.lowerBound = _lowerBound;
