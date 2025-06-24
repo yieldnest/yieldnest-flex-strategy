@@ -19,9 +19,8 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
 
     IAccountingModule public accountingModule;
 
-    error Unauthorized();
-    error TransferFailed();
     error CannotSweepRewards();
+    error SnapshotIndexOutOfBounds(uint256 index);
 
     event RewardsSwept(uint256 amount);
     event AccountingModuleUpdated(address newModule, address oldModule);
@@ -80,6 +79,8 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      */
     function sweepRewards(uint256 amount, uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) {
         if (!canSweepRewards()) revert CannotSweepRewards();
+
+        if (snapshotIndex >= accountingModule.snapshotsLength()) revert SnapshotIndexOutOfBounds(snapshotIndex);
 
         // Transfer rewards to safe
         IERC20(accountingModule.BASE_ASSET()).safeTransfer(accountingModule.safe(), amount);
