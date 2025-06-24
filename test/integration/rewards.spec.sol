@@ -24,16 +24,33 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         vm.startPrank(deployment.actors().ADMIN());
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), alice);
         vm.stopPrank();
+
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.grantRole(strategy.ASSET_MANAGER_ROLE(), deployment.actors().ADMIN());
+        vm.stopPrank();
     }
 
-    function testFuzz_processRewards_success(uint128 depositAmount, uint128 rewardAmount, uint32 timeElapsed) public {
+    function testFuzz_processRewards_success(
+        uint128 depositAmount,
+        uint128 rewardAmount,
+        uint32 timeElapsed,
+        bool alwaysComputeTotalAssets
+    )
+        public
+    {
         vm.assume(depositAmount > 1 ether && depositAmount < 1_000_000 ether);
         vm.assume(timeElapsed > 0 && timeElapsed < 365 days);
 
-        // Calculate max rewards based on time elapsed and target APY
-        uint256 maxRewards = (depositAmount * accountingModule.targetApy() * timeElapsed)
-            / (365 days * 10_000 * accountingModule.DIVISOR());
-        vm.assume(rewardAmount <= maxRewards);
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.setAlwaysComputeTotalAssets(alwaysComputeTotalAssets);
+        vm.stopPrank();
+
+        {
+            // Calculate max rewards based on time elapsed and target APY
+            uint256 maxRewards = (depositAmount * accountingModule.targetApy() * timeElapsed)
+                / (365 days * 10_000 * accountingModule.DIVISOR());
+            vm.assume(rewardAmount <= maxRewards);
+        }
 
         IERC20 baseAsset = IERC20(strategy.asset());
 
@@ -106,12 +123,16 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         );
     }
 
-    function test_processRewards_daily_for_one_year() public {
-        uint256 depositAmount = 1_000_000 ether;
+    function testFuzz_processRewards_daily_for_one_year(bool alwaysComputeTotalAssets) public {
+        uint256 depositAmount = 10_000 ether;
         uint256 expectedMinApy = 1000; // 10% APY in basis points
         uint256 maxApy = 1053; // 10.53% APY in basis points
 
         IERC20 baseAsset = IERC20(strategy.asset());
+
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.setAlwaysComputeTotalAssets(alwaysComputeTotalAssets);
+        vm.stopPrank();
 
         // Give Alice some tokens to deposit
         deal(address(baseAsset), alice, depositAmount);
@@ -189,7 +210,8 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
 
     function test_processRewardsWithMultipleCheckpointsAndPastIndex(
         uint256 depositAmount,
-        uint256 timeInterval
+        uint256 timeInterval,
+        bool alwaysComputeTotalAssets
     )
         public
     {
@@ -198,6 +220,10 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
 
         // Fuzz timeInterval between 1 hour and 30 days
         timeInterval = bound(timeInterval, 1 hours, 30 days);
+
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.setAlwaysComputeTotalAssets(alwaysComputeTotalAssets);
+        vm.stopPrank();
 
         // Setup initial state
         {

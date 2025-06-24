@@ -23,12 +23,19 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         // Grant ALLOCATOR_ROLE to alice so she can deposit
         vm.startPrank(deployment.actors().ADMIN());
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), alice);
+
+        strategy.grantRole(strategy.ASSET_MANAGER_ROLE(), deployment.actors().ADMIN());
         vm.stopPrank();
     }
 
-    function testFuzz_processLosses(uint256 amount, uint256 depositAmount) public {
+    function testFuzz_processLosses(uint256 amount, uint256 depositAmount, bool alwaysComputeTotalAssets) public {
         // Bound deposit amount between 1e18 and 100_000e18
         depositAmount = bound(depositAmount, 1e18, 100_000e18);
+
+        // Set the alwaysComputeTotalAssets flag in the strategy
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.setAlwaysComputeTotalAssets(alwaysComputeTotalAssets);
+        vm.stopPrank();
 
         IERC20 baseAsset = IERC20(strategy.asset());
 
@@ -101,12 +108,17 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
     function testFuzz_processLossesAfterDepositAndRewards(
         uint128 depositAmount,
         uint128 rewardAmount,
-        uint128 lossAmount
+        uint128 lossAmount,
+        bool alwaysComputeTotalAssets
     )
         public
     {
         // Setup bounds for fuzzing
         vm.assume(depositAmount > 1 ether && depositAmount < 1_000_000 ether);
+
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.setAlwaysComputeTotalAssets(alwaysComputeTotalAssets);
+        vm.stopPrank();
 
         // Calculate max rewards based on time elapsed and target APY
         uint256 maxRewards = (depositAmount * accountingModule.targetApy() * 365.25 days)

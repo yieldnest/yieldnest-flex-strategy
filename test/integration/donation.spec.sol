@@ -23,12 +23,18 @@ contract DepositIntegrationTest is BaseIntegrationTest {
         // Grant ALLOCATOR_ROLE to alice so she can deposit
         vm.startPrank(deployment.actors().ADMIN());
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), alice);
+        strategy.grantRole(strategy.ASSET_MANAGER_ROLE(), deployment.actors().ADMIN());
         vm.stopPrank();
     }
 
-    function test_donation(uint256 amount, uint256 donationAmount) public {
+    function test_donation(uint256 amount, uint256 donationAmount, bool alwaysComputeTotalAssets) public {
         amount = bound(amount, 1, 1_000_000 ether);
         donationAmount = bound(donationAmount, 1, amount * 2);
+
+        // Set the alwaysComputeTotalAssets flag in the strategy
+        vm.startPrank(deployment.actors().ADMIN());
+        strategy.setAlwaysComputeTotalAssets(alwaysComputeTotalAssets);
+        vm.stopPrank();
 
         IERC20 baseAsset = IERC20(strategy.asset());
 
