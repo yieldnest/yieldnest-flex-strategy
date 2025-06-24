@@ -15,8 +15,10 @@ import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
 import { RolesVerification } from "script/verification/RolesVerification.sol";
 import { BaseIntegrationTest_6Decimals } from "./BaseIntegrationTest_6Decimals.sol";
 
-contract DepositIntegrationBaseTest_6Decimals is BaseIntegrationTest_6Decimals {
+contract AllocationIntegrationTest_6Decimals is BaseIntegrationTest_6Decimals {
     address alice = address(0x123);
+
+    address allocationDestination = address(0x456);
 
     function setUp() public override {
         super.setUp();
@@ -26,18 +28,20 @@ contract DepositIntegrationBaseTest_6Decimals is BaseIntegrationTest_6Decimals {
         vm.stopPrank();
     }
 
-    function test_initial_deposit_6decimals(uint256 amount) public {
-        amount = bound(amount, 1, 1_000_000_000e6);
+    function testFuzz_allocation_6decimals(uint256 depositAmount, uint256 allocationAmount) public {
+        depositAmount = bound(depositAmount, 1, 1_000_000_000e6);
+        allocationAmount = bound(allocationAmount, 1, depositAmount);
 
         IERC20 baseAsset = IERC20(strategy.asset());
 
         // Give Alice some tokens to deposit
-        deal(address(baseAsset), alice, amount);
+        deal(address(baseAsset), alice, depositAmount);
 
         // Record initial balances
         uint256 aliceInitialBalance = baseAsset.balanceOf(alice);
         uint256 strategyInitialBalance = baseAsset.balanceOf(address(strategy));
         uint256 safeInitialBalance = baseAsset.balanceOf(accountingModule.safe());
+        uint256 allocationDestinationInitialBalance = baseAsset.balanceOf(allocationDestination);
         uint256 aliceInitialShares = strategy.balanceOf(alice);
         uint256 strategyInitialAccountingTokens = accountingToken.balanceOf(address(strategy));
         uint256 totalSupplyBefore = strategy.totalSupply();
@@ -45,31 +49,43 @@ contract DepositIntegrationBaseTest_6Decimals is BaseIntegrationTest_6Decimals {
 
         // Alice approves and deposits
         vm.startPrank(alice);
-        baseAsset.approve(address(strategy), amount);
-        uint256 shares = strategy.deposit(amount, alice);
+        baseAsset.approve(address(strategy), depositAmount);
+        uint256 shares = strategy.deposit(depositAmount, alice);
+        vm.stopPrank();
+
+        // Impersonate SAFE and move assets to allocation destination
+        vm.startPrank(accountingModule.safe());
+        baseAsset.transfer(allocationDestination, allocationAmount);
         vm.stopPrank();
 
         // Assert Alice's balance decreased by deposit amount
         assertEq(
             baseAsset.balanceOf(alice),
-            aliceInitialBalance - amount,
+            aliceInitialBalance - depositAmount,
             "Alice's balance should decrease by deposit amount"
         );
 
         // Assert Alice received shares
         assertEq(strategy.balanceOf(alice), aliceInitialShares + shares, "Alice should receive shares for deposit");
 
-        // Assert safe received the base assets
+        // Assert safe initially received the base assets but then transferred some out
         assertEq(
             baseAsset.balanceOf(accountingModule.safe()),
-            safeInitialBalance + amount,
-            "Safe should receive the deposited assets"
+            safeInitialBalance + depositAmount - allocationAmount,
+            "Safe should have transferred out the allocated assets"
+        );
+
+        // Assert allocation destination received the allocated funds
+        assertEq(
+            baseAsset.balanceOf(allocationDestination),
+            allocationDestinationInitialBalance + allocationAmount,
+            "Allocation destination should receive the allocated funds"
         );
 
         // Assert strategy received accounting tokens
         assertEq(
             accountingToken.balanceOf(address(strategy)),
-            strategyInitialAccountingTokens + amount,
+            strategyInitialAccountingTokens + depositAmount,
             "Strategy should receive accounting tokens equal to deposit amount"
         );
 
@@ -77,7 +93,9 @@ contract DepositIntegrationBaseTest_6Decimals is BaseIntegrationTest_6Decimals {
         assertEq(strategy.totalSupply(), totalSupplyBefore + shares, "Total supply should increase by shares minted");
 
         // Assert total assets increased
-        assertEq(strategy.totalAssets(), totalAssetsBefore + amount, "Total assets should increase by deposit amount");
+        assertEq(
+            strategy.totalAssets(), totalAssetsBefore + depositAmount, "Total assets should increase by deposit amount"
+        );
 
         // Assert strategy's base asset balance stayed the same (assets go to safe, not strategy)
         assertEq(
@@ -87,7 +105,8 @@ contract DepositIntegrationBaseTest_6Decimals is BaseIntegrationTest_6Decimals {
         );
 
         // Assert shares are correctly calculated (1:1 ratio for first deposit or based on current ratio)
-        uint256 expectedShares = totalSupplyBefore == 0 ? amount : amount * totalSupplyBefore / totalAssetsBefore;
+        uint256 expectedShares =
+            totalSupplyBefore == 0 ? depositAmount : depositAmount * totalSupplyBefore / totalAssetsBefore;
         assertEq(shares, expectedShares, "Shares should be calculated correctly");
     }
 }

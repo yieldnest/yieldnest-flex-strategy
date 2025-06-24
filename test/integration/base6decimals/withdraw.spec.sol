@@ -15,7 +15,7 @@ import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
 import { RolesVerification } from "script/verification/RolesVerification.sol";
 import { BaseIntegrationTest_6Decimals } from "./BaseIntegrationTest_6Decimals.sol";
 
-contract WithdrawIntegrationBase6DecimalsTest is BaseIntegrationTest_6Decimals {
+contract WithdrawIntegrationBaseTest_6Decimals is BaseIntegrationTest_6Decimals {
     address alice = address(0x123);
 
     function setUp() public override {
