@@ -65,14 +65,14 @@ library RolesVerification {
         );
         verifyRole(
             accountingModule,
-            address(timelock),
+            actors.ADMIN(),
             accountingModule.DEFAULT_ADMIN_ROLE(),
             true,
             "Timelock has accountingModule.DEFAULT_ADMIN_ROLE"
         );
         verifyRole(
             accountingToken,
-            address(timelock),
+            actors.ADMIN(),
             accountingToken.DEFAULT_ADMIN_ROLE(),
             true,
             "Timelock has accountingToken.DEFAULT_ADMIN_ROLE"

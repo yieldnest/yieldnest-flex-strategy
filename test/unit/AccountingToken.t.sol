@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { TransparentUpgradeableProxy } from "@yieldnest-vault/Common.sol";
 import { AccountingToken } from "../../src/AccountingToken.sol";
@@ -117,5 +117,15 @@ contract AccountingTokenTest is Test {
         vm.startPrank(ADMIN);
         vm.expectRevert(AccountingToken.AccountingTokenMismatch.selector);
         accountingToken.setAccountingModule(address(mockAccountingModule2));
+    }
+
+    function test_initialize_revertIfZeroAdmin() public {
+        AccountingToken implementation = new AccountingToken(address(mockErc20));
+        vm.expectRevert(AccountingToken.ZeroAddress.selector);
+        new TransparentUpgradeableProxy(
+            address(implementation),
+            ADMIN,
+            abi.encodeWithSelector(AccountingToken.initialize.selector, address(0), "NAME", "SYMBOL")
+        );
     }
 }

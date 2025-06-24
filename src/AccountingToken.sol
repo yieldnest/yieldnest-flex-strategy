@@ -10,6 +10,15 @@ import { IAccountingModule } from "./AccountingModule.sol";
 interface IAccountingToken is IERC20, IERC20Metadata {
     function burnFrom(address burnAddress, uint256 burnAmount) external;
     function mintTo(address mintAddress, uint256 mintAmount) external;
+
+    function TRACKED_ASSET() external view returns (address);
+}
+
+/**
+ * @notice Storage struct for AccountingToken
+ */
+struct AccountingTokenStorage {
+    address accountingModule;
 }
 
 /**
@@ -24,7 +33,9 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
     event AccountingModuleUpdated(address newValue, address oldValue);
 
     address public immutable TRACKED_ASSET;
-    address public accountingModule;
+
+    /// @notice Storage slot for AccountingToken data
+    bytes32 private constant ACCOUNTING_TOKEN_STORAGE_SLOT = keccak256("yieldnest.storage.accountingToken");
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address trackedAsset) {
@@ -33,18 +44,30 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
     }
 
     /**
+     * @notice Get the storage struct
+     */
+    function _getAccountingTokenStorage() internal pure returns (AccountingTokenStorage storage s) {
+        bytes32 slot = ACCOUNTING_TOKEN_STORAGE_SLOT;
+        assembly {
+            s.slot := slot
+        }
+    }
+
+    /**
      * @param admin The address of the admin.
      * @param name_ The name of the accountingToken.
      * @param symbol_ The symbol of accountingToken.
      */
     function initialize(address admin, string memory name_, string memory symbol_) external virtual initializer {
+        if (admin == address(0)) revert ZeroAddress();
+
         __ERC20_init(name_, symbol_);
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 
     modifier onlyAccounting() {
-        if (msg.sender != accountingModule) revert Unauthorized();
+        if (msg.sender != _getAccountingTokenStorage().accountingModule) revert Unauthorized();
         _;
     }
 
@@ -93,12 +116,19 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
      */
     function setAccountingModule(address accountingModule_) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
-        emit AccountingModuleUpdated(accountingModule_, accountingModule);
+        AccountingTokenStorage storage s = _getAccountingTokenStorage();
+        emit AccountingModuleUpdated(accountingModule_, s.accountingModule);
 
         if (address(IAccountingModule(accountingModule_).accountingToken()) != address(this)) {
             revert AccountingTokenMismatch();
         }
 
-        accountingModule = accountingModule_;
+        s.accountingModule = accountingModule_;
+    }
+
+    /// VIEWS ///
+
+    function accountingModule() public view returns (address) {
+        return _getAccountingTokenStorage().accountingModule;
     }
 }

@@ -20,6 +20,40 @@ abstract contract BaseScript is Script {
         PROD
     }
 
+    struct DeploymentParameters {
+        string name;
+        string symbol_;
+        string accountTokenName;
+        string accountTokenSymbol;
+        uint8 decimals;
+        bool paused;
+        uint256 targetApy;
+        uint256 lowerBound;
+        uint256 minRewardableAssets;
+        address accountingProcessor;
+        address baseAsset;
+        address allocator;
+        address safe;
+        bool alwaysComputeTotalAssets;
+    }
+
+    function setDeploymentParameters(DeploymentParameters memory params) public {
+        name = params.name;
+        symbol_ = params.symbol_;
+        accountTokenName = params.accountTokenName;
+        accountTokenSymbol = params.accountTokenSymbol;
+        decimals = params.decimals;
+        paused = params.paused;
+        targetApy = params.targetApy;
+        lowerBound = params.lowerBound;
+        minRewardableAssets = params.minRewardableAssets;
+        accountingProcessor = params.accountingProcessor;
+        baseAsset = params.baseAsset;
+        allocator = params.allocator;
+        safe = params.safe;
+        alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
+    }
+
     Env public deploymentEnv = Env.PROD;
 
     string public name;
@@ -28,11 +62,13 @@ abstract contract BaseScript is Script {
     string public accountTokenSymbol;
     uint8 public decimals;
     bool public paused;
-    uint16 public targetApy;
-    uint16 public lowerBound;
+    uint256 public targetApy;
+    uint256 public lowerBound;
+    uint256 public minRewardableAssets;
     address public accountingProcessor;
     address public baseAsset;
     address public allocator;
+    bool public alwaysComputeTotalAssets;
 
     uint256 public minDelay;
     IActors public actors;

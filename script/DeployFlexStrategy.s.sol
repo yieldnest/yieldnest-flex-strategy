@@ -14,6 +14,7 @@ import {
 } from "script/BaseScript.sol";
 import { BaseRoles } from "script/roles/BaseRoles.sol";
 import { FixedRateProvider } from "src/FixedRateProvider.sol";
+import { console } from "forge-std/console.sol";
 
 // forge script DeployFlexStrategy --rpc-url <MAINNET_RPC_URL>  --slow --broadcast --account
 // <CAST_WALLET_ACCOUNT>  --sender <SENDER_ADDRESS>  --verify --etherscan-api-key <ETHERSCAN_API_KEY>  -vvv
@@ -27,15 +28,11 @@ contract DeployFlexStrategy is BaseScript {
     }
 
     function deployRateProvider() internal {
-        rateProvider = IProvider(address(new FixedRateProvider(IVault(allocator).asset())));
+        rateProvider = IProvider(address(new FixedRateProvider(address(accountingToken))));
     }
 
     function _verifySetup() public view override {
         super._verifySetup();
-
-        if (address(rateProvider) == address(0)) {
-            revert InvalidRateProvider();
-        }
     }
 
     function run() public {
@@ -46,7 +43,7 @@ contract DeployFlexStrategy is BaseScript {
         _setup();
         assignDeploymentParameters();
         _verifyDeploymentParams();
-        deployRateProvider();
+
         _deployTimelockController();
         _verifySetup();
 
@@ -57,6 +54,11 @@ contract DeployFlexStrategy is BaseScript {
     }
 
     function assignDeploymentParameters() internal virtual {
+        if (decimals > 0) {
+            console.log("Already configured. skipping default settings.");
+            return;
+        }
+
         name = "YieldNest Flex Strategy";
         symbol_ = "ynFlexEth";
         accountTokenName = "YieldNest Flex Strategy IOU";
@@ -66,10 +68,12 @@ contract DeployFlexStrategy is BaseScript {
         allocator = contracts.YNETHX();
         baseAsset = IVault(allocator).asset();
 
-        targetApy = 1000; // max rewards per day: 10% of tvl / 365.25
-        lowerBound = 1000; // max loss: 10% of tvl
+        targetApy = 0.1 ether; // max rewards per year: 10% of tvl
+        lowerBound = 0.1 ether; // max loss: 10% of tvl
         safe = 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64;
         accountingProcessor = safe;
+        minRewardableAssets = 1e18;
+        alwaysComputeTotalAssets = true;
     }
 
     function _verifyDeploymentParams() internal view virtual {
@@ -111,20 +115,6 @@ contract DeployFlexStrategy is BaseScript {
         strategyImplementation = new FlexStrategy();
         accountingTokenImplementation = new AccountingToken(address(baseAsset));
 
-        strategy = FlexStrategy(
-            payable(
-                address(
-                    new TransparentUpgradeableProxy(
-                        address(strategyImplementation),
-                        address(timelock),
-                        abi.encodeWithSelector(
-                            FlexStrategy.initialize.selector, admin, name, symbol_, decimals, baseAsset, paused
-                        )
-                    )
-                )
-            )
-        );
-
         accountingToken = AccountingToken(
             payable(
                 address(
@@ -133,6 +123,31 @@ contract DeployFlexStrategy is BaseScript {
                         address(timelock),
                         abi.encodeWithSelector(
                             AccountingToken.initialize.selector, admin, accountTokenName, accountTokenSymbol
+                        )
+                    )
+                )
+            )
+        );
+
+        deployRateProvider();
+
+        strategy = FlexStrategy(
+            payable(
+                address(
+                    new TransparentUpgradeableProxy(
+                        address(strategyImplementation),
+                        address(timelock),
+                        abi.encodeWithSelector(
+                            FlexStrategy.initialize.selector,
+                            admin,
+                            name,
+                            symbol_,
+                            decimals,
+                            baseAsset,
+                            address(accountingToken),
+                            paused,
+                            address(rateProvider),
+                            alwaysComputeTotalAssets
                         )
                     )
                 )
@@ -152,7 +167,8 @@ contract DeployFlexStrategy is BaseScript {
                             safe,
                             address(accountingToken),
                             targetApy,
-                            lowerBound
+                            lowerBound,
+                            minRewardableAssets
                         )
                     )
                 )
@@ -165,9 +181,6 @@ contract DeployFlexStrategy is BaseScript {
     function configureStrategy() internal {
         BaseRoles.configureDefaultRolesStrategy(strategy, accountingModule, accountingToken, address(timelock), actors);
         BaseRoles.configureTemporaryRolesStrategy(strategy, accountingModule, accountingToken, deployer);
-
-        // set provider
-        strategy.setProvider(address(rateProvider));
 
         // set has allocator
         strategy.setHasAllocator(true);
@@ -182,7 +195,8 @@ contract DeployFlexStrategy is BaseScript {
         strategy.setAccountingModule(address(accountingModule));
 
         // set accounting processor role
-        accountingModule.grantRole(accountingModule.ACCOUNTING_PROCESSOR_ROLE(), accountingProcessor);
+        accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), accountingProcessor);
+        accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), accountingProcessor);
 
         strategy.unpause();
 

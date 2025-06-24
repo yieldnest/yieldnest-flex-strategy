@@ -28,14 +28,14 @@ contract VerifyFlexStrategy is BaseScript, Test {
         RolesVerification.verifyRole(
             strategy, allocator, strategy.ALLOCATOR_ROLE(), true, "parent vault has allocator role"
         );
-        assertEq(accountingModule.targetApy(), 1000, "targetApy is not set");
-        assertEq(accountingModule.lowerBound(), 1000, "lowerBound is not set");
+        assertEq(accountingModule.targetApy(), 0.1 ether, "targetApy is not set");
+        assertEq(accountingModule.lowerBound(), 0.1 ether, "lowerBound is not set");
         RolesVerification.verifyRole(
-            accountingModule,
-            safe,
-            accountingModule.ACCOUNTING_PROCESSOR_ROLE(),
-            true,
-            "safe has accounting processor role"
+            accountingModule, safe, accountingModule.REWARDS_PROCESSOR_ROLE(), true, "safe has rewards processor role"
+        );
+
+        RolesVerification.verifyRole(
+            accountingModule, safe, accountingModule.LOSS_PROCESSOR_ROLE(), true, "safe has loss processor role"
         );
     }
 
@@ -73,11 +73,12 @@ contract VerifyFlexStrategy is BaseScript, Test {
 
         assertTrue(strategy.getHasAllocator(), "has allocator is invalid");
         assertEq(strategy.countNativeAsset(), false, "count native asset is invalid");
-        assertEq(strategy.alwaysComputeTotalAssets(), false, "always compute total assets is invalid");
+        assertEq(strategy.alwaysComputeTotalAssets(), true, "always compute total assets is invalid");
 
         address[] memory assets = strategy.getAssets();
-        assertEq(assets.length, 1, "assets length is invalid");
+        assertEq(assets.length, 2, "assets length is invalid");
         assertEq(assets[0], baseAsset, "assets[0] is invalid");
+        assertEq(assets[1], address(accountingToken), "assets[1] is invalid");
         assertFalse(strategy.paused(), "paused is invalid");
 
         RolesVerification.verifyDefaultRoles(strategy, accountingModule, accountingToken, timelock, actors);

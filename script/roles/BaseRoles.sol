@@ -29,8 +29,8 @@ library BaseRoles {
         strategy.grantRole(strategy.PROCESSOR_MANAGER_ROLE(), timelock);
         strategy.grantRole(strategy.ALLOCATOR_MANAGER_ROLE(), timelock);
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), timelock);
-        accountingModule.grantRole(accountingModule.DEFAULT_ADMIN_ROLE(), timelock);
-        accountingToken.grantRole(accountingToken.DEFAULT_ADMIN_ROLE(), timelock);
+        accountingModule.grantRole(accountingModule.DEFAULT_ADMIN_ROLE(), actors.ADMIN());
+        accountingToken.grantRole(accountingToken.DEFAULT_ADMIN_ROLE(), actors.ADMIN());
     }
 
     function configureDefaultRolesStrategy(
