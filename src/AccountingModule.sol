@@ -10,7 +10,7 @@ import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/ac
 
 interface IAccountingModule {
     struct StrategySnapshot {
-        uint64 timestamp;
+        uint256 timestamp;
         uint256 pricePerShare;
         uint256 totalSupply;
         uint256 totalAssets;
@@ -282,7 +282,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
 
         StrategySnapshot memory snapshot = StrategySnapshot({
-            timestamp: uint64(block.timestamp),
+            timestamp: block.timestamp,
             pricePerShare: currentPricePerShare,
             totalSupply: strategy.totalSupply(),
             totalAssets: strategy.totalAssets()
