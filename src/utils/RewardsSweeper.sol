@@ -7,7 +7,6 @@ import { IAccountingModule } from "../AccountingModule.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import { console } from "forge-std/console.sol";
 
 /**
  * @title RewardsSweeper
@@ -43,11 +42,11 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         accountingModule = IAccountingModule(accountingModule_);
     }
 
-    function sweepRewardsUpToAPRMax() public onlyRole(REWARDS_SWEEPER_ROLE) {
-        sweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
+    function sweepRewardsUpToAPRMax() public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
+        return sweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
     }
 
-    function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) {
+    function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
         // Calculate max rewards based on current TVL and target APY
         uint256 totalAssets = IERC4626(accountingModule.STRATEGY()).totalAssets();
 
@@ -62,6 +61,8 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         if (amountToSweep > 0) {
             sweepRewards(amountToSweep, snapshotIndex);
         }
+
+        return amountToSweep;
     }
 
     /**

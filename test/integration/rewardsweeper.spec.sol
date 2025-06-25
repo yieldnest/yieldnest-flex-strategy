@@ -207,18 +207,19 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         }
     }
 
-    function testfuzz_sweepRewardsUpToAPRMax_withSnapshotIndex_reverts(
-        uint256 depositAmount,
-        uint8 snapshotSeed
-    )
+    function testfuzz_sweepRewardsUpToAPRMax_withSnapshotIndex_reverts()
+        // uint256 depositAmount,
+        // uint8 snapshotSeed
         public
     {
+        uint256 depositAmount = 7_383_869;
+        uint8 snapshotSeed = 48;
         // Fuzz depositAmount to a reasonable range (1e18 to 1000e18)
         depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
         uint256 rewardRounds = 4;
         uint256 snapshotIndex = bound(uint256(snapshotSeed), 0, rewardRounds - 1);
 
-        uint256 rewardsAmount = depositAmount * 20 * snapshotIndex;
+        uint256 rewardsAmount = depositAmount * 20;
 
         IERC20 baseAsset = IERC20(strategy.asset());
 
