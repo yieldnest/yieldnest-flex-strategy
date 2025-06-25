@@ -164,11 +164,20 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         assertEq(remainingInSweeper, expectedRemaining, "Sweeper should have remaining tokens if rewards exceeded max");
     }
 
-    function test_sweepRewardsUpToAPRMax_excessRewards_multiple() public {
-        // Setup initial conditions
-        uint256 depositAmount = 1000e18;
-        uint256 rewardsAmount = 1000e18;
-        uint256 snapshotIndex = 0;
+    function testfuzz_sweepRewardsUpToAPRMax_excessRewards_multiple(
+        uint256 depositAmount,
+        uint256 timeElapsed
+    )
+        public
+    {
+        // Fuzz depositAmount to a reasonable range (1e18 to 1000e18)
+        depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
+
+        // Fuzz timeElapsed to a reasonable range (1 hour to 30 days)
+        timeElapsed = bound(timeElapsed, 1 hours, 30 days);
+
+        // Set rewardsAmount to be 20x the depositAmount (Excess)
+        uint256 rewardsAmount = depositAmount * 20;
 
         IERC20 baseAsset = IERC20(strategy.asset());
 
@@ -181,8 +190,8 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         strategy.deposit(depositAmount, BOB);
         vm.stopPrank();
 
-        // Advance time by 1 month to allow rewards processing
-        skip(30 days);
+        // Advance time by fuzzed timeElapsed to allow rewards processing
+        skip(timeElapsed);
 
         // Deal rewards to the rewards sweeper
         deal(address(baseAsset), address(rewardsSweeper), rewardsAmount);
@@ -194,15 +203,22 @@ contract RewardsSweeperTest is BaseIntegrationTest {
 
         for (uint256 i = 0; i < 5; i++) {
             rewardsSweeper.sweepRewardsUpToAPRMax();
-            skip(30 days);
+            skip(timeElapsed);
         }
     }
 
-    function test_sweepRewardsUpToAPRMax_withSnapshotIndex() public {
-        // Setup initial conditions
-        uint256 depositAmount = 1000e18;
-        uint256 rewardsAmount = 500e18;
-        uint256 snapshotIndex = 0;
+    function testfuzz_sweepRewardsUpToAPRMax_withSnapshotIndex_reverts(
+        uint256 depositAmount,
+        uint8 snapshotSeed
+    )
+        public
+    {
+        // Fuzz depositAmount to a reasonable range (1e18 to 1000e18)
+        depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
+        uint256 rewardRounds = 4;
+        uint256 snapshotIndex = bound(uint256(snapshotSeed), 0, rewardRounds - 1);
+
+        uint256 rewardsAmount = depositAmount * 20 * snapshotIndex;
 
         IERC20 baseAsset = IERC20(strategy.asset());
 
@@ -227,36 +243,14 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         // Sweep rewards up to APR max with multiple processRewards calls
         vm.startPrank(REWARDS_SWEEPER);
 
-        for (uint256 i = 0; i < 2; i++) {
+        for (uint256 i = 0; i < rewardRounds; i++) {
             rewardsSweeper.sweepRewardsUpToAPRMax();
             skip(30 days);
         }
-        // rewardsSweeper.sweepRewardsUpToAPRMax(snapshotIndex);
 
-        // // Calculate expected amount swept (minimum of maxRewards and rewardsAmount)
-        // uint256 maxRewards = (IERC4626(accountingModule.STRATEGY()).totalAssets() * accountingModule.targetApy() * 30
-        // days) / (365.25 days * accountingModule.DIVISOR());
-        // uint256 expectedAmountSwept = rewardsAmount < maxRewards ? rewardsAmount : maxRewards;
-
-        // // Verify the accounting token balance and safe balance
-        // assertEq(
-        //     accountingToken.balanceOf(address(strategy)),
-        //     depositAmount + expectedAmountSwept,
-        //     "Accounting token balance should include swept rewards"
-        // );
-        // assertEq(
-        //     baseAsset.balanceOf(accountingModule.safe()),
-        //     depositAmount + expectedAmountSwept,
-        //     "Safe should have received swept rewards"
-        // );
-
-        // // Verify that any remaining tokens in sweeper are the excess amount
-        // uint256 remainingInSweeper = baseAsset.balanceOf(address(rewardsSweeper));
-        // uint256 expectedRemaining = rewardsAmount > maxRewards ? rewardsAmount - maxRewards : 0;
-        // assertEq(remainingInSweeper, expectedRemaining, "Sweeper should have remaining tokens if rewards exceeded
-        // max");
-
-        vm.stopPrank();
+        // Expect revert because snapshotIndex is within the range
+        vm.expectRevert();
+        rewardsSweeper.sweepRewardsUpToAPRMax(snapshotIndex);
     }
 
     function test_sweepRewards_revertIfNotAuthorized() public {
