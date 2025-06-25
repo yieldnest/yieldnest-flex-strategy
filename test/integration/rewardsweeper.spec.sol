@@ -238,4 +238,16 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         rewardsSweeper.sweepRewardsUpToAPRMax();
         vm.stopPrank();
     }
+
+    function test_canSweepRewards_correctness() public {
+        assertFalse(rewardsSweeper.canSweepRewards(), "canSweepRewards should be false");
+
+        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), 1e6);
+        skip(10 minutes);
+        assertTrue(rewardsSweeper.canSweepRewards(), "canSweepRewards should be true");
+
+        skip(10 minutes);
+
+        assertTrue(rewardsSweeper.canSweepRewards(), "canSweepRewards should be true again with new time window");
+    }
 }

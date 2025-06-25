@@ -105,6 +105,38 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
+    function test_processLosses_WithUpdatedLowerBound() public {
+        // Setup: Alice deposits some tokens first
+        uint256 depositAmount = 1000e18;
+        IERC20 baseAsset = IERC20(strategy.asset());
+
+        // Give Alice tokens to deposit
+        deal(address(baseAsset), alice, depositAmount);
+
+        vm.startPrank(alice);
+        baseAsset.approve(address(strategy), depositAmount);
+        strategy.deposit(depositAmount, alice);
+        vm.stopPrank();
+
+        // Calculate loss amount that exceeds lower bound
+        uint256 maxAllowedLoss = depositAmount * accountingModule.lowerBound() / accountingModule.DIVISOR();
+        uint256 excessiveLoss = maxAllowedLoss + 1;
+
+        // Attempt to process excessive losses as safe
+        vm.startPrank(accountingModule.safe());
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccountingModule.LossLimitsExceeded.selector, excessiveLoss, maxAllowedLoss)
+        );
+        accountingModule.processLosses(excessiveLoss);
+        vm.stopPrank();
+
+        vm.startPrank(address(deployment.timelock()));
+        AccountingModule(payable(address(accountingModule))).setLowerBound(accountingModule.lowerBound() * 2);
+        vm.stopPrank();
+
+        vm.startPrank(accountingModule.safe());
+    }
+
     function testFuzz_processLossesAfterDepositAndRewards(
         uint128 depositAmount,
         uint128 rewardAmount,
