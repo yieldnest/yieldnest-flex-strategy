@@ -49,6 +49,16 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     }
 
     function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
+        uint256 amountToSweep = previewSweepRewardsUpToAPRMax(snapshotIndex);
+
+        if (amountToSweep > 0) {
+            sweepRewards(amountToSweep, snapshotIndex);
+        }
+
+        return amountToSweep;
+    }
+
+    function previewSweepRewardsUpToAPRMax(uint256 snapshotIndex) public view returns (uint256) {
         // Calculate max rewards based on price per share at snapshot
         IAccountingModule.StrategySnapshot memory snapshot = accountingModule.snapshots(snapshotIndex);
         uint256 pricePerShareAtSnapshot = snapshot.pricePerShare;
@@ -70,10 +80,6 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         // Get current balance and use the minimum of maxRewards and balance
         uint256 currentBalance = IERC20(accountingModule.BASE_ASSET()).balanceOf(address(this));
         uint256 amountToSweep = maxRewards < currentBalance ? maxRewards : currentBalance;
-
-        if (amountToSweep > 0) {
-            sweepRewards(amountToSweep, snapshotIndex);
-        }
 
         return amountToSweep;
     }

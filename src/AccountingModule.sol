@@ -36,6 +36,7 @@ interface IAccountingModule {
     function processRewards(uint256 amount) external;
     function processRewards(uint256 amount, uint256 snapshotIndex) external;
     function processLosses(uint256 amount) external;
+    function setCooldownSeconds(uint16 cooldownSeconds) external;
 
     function BASE_ASSET() external view returns (address);
     function DIVISOR() external view returns (uint256);

@@ -44,6 +44,9 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         // Grant BOB allocator role using ADMIN
         vm.startPrank(deployment.actors().ADMIN());
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), BOB);
+        IAccessControl(address(accountingModule)).grantRole(
+            accountingModule.SAFE_MANAGER_ROLE(), deployment.actors().ADMIN()
+        );
         vm.stopPrank();
     }
 
@@ -351,7 +354,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
 
         skip(10 minutes);
 
-        // Deal USDC to the rewards sweeper to simulate having rewards available
+        // Deal rewards sweeper to simulate having rewards available
         deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), 1e6);
 
         assertFalse(rewardsSweeper.canSweepRewards(), "canSweepRewards should be false");
@@ -359,6 +362,32 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         // Cannot sweep because time window is not there yet.
         vm.expectRevert(abi.encodeWithSelector(RewardsSweeper.CannotSweepRewards.selector));
         rewardsSweeper.sweepRewardsUpToAPRMax();
+        vm.stopPrank();
+    }
+
+    function test_revertIfAttemptingToSweepPastAPRMax() public {
+        uint256 depositAmount = 1000e18;
+        {
+            IERC20 baseAsset = IERC20(strategy.asset());
+            // Give BOB WETH (baseAsset)
+            deal(address(baseAsset), BOB, 100_000_000e18);
+
+            // Initial deposit
+            vm.startPrank(BOB);
+            baseAsset.approve(address(strategy), type(uint256).max);
+            strategy.deposit(depositAmount, BOB);
+            vm.stopPrank();
+        }
+
+        skip(365.25 days);
+
+        // excess rewards
+        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), depositAmount * 10);
+
+        uint256 amountToSweep = rewardsSweeper.previewSweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
+
+        vm.startPrank(REWARDS_SWEEPER);
+        rewardsSweeper.sweepRewards(amountToSweep + 1e4);
         vm.stopPrank();
     }
 }
