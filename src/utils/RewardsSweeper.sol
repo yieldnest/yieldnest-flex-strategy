@@ -7,6 +7,7 @@ import { IAccountingModule } from "../AccountingModule.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { console } from "forge-std/console.sol";
 
 /**
  * @title RewardsSweeper
@@ -51,8 +52,8 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         uint256 totalAssets = IERC4626(accountingModule.STRATEGY()).totalAssets();
 
         uint256 timeElapsed = block.timestamp - accountingModule.snapshots(snapshotIndex).timestamp;
-        uint256 maxRewards =
-            (totalAssets * accountingModule.targetApy() * timeElapsed) / (365.25 days * accountingModule.DIVISOR());
+        uint256 maxRewards = (totalAssets * accountingModule.targetApy() * timeElapsed)
+            / ((365.25 days + 1) * accountingModule.DIVISOR());
 
         // Get current balance and use the minimum of maxRewards and balance
         uint256 currentBalance = IERC20(accountingModule.BASE_ASSET()).balanceOf(address(this));
