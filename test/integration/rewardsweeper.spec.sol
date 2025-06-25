@@ -111,7 +111,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         uint256 maxApy = accountingModule.targetApy();
 
         // Calculate maximum possible rewards based on APY and time
-        uint256 maxRewards = (depositAmount * maxApy * timeElapsed) / (365.25 days * accountingModule.DIVISOR());
+        uint256 maxRewards = (depositAmount * maxApy * timeElapsed) / ((365.25 days + 1) * accountingModule.DIVISOR());
 
         // Bound rewardsAmount to reasonable range (1e6 to maxRewards * 2 to test both cases)
         rewardsAmount = bound(rewardsAmount, 1e6, maxRewards * 2);
