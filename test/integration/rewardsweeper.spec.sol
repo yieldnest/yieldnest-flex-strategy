@@ -213,7 +213,6 @@ contract RewardsSweeperTest is BaseIntegrationTest {
     )
         public
     {
-
         // Fuzz depositAmount to a reasonable range (1e18 to 1000e18)
         depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
         uint256 rewardRounds = 4;
