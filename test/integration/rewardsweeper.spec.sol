@@ -160,12 +160,13 @@ contract RewardsSweeperTest is BaseIntegrationTest {
             "Safe should have received swept rewards"
         );
 
+        uint256 actualAmountSwept =
+            accountingToken.balanceOf(address(strategy)) - initialAccountingTokenBalance - depositAmount;
+
         // Verify that any remaining tokens in sweeper are the excess amount
         uint256 remainingInSweeper = baseAsset.balanceOf(address(rewardsSweeper));
-        uint256 expectedRemaining = rewardsAmount > maxRewards ? rewardsAmount - maxRewards : 0;
-        assertApproxEqRel(
-            remainingInSweeper, expectedRemaining, 1e12, "Sweeper should have remaining tokens if rewards exceeded max"
-        );
+        uint256 expectedRemaining = rewardsAmount - actualAmountSwept;
+        assertEq(remainingInSweeper, expectedRemaining, "Sweeper should have remaining tokens if rewards exceeded max");
     }
 
     function testfuzz_sweepRewardsUpToAPRMax_excessRewards_multiple(
