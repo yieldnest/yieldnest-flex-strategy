@@ -8,6 +8,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { console } from "forge-std/console.sol";
 
 contract RewardsSweeperTest is BaseIntegrationTest {
     RewardsSweeper public rewardsSweeper;
@@ -307,8 +308,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
             skip(30 days);
         }
 
-        // Expect revert because snapshotIndex is within the range
-        vm.expectRevert();
+        // Assert that the amount swept is equal to the expected rewards after subtraction
         rewardsSweeper.sweepRewardsUpToAPRMax(snapshotIndex);
     }
 

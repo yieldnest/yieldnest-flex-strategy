@@ -52,14 +52,8 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         // Calculate max rewards based on price per share at snapshot
         IAccountingModule.StrategySnapshot memory snapshot = accountingModule.snapshots(snapshotIndex);
         uint256 pricePerShareAtSnapshot = snapshot.pricePerShare;
-        uint256 totalSupplyAtSnapshot = snapshot.totalSupply;
-
-        uint256 totalAssetsAtSnapshot = (totalSupplyAtSnapshot * pricePerShareAtSnapshot) / accountingModule.DIVISOR();
-        uint256 timeElapsed = block.timestamp - snapshot.timestamp;
 
         IERC4626 strategy = IERC4626(accountingModule.STRATEGY());
-
-        uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
 
         uint256 maxRewards = calculateMaxRewards(
             pricePerShareAtSnapshot,
@@ -67,7 +61,6 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
             block.timestamp,
             accountingModule.targetApy(),
             strategy.totalSupply(),
-            pricePerShareAtSnapshot,
             strategy.totalAssets(),
             strategy.decimals(),
             accountingModule.YEAR(),
@@ -91,14 +84,13 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         uint256 currentTimestamp,
         uint256 targetApy,
         uint256 currentSupply,
-        uint256 currentPricePerShare,
         uint256 currentAssets,
         uint256 sharesDecimals,
         uint256 YEAR,
         uint256 DIVISOR
     )
         public
-        view
+        pure
         returns (uint256)
     {
         if (currentTimestamp <= previousTimestamp) {
