@@ -46,6 +46,22 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
+    function test_setAccountingModule_Admin() public {
+        rewardsSweeper.setAccountingModule(address(accountingModule));
+        vm.stopPrank();
+    }
+
+    function test_setAccountingModule_revertIfNotAdmin() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, rewardsSweeper.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        rewardsSweeper.setAccountingModule(address(accountingModule));
+        vm.stopPrank();
+    }
+
     function test_rewardsSweeper_basicSweep(uint256 depositAmount, uint256 rewardsToSweep) public {
         // Bound depositAmount to reasonable range (1e18 to 1000e18)
         depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
@@ -173,6 +189,15 @@ contract RewardsSweeperTest is BaseIntegrationTest {
             )
         );
         rewardsSweeper.sweepRewardsUpToAPRMax();
+        vm.stopPrank();
+
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, rewardsSweeper.REWARDS_SWEEPER_ROLE()
+            )
+        );
+        rewardsSweeper.sweepRewards(100, 0);
         vm.stopPrank();
     }
 
