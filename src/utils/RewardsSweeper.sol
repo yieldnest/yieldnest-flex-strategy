@@ -7,6 +7,7 @@ import { IAccountingModule } from "../AccountingModule.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { console } from "forge-std/console.sol";
 
 /**
  * @title RewardsSweeper
@@ -21,6 +22,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
 
     error CannotSweepRewards();
     error SnapshotIndexOutOfBounds(uint256 index);
+    error PreviousTimestampGreaterThanCurrentTimestamp(uint256 currentTimestamp, uint256 previousTimestamp);
 
     event RewardsSwept(uint256 amount);
     event AccountingModuleUpdated(address newModule, address oldModule);
@@ -47,12 +49,30 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     }
 
     function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
-        // Calculate max rewards based on current TVL and target APY
-        uint256 totalAssets = IERC4626(accountingModule.STRATEGY()).totalAssets();
+        // Calculate max rewards based on price per share at snapshot
+        IAccountingModule.StrategySnapshot memory snapshot = accountingModule.snapshots(snapshotIndex);
+        uint256 pricePerShareAtSnapshot = snapshot.pricePerShare;
+        uint256 totalSupplyAtSnapshot = snapshot.totalSupply;
 
-        uint256 timeElapsed = block.timestamp - accountingModule.snapshots(snapshotIndex).timestamp;
-        uint256 maxRewards = (totalAssets * accountingModule.targetApy() * timeElapsed)
-            / ((365.25 days + 1) * accountingModule.DIVISOR());
+        uint256 totalAssetsAtSnapshot = (totalSupplyAtSnapshot * pricePerShareAtSnapshot) / accountingModule.DIVISOR();
+        uint256 timeElapsed = block.timestamp - snapshot.timestamp;
+
+        IERC4626 strategy = IERC4626(accountingModule.STRATEGY());
+
+        uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
+
+        uint256 maxRewards = calculateMaxRewards(
+            pricePerShareAtSnapshot,
+            snapshot.timestamp,
+            block.timestamp,
+            accountingModule.targetApy(),
+            strategy.totalSupply(),
+            pricePerShareAtSnapshot,
+            strategy.totalAssets(),
+            strategy.decimals(),
+            accountingModule.YEAR(),
+            accountingModule.DIVISOR()
+        );
 
         // Get current balance and use the minimum of maxRewards and balance
         uint256 currentBalance = IERC20(accountingModule.BASE_ASSET()).balanceOf(address(this));
@@ -63,6 +83,42 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         }
 
         return amountToSweep;
+    }
+
+    function calculateMaxRewards(
+        uint256 previousPricePerShare,
+        uint256 previousTimestamp,
+        uint256 currentTimestamp,
+        uint256 targetApy,
+        uint256 currentSupply,
+        uint256 currentPricePerShare,
+        uint256 currentAssets,
+        uint256 sharesDecimals,
+        uint256 YEAR,
+        uint256 DIVISOR
+    )
+        public
+        view
+        returns (uint256)
+    {
+        if (currentTimestamp <= previousTimestamp) {
+            revert PreviousTimestampGreaterThanCurrentTimestamp(currentTimestamp, previousTimestamp);
+        }
+
+        // How to calculate targetApy:
+        // uint256 targetApy = (currentPricePerShare - previousPricePerShare) * YEAR * DIVISOR / previousPricePerShare
+        //     / (currentTimestamp - previousTimestamp);
+
+        uint256 pricePerShareWithMaxTargetApy = previousPricePerShare
+            + (targetApy * previousPricePerShare * (currentTimestamp - previousTimestamp)) / (YEAR * DIVISOR);
+
+        uint256 totalAssetsWithMaxTargetApy = (pricePerShareWithMaxTargetApy * currentSupply / (10 ** sharesDecimals));
+
+        if (totalAssetsWithMaxTargetApy > currentAssets) {
+            return totalAssetsWithMaxTargetApy - currentAssets;
+        }
+
+        return 0;
     }
 
     /**

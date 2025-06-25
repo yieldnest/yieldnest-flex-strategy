@@ -39,6 +39,7 @@ interface IAccountingModule {
 
     function BASE_ASSET() external view returns (address);
     function DIVISOR() external view returns (uint256);
+    function YEAR() external view returns (uint256);
     function accountingToken() external view returns (IAccountingToken);
     function safe() external view returns (address);
     function nextUpdateWindow() external view returns (uint64);

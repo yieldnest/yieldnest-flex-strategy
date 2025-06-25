@@ -120,9 +120,9 @@ contract DepositIntegrationTest is BaseIntegrationTest {
     }
 
     function test_donation_to_vault_with_processRewards(
-        // uint256 amount,
-        // uint256 donationAmount,
-        // bool alwaysComputeTotalAssets
+        uint256 amount,
+        uint256 donationAmount,
+        bool alwaysComputeTotalAssets
     )
         public
     {

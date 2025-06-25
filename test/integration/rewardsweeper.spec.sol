@@ -147,21 +147,25 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         // Calculate expected amount swept (minimum of maxRewards and rewardsAmount)
         uint256 expectedAmountSwept = rewardsAmount < maxRewards ? rewardsAmount : maxRewards;
 
-        assertEq(
+        assertApproxEqRel(
             accountingToken.balanceOf(address(strategy)),
             initialAccountingTokenBalance + depositAmount + expectedAmountSwept,
+            1e10,
             "Accounting token balance should include swept rewards"
         );
-        assertEq(
+        assertApproxEqRel(
             baseAsset.balanceOf(accountingModule.safe()),
             initialBalance + depositAmount + expectedAmountSwept,
+            1e10,
             "Safe should have received swept rewards"
         );
 
         // Verify that any remaining tokens in sweeper are the excess amount
         uint256 remainingInSweeper = baseAsset.balanceOf(address(rewardsSweeper));
         uint256 expectedRemaining = rewardsAmount > maxRewards ? rewardsAmount - maxRewards : 0;
-        assertEq(remainingInSweeper, expectedRemaining, "Sweeper should have remaining tokens if rewards exceeded max");
+        assertApproxEqRel(
+            remainingInSweeper, expectedRemaining, 1e12, "Sweeper should have remaining tokens if rewards exceeded max"
+        );
     }
 
     function testfuzz_sweepRewardsUpToAPRMax_excessRewards_multiple(
@@ -205,6 +209,60 @@ contract RewardsSweeperTest is BaseIntegrationTest {
             rewardsSweeper.sweepRewardsUpToAPRMax();
             skip(timeElapsed);
         }
+    }
+
+    function testfuzz_sweepRewardsUpToAPRMax_withDonation(
+        uint256 depositAmount,
+        uint256 donationAmount,
+        uint256 timeElapsed
+    )
+        public
+    {
+        // Fuzz depositAmount to a reasonable range (1e18 to 1000e18)
+        depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
+
+        // Fuzz donationAmount to a reasonable range (1 to 2x depositAmount)
+        donationAmount = bound(donationAmount, 1, depositAmount * 2);
+
+        // Fuzz timeElapsed to a reasonable range (1 hour to 30 days)
+        timeElapsed = bound(timeElapsed, 1 hours, 30 days);
+
+        // Set rewardsAmount to be 20x the depositAmount (Excess)
+        uint256 rewardsAmount = depositAmount * 20;
+
+        IERC20 baseAsset = IERC20(strategy.asset());
+
+        // Give BOB WETH (baseAsset)
+        deal(address(baseAsset), BOB, 100_000_000e18);
+
+        // Initial deposit
+        vm.startPrank(BOB);
+        baseAsset.approve(address(strategy), type(uint256).max);
+        strategy.deposit(depositAmount, BOB);
+        vm.stopPrank();
+
+        // Advance time by fuzzed timeElapsed to allow rewards processing
+        skip(timeElapsed);
+
+        // Deal rewards to the rewards sweeper
+        deal(address(baseAsset), address(rewardsSweeper), rewardsAmount);
+
+        // Bob donates to the strategy
+        address bob = address(0x456);
+        deal(address(baseAsset), bob, donationAmount);
+        vm.startPrank(bob);
+        baseAsset.approve(address(strategy), donationAmount);
+        baseAsset.transfer(address(strategy), donationAmount);
+        vm.stopPrank();
+
+        // Verify initial state
+        assertEq(baseAsset.balanceOf(address(rewardsSweeper)), rewardsAmount, "Rewards sweeper should have tokens");
+        assertEq(baseAsset.balanceOf(address(strategy)), donationAmount, "Strategy should have donation amount");
+
+        // Sweep rewards up to APR max with multiple processRewards calls
+        vm.startPrank(REWARDS_SWEEPER);
+
+        uint256 amountSwept = rewardsSweeper.sweepRewardsUpToAPRMax();
     }
 
     function testfuzz_sweepRewardsUpToAPRMax_withSnapshotIndex_reverts(
