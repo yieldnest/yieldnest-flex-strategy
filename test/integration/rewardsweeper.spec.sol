@@ -270,7 +270,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         rewardsSweeper.sweepRewardsUpToAPRMax();
     }
 
-    function testfuzz_sweepRewardsUpToAPRMax_withSnapshotIndex_reverts(
+    function testfuzz_sweepRewardsUpToAPRMax_withSnapshotIndex_success(
         uint256 depositAmount,
         uint8 snapshotSeed
     )
@@ -390,5 +390,66 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         vm.expectRevert();
         rewardsSweeper.sweepRewards(amountToSweep + depositAmount / 1e14 + 1);
         vm.stopPrank();
+    }
+
+    function test_sweepRewardsDailyForOneYear() public {
+        uint256 depositAmount = 10_000 ether;
+        uint256 expectedMinApy = 1000; // 10% APY in basis points
+        uint256 maxApy = 1050; // 10.5% APY in basis points
+
+        // Deal rewards to sweeper well in excess of depositAmount
+        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), depositAmount * 12);
+
+        IERC20 baseAsset = IERC20(strategy.asset());
+
+        // Give BOB some tokens to deposit
+        deal(address(baseAsset), BOB, depositAmount);
+
+        // Initial deposit
+        vm.startPrank(BOB);
+        baseAsset.approve(address(strategy), depositAmount);
+        strategy.deposit(depositAmount, BOB);
+        vm.stopPrank();
+
+        // Store initial values for invariant checks
+        uint256 initialTotalAssets = strategy.totalAssets();
+        uint256 initialAccountingTokens = accountingToken.balanceOf(address(strategy));
+
+        uint256 dayCount = 365;
+        uint256 totalRewards = 0;
+
+        // Process rewards daily for a year
+        for (uint256 i = 0; i < dayCount; i++) {
+            // Advance time by 1 day
+            skip(1 days);
+
+            // Sweep rewards
+            vm.startPrank(REWARDS_SWEEPER);
+            uint256 sweptAmount = rewardsSweeper.sweepRewardsUpToAPRMax();
+            vm.stopPrank();
+
+            totalRewards += sweptAmount;
+        }
+
+        // Calculate final APY
+        uint256 totalAssets = strategy.totalAssets();
+        uint256 apy = (totalRewards * 365 days * 10_000) / (depositAmount * (dayCount * 1 days));
+
+        // Assert APY is within acceptable range
+        assertLe(apy, maxApy, "APY should be less than or equal to maximum allowed");
+        assertGt(apy, expectedMinApy, "APY should be greater than minimum allowed");
+
+        // Assert other invariants
+        assertEq(
+            accountingToken.balanceOf(address(strategy)),
+            initialAccountingTokens + totalRewards,
+            "Strategy should have accounting tokens equal to initial plus total rewards"
+        );
+
+        assertEq(
+            strategy.totalAssets(),
+            initialTotalAssets + totalRewards,
+            "Strategy total assets should equal initial plus total rewards"
+        );
     }
 }

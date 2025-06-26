@@ -126,12 +126,8 @@ contract DepositIntegrationTest is BaseIntegrationTest {
     )
         public
     {
-        // amount = bound(amount, 1e18, 1_000_000 ether);
-        // donationAmount = bound(donationAmount, 1, amount * 2);
-
-        uint256 amount = 1e18;
-        uint256 donationAmount = 0.1 ether;
-        bool alwaysComputeTotalAssets = true;
+        amount = bound(amount, 1e18, 1_000_000 ether);
+        donationAmount = bound(donationAmount, 1, amount * 2);
 
         // Set the alwaysComputeTotalAssets flag in the strategy
         vm.startPrank(deployment.actors().ADMIN());
@@ -178,11 +174,6 @@ contract DepositIntegrationTest is BaseIntegrationTest {
         // Process rewards up to max APY
         vm.startPrank(accountingModule.safe());
         uint256 rewardsToProcess = donationAmount < maxRewards ? maxRewards - donationAmount : 0;
-
-        console.log("Total Assets:", totalAssets);
-        console.log("Donation Amount:", donationAmount);
-        console.log("Max Rewards:", maxRewards);
-        console.log("Rewards to process:", rewardsToProcess);
 
         if (rewardsToProcess > 0) {
             accountingModule.processRewards(rewardsToProcess);
