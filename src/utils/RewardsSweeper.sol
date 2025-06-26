@@ -44,10 +44,20 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         accountingModule = IAccountingModule(accountingModule_);
     }
 
+    /**
+     * @notice Sweeps rewards up to the maximum allowable APR.
+     * @dev This function calls the overloaded version with the latest snapshot index.
+     * @return The amount of rewards swept.
+     */
     function sweepRewardsUpToAPRMax() public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
         return sweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
     }
 
+    /**
+     * @notice Sweeps rewards up to the maximum allowable APR for a specific snapshot index.
+     * @param snapshotIndex The index of the snapshot to consider for sweeping rewards.
+     * @return The amount of rewards swept.
+     */
     function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
         uint256 amountToSweep = previewSweepRewardsUpToAPRMax(snapshotIndex);
 
@@ -58,6 +68,12 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         return amountToSweep;
     }
 
+    /**
+     * @notice Previews the amount of rewards that can be swept up to the maximum allowable APR for a specific snapshot
+     * index.
+     * @param snapshotIndex The index of the snapshot to consider for previewing rewards.
+     * @return The amount of rewards that can be swept.
+     */
     function previewSweepRewardsUpToAPRMax(uint256 snapshotIndex) public view returns (uint256) {
         // Calculate max rewards based on price per share at snapshot
         IAccountingModule.StrategySnapshot memory snapshot = accountingModule.snapshots(snapshotIndex);
