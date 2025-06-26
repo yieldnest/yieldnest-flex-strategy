@@ -267,7 +267,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         // Sweep rewards up to APR max with multiple processRewards calls
         vm.startPrank(REWARDS_SWEEPER);
 
-        uint256 amountSwept = rewardsSweeper.sweepRewardsUpToAPRMax();
+        rewardsSweeper.sweepRewardsUpToAPRMax();
     }
 
     function testfuzz_sweepRewardsUpToAPRMax_withSnapshotIndex_reverts(
@@ -365,19 +365,19 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
-    function test_revertIfAttemptingToSweepPastAPRMax() public {
-        uint256 depositAmount = 1000e18;
-        {
-            IERC20 baseAsset = IERC20(strategy.asset());
-            // Give BOB WETH (baseAsset)
-            deal(address(baseAsset), BOB, 100_000_000e18);
+    function test_revertIfAttemptingToSweepPastAPRMax(uint256 depositAmount) public {
+        // Ensure depositAmount is at least 1e18
+        depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
 
-            // Initial deposit
-            vm.startPrank(BOB);
-            baseAsset.approve(address(strategy), type(uint256).max);
-            strategy.deposit(depositAmount, BOB);
-            vm.stopPrank();
-        }
+        IERC20 baseAsset = IERC20(strategy.asset());
+        // Give BOB WETH (baseAsset)
+        deal(address(baseAsset), BOB, 100_000_000e18);
+
+        // Initial deposit
+        vm.startPrank(BOB);
+        baseAsset.approve(address(strategy), type(uint256).max);
+        strategy.deposit(depositAmount, BOB);
+        vm.stopPrank();
 
         skip(365.25 days);
 
@@ -387,7 +387,8 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         uint256 amountToSweep = rewardsSweeper.previewSweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
 
         vm.startPrank(REWARDS_SWEEPER);
-        rewardsSweeper.sweepRewards(amountToSweep + 1e4);
+        vm.expectRevert();
+        rewardsSweeper.sweepRewards(amountToSweep + depositAmount / 1e14 + 1);
         vm.stopPrank();
     }
 }
