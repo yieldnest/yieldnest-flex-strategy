@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.24;
 
-import { IVault, IValidator } from "src/interface/IVault.sol";
-import { SafeRules } from "./SafeRules.sol";
+import { IValidator } from "@yieldnest-vault/interface/IVault.sol";
+import { SafeRules, IVault } from "@yieldnest-vault-script/rules/SafeRules.sol";
 
 library FlexStrategyRules {
     function getDepositRule(address contractAddress) internal pure returns (SafeRules.RuleParams memory) {

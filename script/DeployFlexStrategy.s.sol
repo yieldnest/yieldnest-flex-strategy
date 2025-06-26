@@ -15,6 +15,8 @@ import {
 import { BaseRoles } from "script/roles/BaseRoles.sol";
 import { FixedRateProvider } from "src/FixedRateProvider.sol";
 import { console } from "forge-std/console.sol";
+import { FlexStrategyRules } from "script/rules/FlexStrategyRules.sol";
+import { SafeRules, IVault as IVaultInterface } from "@yieldnest-vault-script/rules/SafeRules.sol";
 
 // forge script DeployFlexStrategy --rpc-url <MAINNET_RPC_URL>  --slow --broadcast --account
 // <CAST_WALLET_ACCOUNT>  --sender <SENDER_ADDRESS>  --verify --etherscan-api-key <ETHERSCAN_API_KEY>  -vvv
@@ -197,6 +199,18 @@ contract DeployFlexStrategy is BaseScript {
         // set accounting processor role
         accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), accountingProcessor);
         accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), accountingProcessor);
+
+        // Create an array to hold the rules
+        SafeRules.RuleParams[] memory rules = new SafeRules.RuleParams[](2);
+
+        // Set deposit rule for accounting module
+        rules[0] = FlexStrategyRules.getDepositRule(address(accountingModule));
+
+        // Set withdrawal rule for accounting module
+        rules[1] = FlexStrategyRules.getWithdrawRule(address(accountingModule), address(strategy));
+
+        // Set processor rules using SafeRules
+        SafeRules.setProcessorRules(IVaultInterface(address(strategy)), rules, true);
 
         strategy.unpause();
 
