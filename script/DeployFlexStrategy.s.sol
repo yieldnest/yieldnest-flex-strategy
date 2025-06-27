@@ -10,7 +10,7 @@ import {
     FlexStrategy,
     AccountingModule,
     AccountingToken,
-    MainnetActors
+    IActors
 } from "script/BaseScript.sol";
 import { BaseRoles } from "script/roles/BaseRoles.sol";
 import { FixedRateProvider } from "src/FixedRateProvider.sol";
@@ -188,7 +188,7 @@ contract DeployFlexStrategy is BaseScript {
         strategy.setHasAllocator(true);
         // grant allocator roles
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), allocator);
-        strategy.grantRole(strategy.ALLOCATOR_ROLE(), MainnetActors(address(actors)).YnBootstrapper());
+        strategy.grantRole(strategy.ALLOCATOR_ROLE(), IActors(address(actors)).BOOTSTRAPPER());
 
         // set accounting module for token
         accountingToken.setAccountingModule(address(accountingModule));

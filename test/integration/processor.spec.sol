@@ -52,11 +52,9 @@ contract DepositIntegrationTest is BaseIntegrationTest {
         // Alice approves and deposits
         vm.startPrank(alice);
         baseAsset.approve(address(strategy), amount);
-        uint256 shares = strategy.deposit(amount, alice);
         vm.stopPrank();
 
         // Record initial balances
-        uint256 aliceInitialBalance = baseAsset.balanceOf(alice);
         uint256 strategyInitialBalance = baseAsset.balanceOf(address(strategy));
         uint256 safeInitialBalance = baseAsset.balanceOf(accountingModule.safe());
         uint256 aliceInitialShares = strategy.balanceOf(alice);
@@ -129,6 +127,12 @@ contract DepositIntegrationTest is BaseIntegrationTest {
         assertEq(
             strategy.balanceOf(alice), aliceInitialShares, "Alice's shares should remain unchanged after processing"
         );
+        // Assert strategy's base asset balance is strategyInitialBalance minus donationAmount
+        assertEq(
+            baseAsset.balanceOf(address(strategy)),
+            strategyInitialBalance,
+            "Strategy's base asset balance should decrease by donation amount"
+        );
     }
 
     function test_convert_accounting_tokens_to_base_asset(
@@ -154,13 +158,12 @@ contract DepositIntegrationTest is BaseIntegrationTest {
         // Alice approves and deposits
         vm.startPrank(alice);
         baseAsset.approve(address(strategy), amount);
-        uint256 shares = strategy.deposit(amount, alice);
+        strategy.deposit(amount, alice);
         vm.stopPrank();
 
         strategy.processAccounting();
 
         // Record initial balances
-        uint256 aliceInitialBalance = baseAsset.balanceOf(alice);
         uint256 strategyInitialBalance = baseAsset.balanceOf(address(strategy));
         uint256 safeInitialBalance = baseAsset.balanceOf(accountingModule.safe());
         uint256 aliceInitialShares = strategy.balanceOf(alice);
