@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
-import { IProvider } from "@yieldnest-vault/interface/IProvider.sol";
-import { IVault } from "@yieldnest-vault/interface/IVault.sol";
-import { BaseRules } from "@yieldnest-vault-script/rules/BaseRules.sol";
 import {
     BaseScript,
     TransparentUpgradeableProxy,
     FlexStrategy,
     AccountingModule,
     AccountingToken,
-    MainnetActors
+    IActors,
+    IProvider
 } from "script/BaseScript.sol";
 import { BaseRoles } from "script/roles/BaseRoles.sol";
 import { FixedRateProvider } from "src/FixedRateProvider.sol";
 import { console } from "forge-std/console.sol";
+import { FlexStrategyRules } from "script/rules/FlexStrategyRules.sol";
+import { SafeRules, IVault } from "@yieldnest-vault-script/rules/SafeRules.sol";
 
 // forge script DeployFlexStrategy --rpc-url <MAINNET_RPC_URL>  --slow --broadcast --account
 // <CAST_WALLET_ACCOUNT>  --sender <SENDER_ADDRESS>  --verify --etherscan-api-key <ETHERSCAN_API_KEY>  -vvv
@@ -35,7 +35,7 @@ contract DeployFlexStrategy is BaseScript {
         super._verifySetup();
     }
 
-    function run() public {
+    function run() public virtual {
         deployer = msg.sender;
 
         vm.startBroadcast(deployer);
@@ -110,7 +110,7 @@ contract DeployFlexStrategy is BaseScript {
         }
     }
 
-    function deploy() internal {
+    function deploy() internal virtual {
         address admin = msg.sender;
         strategyImplementation = new FlexStrategy();
         accountingTokenImplementation = new AccountingToken(address(baseAsset));
@@ -178,7 +178,7 @@ contract DeployFlexStrategy is BaseScript {
         configureStrategy();
     }
 
-    function configureStrategy() internal {
+    function configureStrategy() internal virtual {
         BaseRoles.configureDefaultRolesStrategy(strategy, accountingModule, accountingToken, address(timelock), actors);
         BaseRoles.configureTemporaryRolesStrategy(strategy, accountingModule, accountingToken, deployer);
 
@@ -186,7 +186,7 @@ contract DeployFlexStrategy is BaseScript {
         strategy.setHasAllocator(true);
         // grant allocator roles
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), allocator);
-        strategy.grantRole(strategy.ALLOCATOR_ROLE(), MainnetActors(address(actors)).YnBootstrapper());
+        strategy.grantRole(strategy.ALLOCATOR_ROLE(), IActors(address(actors)).BOOTSTRAPPER());
 
         // set accounting module for token
         accountingToken.setAccountingModule(address(accountingModule));
@@ -197,6 +197,18 @@ contract DeployFlexStrategy is BaseScript {
         // set accounting processor role
         accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), accountingProcessor);
         accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), accountingProcessor);
+
+        // Create an array to hold the rules
+        SafeRules.RuleParams[] memory rules = new SafeRules.RuleParams[](2);
+
+        // Set deposit rule for accounting module
+        rules[0] = FlexStrategyRules.getDepositRule(address(accountingModule));
+
+        // Set withdrawal rule for accounting module
+        rules[1] = FlexStrategyRules.getWithdrawRule(address(accountingModule), address(strategy));
+
+        // Set processor rules using SafeRules
+        SafeRules.setProcessorRules(IVault(address(strategy)), rules, true);
 
         strategy.unpause();
 
