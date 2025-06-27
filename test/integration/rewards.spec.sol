@@ -349,4 +349,63 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         accountingModule.processRewards(excessiveRewardAmount, pastSnapshotIndex);
         vm.stopPrank();
     }
+
+    function test_processRewards_WithUpdatedTargetApy() public {
+        // Assume initial setup and deposits have been made
+        uint256 depositAmount = 1e18;
+
+        // Setup initial state
+        {
+            IERC20 baseAsset = IERC20(strategy.asset());
+
+            // Give Alice tokens and deposit
+            deal(address(baseAsset), alice, depositAmount);
+            vm.startPrank(alice);
+            baseAsset.approve(address(strategy), depositAmount);
+            strategy.deposit(depositAmount, alice);
+            vm.stopPrank();
+        }
+
+        uint256 timeInterval = 1 days;
+
+        vm.warp(block.timestamp + timeInterval);
+
+        uint256 dailyRewardAmount =
+            (depositAmount * accountingModule.targetApy() * timeInterval) / (accountingModule.DIVISOR() * 365.5 days);
+
+        // Process rewards for a few days to create snapshots
+        for (uint256 i = 0; i < 5; i++) {
+            vm.startPrank(accountingModule.safe());
+            accountingModule.processRewards(dailyRewardAmount);
+            vm.stopPrank();
+            vm.warp(block.timestamp + timeInterval);
+        }
+
+        // Use a past snapshot index
+        uint256 pastSnapshotIndex = 1;
+        vm.warp(accountingModule.nextUpdateWindow());
+
+        // Get the total supply at the past snapshot index
+        IAccountingModule.StrategySnapshot memory pastSnapshot = accountingModule.snapshots(pastSnapshotIndex);
+        uint256 totalSupplyAtSnapshot = pastSnapshot.totalSupply;
+
+        // Calculate an excessive reward amount to trigger APR too high
+        uint256 excessiveRewardAmount = (totalSupplyAtSnapshot * accountingModule.targetApy() * timeInterval * 2)
+            / (accountingModule.DIVISOR() * 365.5 days);
+
+        // Attempt to process rewards using the past snapshot index and expect a revert
+        vm.startPrank(accountingModule.safe());
+
+        vm.expectRevert();
+        accountingModule.processRewards(excessiveRewardAmount, pastSnapshotIndex);
+        vm.stopPrank();
+
+        vm.startPrank(address(deployment.timelock()));
+        AccountingModule(payable(address(accountingModule))).setTargetApy(accountingModule.targetApy() * 2);
+        vm.stopPrank();
+
+        vm.startPrank(accountingModule.safe());
+        accountingModule.processRewards(excessiveRewardAmount, pastSnapshotIndex);
+        vm.stopPrank();
+    }
 }

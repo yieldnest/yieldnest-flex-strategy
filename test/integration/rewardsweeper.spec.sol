@@ -50,6 +50,22 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
+    function test_setAccountingModule_Admin() public {
+        rewardsSweeper.setAccountingModule(address(accountingModule));
+        vm.stopPrank();
+    }
+
+    function test_setAccountingModule_revertIfNotAdmin() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, rewardsSweeper.DEFAULT_ADMIN_ROLE()
+            )
+        );
+        rewardsSweeper.setAccountingModule(address(accountingModule));
+        vm.stopPrank();
+    }
+
     function test_rewardsSweeper_basicSweep(uint256 depositAmount, uint256 rewardsToSweep) public {
         // Bound depositAmount to reasonable range (1e18 to 1000e18)
         depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
@@ -325,6 +341,15 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         );
         rewardsSweeper.sweepRewardsUpToAPRMax();
         vm.stopPrank();
+
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, rewardsSweeper.REWARDS_SWEEPER_ROLE()
+            )
+        );
+        rewardsSweeper.sweepRewards(100, 0);
+        vm.stopPrank();
     }
 
     function test_sweepRewards_revertIfCannotSweepRewards() public {
@@ -363,6 +388,18 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         vm.expectRevert(abi.encodeWithSelector(RewardsSweeper.CannotSweepRewards.selector));
         rewardsSweeper.sweepRewardsUpToAPRMax();
         vm.stopPrank();
+    }
+
+    function test_canSweepRewards_correctness() public {
+        assertFalse(rewardsSweeper.canSweepRewards(), "canSweepRewards should be false");
+
+        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), 1e6);
+        skip(10 minutes);
+        assertTrue(rewardsSweeper.canSweepRewards(), "canSweepRewards should be true");
+
+        skip(10 minutes);
+
+        assertTrue(rewardsSweeper.canSweepRewards(), "canSweepRewards should be true again with new time window");
     }
 
     function test_revertIfAttemptingToSweepPastAPRMax(uint256 depositAmount) public {
