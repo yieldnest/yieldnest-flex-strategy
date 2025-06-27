@@ -174,7 +174,6 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         }
 
         // Calculate final APY
-        uint256 totalAssets = strategy.totalAssets();
         uint256 apy = (totalRewards * 365 days * 10_000) / (depositAmount * (dayCount * 1 days));
         // Assert APY is within acceptable range
         assertLt(apy, maxApy, "APY should be less than maximum allowed");
