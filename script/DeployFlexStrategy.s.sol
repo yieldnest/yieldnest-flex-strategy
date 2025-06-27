@@ -35,7 +35,7 @@ contract DeployFlexStrategy is BaseScript {
         super._verifySetup();
     }
 
-    function run() public {
+    function run() public virtual {
         deployer = msg.sender;
 
         vm.startBroadcast(deployer);
@@ -110,7 +110,7 @@ contract DeployFlexStrategy is BaseScript {
         }
     }
 
-    function deploy() internal {
+    function deploy() internal virtual {
         address admin = msg.sender;
         strategyImplementation = new FlexStrategy();
         accountingTokenImplementation = new AccountingToken(address(baseAsset));
@@ -178,7 +178,7 @@ contract DeployFlexStrategy is BaseScript {
         configureStrategy();
     }
 
-    function configureStrategy() internal {
+    function configureStrategy() internal virtual {
         BaseRoles.configureDefaultRolesStrategy(strategy, accountingModule, accountingToken, address(timelock), actors);
         BaseRoles.configureTemporaryRolesStrategy(strategy, accountingModule, accountingToken, deployer);
 
