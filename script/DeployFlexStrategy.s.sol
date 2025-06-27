@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
-import { IVault } from "@yieldnest-vault/interface/IVault.sol";
-import { BaseRules } from "@yieldnest-vault-script/rules/BaseRules.sol";
 import {
     BaseScript,
     TransparentUpgradeableProxy,
@@ -16,7 +14,7 @@ import { BaseRoles } from "script/roles/BaseRoles.sol";
 import { FixedRateProvider } from "src/FixedRateProvider.sol";
 import { console } from "forge-std/console.sol";
 import { FlexStrategyRules } from "script/rules/FlexStrategyRules.sol";
-import { SafeRules, IVault as IVaultInterface } from "@yieldnest-vault-script/rules/SafeRules.sol";
+import { SafeRules, IVault } from "@yieldnest-vault-script/rules/SafeRules.sol";
 
 // forge script DeployFlexStrategy --rpc-url <MAINNET_RPC_URL>  --slow --broadcast --account
 // <CAST_WALLET_ACCOUNT>  --sender <SENDER_ADDRESS>  --verify --etherscan-api-key <ETHERSCAN_API_KEY>  -vvv
@@ -210,7 +208,7 @@ contract DeployFlexStrategy is BaseScript {
         rules[1] = FlexStrategyRules.getWithdrawRule(address(accountingModule), address(strategy));
 
         // Set processor rules using SafeRules
-        SafeRules.setProcessorRules(IVaultInterface(address(strategy)), rules, true);
+        SafeRules.setProcessorRules(IVault(address(strategy)), rules, true);
 
         strategy.unpause();
 
