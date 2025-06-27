@@ -400,7 +400,8 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         skip(10 minutes);
 
         assertTrue(rewardsSweeper.canSweepRewards(), "canSweepRewards should be true again with new time window");
-        
+    }
+
     function test_revertIfAttemptingToSweepPastAPRMax(uint256 depositAmount) public {
         // Ensure depositAmount is at least 1e18
         depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
