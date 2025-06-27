@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.28;
 
-import { IProvider } from "@yieldnest-vault/interface/IProvider.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { BaseRules } from "@yieldnest-vault-script/rules/BaseRules.sol";
 import {
@@ -10,7 +9,8 @@ import {
     FlexStrategy,
     AccountingModule,
     AccountingToken,
-    IActors
+    IActors,
+    IProvider
 } from "script/BaseScript.sol";
 import { BaseRoles } from "script/roles/BaseRoles.sol";
 import { FixedRateProvider } from "src/FixedRateProvider.sol";
