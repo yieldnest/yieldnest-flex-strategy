@@ -54,7 +54,7 @@ contract FlexStrategyDeployer {
     uint256 public minDelay;
 
     constructor(DeploymentParams memory params) {
-         // the contract is the deployer
+        // the contract is the deployer
         deployer = address(this);
         actors = params.actors;
         minDelay = params.minDelay;

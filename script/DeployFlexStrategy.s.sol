@@ -37,16 +37,8 @@ contract DeployFlexStrategy is BaseScript {
         super._verifySetup();
     }
 
-    function run() public virtual {
-        deployer = msg.sender;
-
-        vm.startBroadcast(deployer);
-
-        _setup();
-        assignDeploymentParameters();
-        _verifyDeploymentParams();
-
-        FlexStrategyDeployer strategyDeployer = new FlexStrategyDeployer(
+    function createDeployer() internal virtual returns (FlexStrategyDeployer) {
+        return new FlexStrategyDeployer(
             FlexStrategyDeployer.DeploymentParams({
                 name: name,
                 symbol: symbol_,
@@ -64,15 +56,28 @@ contract DeployFlexStrategy is BaseScript {
                 paused: paused,
                 actors: actors,
                 minDelay: minDelay
-        }));
+            })
+        );
+    }
+
+    function run() public virtual {
+        deployer = msg.sender;
+
+        vm.startBroadcast(deployer);
+
+        _setup();
+        assignDeploymentParameters();
+        _verifyDeploymentParams();
+
+        FlexStrategyDeployer strategyDeployer = createDeployer();
 
         strategyDeployer.deploy();
-
 
         strategy = strategyDeployer.strategy();
         strategyImplementation = FlexStrategy(payable(ProxyUtils.getImplementation(address(strategy))));
         accountingModule = strategyDeployer.accountingModule();
-        accountingModuleImplementation = AccountingModule(payable(ProxyUtils.getImplementation(address(accountingModule))));
+        accountingModuleImplementation =
+            AccountingModule(payable(ProxyUtils.getImplementation(address(accountingModule))));
         accountingToken = strategyDeployer.accountingToken();
         accountingTokenImplementation = AccountingToken(payable(ProxyUtils.getImplementation(address(accountingToken))));
         rateProvider = strategyDeployer.rateProvider();
@@ -141,5 +146,4 @@ contract DeployFlexStrategy is BaseScript {
             revert InvalidDeploymentParams("safe is not set");
         }
     }
-
 }
