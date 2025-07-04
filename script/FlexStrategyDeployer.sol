@@ -54,7 +54,8 @@ contract FlexStrategyDeployer {
     uint256 public minDelay;
 
     constructor(DeploymentParams memory params) {
-        deployer = msg.sender;
+         // the contract is the deployer
+        deployer = address(this);
         actors = params.actors;
         minDelay = params.minDelay;
 
@@ -76,7 +77,10 @@ contract FlexStrategyDeployer {
     }
 
     function deploy() public virtual {
-        address admin = msg.sender;
+        address admin = address(this);
+
+        _deployTimelockController();
+
         FlexStrategy strategyImplementation = new FlexStrategy();
         AccountingToken accountingTokenImplementation = new AccountingToken(address(baseAsset));
 

@@ -15,6 +15,8 @@ import { FixedRateProvider } from "src/FixedRateProvider.sol";
 import { console } from "forge-std/console.sol";
 import { FlexStrategyRules } from "script/rules/FlexStrategyRules.sol";
 import { SafeRules, IVault } from "@yieldnest-vault-script/rules/SafeRules.sol";
+import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
+import { ProxyUtils } from "lib/yieldnest-vault/script/ProxyUtils.sol";
 
 // forge script DeployFlexStrategy --rpc-url <MAINNET_RPC_URL>  --slow --broadcast --account
 // <CAST_WALLET_ACCOUNT>  --sender <SENDER_ADDRESS>  --verify --etherscan-api-key <ETHERSCAN_API_KEY>  -vvv
@@ -44,10 +46,40 @@ contract DeployFlexStrategy is BaseScript {
         assignDeploymentParameters();
         _verifyDeploymentParams();
 
-        _deployTimelockController();
+        FlexStrategyDeployer deployer = new FlexStrategyDeployer(
+            FlexStrategyDeployer.DeploymentParams({
+                name: name,
+                symbol: symbol_,
+                accountTokenName: accountTokenName,
+                accountTokenSymbol: accountTokenSymbol,
+                decimals: decimals,
+                allocator: allocator,
+                baseAsset: baseAsset,
+                targetApy: targetApy,
+                lowerBound: lowerBound,
+                safe: safe,
+                accountingProcessor: accountingProcessor,
+                minRewardableAssets: minRewardableAssets,
+                alwaysComputeTotalAssets: alwaysComputeTotalAssets,
+                paused: paused,
+                actors: actors,
+                minDelay: minDelay
+        }));
+
+        deployer.deploy();
+
+
+        strategy = deployer.strategy();
+        strategyImplementation = FlexStrategy(payable(ProxyUtils.getImplementation(address(strategy))));
+        accountingModule = deployer.accountingModule();
+        accountingModuleImplementation = AccountingModule(payable(ProxyUtils.getImplementation(address(accountingModule))));
+        accountingToken = deployer.accountingToken();
+        accountingTokenImplementation = AccountingToken(payable(ProxyUtils.getImplementation(address(accountingToken))));
+        rateProvider = deployer.rateProvider();
+        timelock = deployer.timelock();
+
         _verifySetup();
 
-        deploy();
         _saveDeployment(deploymentEnv);
 
         vm.stopBroadcast();
