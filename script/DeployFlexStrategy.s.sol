@@ -72,7 +72,16 @@ contract DeployFlexStrategy is BaseScript {
         FlexStrategyDeployer strategyDeployer = createDeployer();
 
         strategyDeployer.deploy();
+        readDeployedContracts(strategyDeployer);
 
+        _verifySetup();
+
+        _saveDeployment(deploymentEnv);
+
+        vm.stopBroadcast();
+    }
+
+    function readDeployedContracts(FlexStrategyDeployer strategyDeployer) internal virtual {
         strategy = strategyDeployer.strategy();
         strategyImplementation = FlexStrategy(payable(ProxyUtils.getImplementation(address(strategy))));
         accountingModule = strategyDeployer.accountingModule();
@@ -82,12 +91,6 @@ contract DeployFlexStrategy is BaseScript {
         accountingTokenImplementation = AccountingToken(payable(ProxyUtils.getImplementation(address(accountingToken))));
         rateProvider = strategyDeployer.rateProvider();
         timelock = strategyDeployer.timelock();
-
-        _verifySetup();
-
-        _saveDeployment(deploymentEnv);
-
-        vm.stopBroadcast();
     }
 
     function assignDeploymentParameters() internal virtual {
