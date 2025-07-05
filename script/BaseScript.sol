@@ -92,7 +92,7 @@ abstract contract BaseScript is Script {
     address public accountingTokenProxyAdmin;
 
     error UnsupportedChain();
-    error InvalidSetup();
+    error InvalidSetup(string);
 
     // needs to be overridden by child script
     function symbol() public view virtual returns (string memory);
@@ -114,8 +114,14 @@ abstract contract BaseScript is Script {
         if (block.chainid != 1) {
             revert UnsupportedChain();
         }
-        if (address(actors) == address(0) || address(contracts) == address(0) || address(timelock) == address(0)) {
-            revert InvalidSetup();
+        if (address(actors) == address(0)) {
+            revert InvalidSetup("actors not set");
+        }
+        if (address(contracts) == address(0)) {
+            revert InvalidSetup("contracts not set");
+        }
+        if (address(timelock) == address(0)) {
+            revert InvalidSetup("timelock not set");
         }
     }
 

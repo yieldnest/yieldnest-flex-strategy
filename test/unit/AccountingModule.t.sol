@@ -39,12 +39,14 @@ contract AccountingModuleTest is Test {
         );
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
-        AccountingModule accountingModule_impl = new AccountingModule(address(mockStrategy), address(mockErc20));
+        AccountingModule accountingModule_impl = new AccountingModule();
         TransparentUpgradeableProxy accountingModule_tu = new TransparentUpgradeableProxy(
             address(accountingModule_impl),
             ADMIN,
             abi.encodeWithSelector(
                 AccountingModule.initialize.selector,
+                address(mockStrategy),
+                address(mockErc20),
                 ADMIN,
                 SAFE,
                 address(accountingToken),
@@ -78,7 +80,7 @@ contract AccountingModuleTest is Test {
         assertEq(accountingToken.decimals(), 18);
         assertEq(accountingToken.accountingModule(), address(accountingModule));
         assertEq(accountingToken.TRACKED_ASSET(), address(mockErc20));
-        assertEq(accountingModule.BASE_ASSET(), address(mockErc20));
+        assertEq(accountingModule.baseAsset(), address(mockErc20));
         assertEq(address(accountingModule.accountingToken()), address(accountingToken));
         assertEq(accountingModule.targetApy(), TARGET_APY);
         assertEq(accountingModule.lowerBound(), LOWER_BOUND);

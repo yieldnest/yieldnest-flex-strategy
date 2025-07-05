@@ -15,6 +15,9 @@ import { FixedRateProvider } from "src/FixedRateProvider.sol";
 import { console } from "forge-std/console.sol";
 import { FlexStrategyRules } from "script/rules/FlexStrategyRules.sol";
 import { SafeRules, IVault } from "@yieldnest-vault-script/rules/SafeRules.sol";
+import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
+import { ProxyUtils } from "lib/yieldnest-vault/script/ProxyUtils.sol";
+import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 // forge script DeployFlexStrategy --rpc-url <MAINNET_RPC_URL>  --slow --broadcast --account
 // <CAST_WALLET_ACCOUNT>  --sender <SENDER_ADDRESS>  --verify --etherscan-api-key <ETHERSCAN_API_KEY>  -vvv
@@ -35,6 +38,29 @@ contract DeployFlexStrategy is BaseScript {
         super._verifySetup();
     }
 
+    function createDeployer() internal virtual returns (FlexStrategyDeployer) {
+        return new FlexStrategyDeployer(
+            FlexStrategyDeployer.DeploymentParams({
+                name: name,
+                symbol: symbol_,
+                accountTokenName: accountTokenName,
+                accountTokenSymbol: accountTokenSymbol,
+                decimals: decimals,
+                allocator: allocator,
+                baseAsset: baseAsset,
+                targetApy: targetApy,
+                lowerBound: lowerBound,
+                safe: safe,
+                accountingProcessor: accountingProcessor,
+                minRewardableAssets: minRewardableAssets,
+                alwaysComputeTotalAssets: alwaysComputeTotalAssets,
+                paused: paused,
+                actors: actors,
+                minDelay: minDelay
+            })
+        );
+    }
+
     function run() public virtual {
         deployer = msg.sender;
 
@@ -45,12 +71,35 @@ contract DeployFlexStrategy is BaseScript {
         _verifyDeploymentParams();
 
         _deployTimelockController();
+
+        FlexStrategyDeployer strategyDeployer = createDeployer();
+
+        FlexStrategyDeployer.Implementations memory implementations;
+        implementations.flexStrategyImplementation = new FlexStrategy();
+        implementations.accountingTokenImplementation = new AccountingToken(baseAsset);
+        implementations.accountingModuleImplementation = new AccountingModule();
+        implementations.timelockController = timelock;
+
+        strategyDeployer.deploy(implementations);
+        readDeployedContracts(strategyDeployer);
+
         _verifySetup();
 
-        deploy();
         _saveDeployment(deploymentEnv);
 
         vm.stopBroadcast();
+    }
+
+    function readDeployedContracts(FlexStrategyDeployer strategyDeployer) internal virtual {
+        strategy = strategyDeployer.strategy();
+        strategyImplementation = FlexStrategy(payable(ProxyUtils.getImplementation(address(strategy))));
+        accountingModule = strategyDeployer.accountingModule();
+        accountingModuleImplementation =
+            AccountingModule(payable(ProxyUtils.getImplementation(address(accountingModule))));
+        accountingToken = strategyDeployer.accountingToken();
+        accountingTokenImplementation = AccountingToken(payable(ProxyUtils.getImplementation(address(accountingToken))));
+        rateProvider = strategyDeployer.rateProvider();
+        timelock = strategyDeployer.timelock();
     }
 
     function assignDeploymentParameters() internal virtual {
@@ -108,110 +157,5 @@ contract DeployFlexStrategy is BaseScript {
         if (safe == address(0)) {
             revert InvalidDeploymentParams("safe is not set");
         }
-    }
-
-    function deploy() internal virtual {
-        address admin = msg.sender;
-        strategyImplementation = new FlexStrategy();
-        accountingTokenImplementation = new AccountingToken(address(baseAsset));
-
-        accountingToken = AccountingToken(
-            payable(
-                address(
-                    new TransparentUpgradeableProxy(
-                        address(accountingTokenImplementation),
-                        address(timelock),
-                        abi.encodeWithSelector(
-                            AccountingToken.initialize.selector, admin, accountTokenName, accountTokenSymbol
-                        )
-                    )
-                )
-            )
-        );
-
-        deployRateProvider();
-
-        strategy = FlexStrategy(
-            payable(
-                address(
-                    new TransparentUpgradeableProxy(
-                        address(strategyImplementation),
-                        address(timelock),
-                        abi.encodeWithSelector(
-                            FlexStrategy.initialize.selector,
-                            admin,
-                            name,
-                            symbol_,
-                            decimals,
-                            baseAsset,
-                            address(accountingToken),
-                            paused,
-                            address(rateProvider),
-                            alwaysComputeTotalAssets
-                        )
-                    )
-                )
-            )
-        );
-
-        accountingModuleImplementation = new AccountingModule(address(strategy), baseAsset);
-        accountingModule = AccountingModule(
-            payable(
-                address(
-                    new TransparentUpgradeableProxy(
-                        address(accountingModuleImplementation),
-                        address(timelock),
-                        abi.encodeWithSelector(
-                            AccountingModule.initialize.selector,
-                            admin,
-                            safe,
-                            address(accountingToken),
-                            targetApy,
-                            lowerBound,
-                            minRewardableAssets
-                        )
-                    )
-                )
-            )
-        );
-
-        configureStrategy();
-    }
-
-    function configureStrategy() internal virtual {
-        BaseRoles.configureDefaultRolesStrategy(strategy, accountingModule, accountingToken, address(timelock), actors);
-        BaseRoles.configureTemporaryRolesStrategy(strategy, accountingModule, accountingToken, deployer);
-
-        // set has allocator
-        strategy.setHasAllocator(true);
-        // grant allocator roles
-        strategy.grantRole(strategy.ALLOCATOR_ROLE(), allocator);
-        strategy.grantRole(strategy.ALLOCATOR_ROLE(), IActors(address(actors)).BOOTSTRAPPER());
-
-        // set accounting module for token
-        accountingToken.setAccountingModule(address(accountingModule));
-
-        // set accounting module for strategy
-        strategy.setAccountingModule(address(accountingModule));
-
-        // set accounting processor role
-        accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), accountingProcessor);
-        accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), accountingProcessor);
-
-        // Create an array to hold the rules
-        SafeRules.RuleParams[] memory rules = new SafeRules.RuleParams[](2);
-
-        // Set deposit rule for accounting module
-        rules[0] = FlexStrategyRules.getDepositRule(address(accountingModule));
-
-        // Set withdrawal rule for accounting module
-        rules[1] = FlexStrategyRules.getWithdrawRule(address(accountingModule), address(strategy));
-
-        // Set processor rules using SafeRules
-        SafeRules.setProcessorRules(IVault(address(strategy)), rules, true);
-
-        strategy.unpause();
-
-        BaseRoles.renounceTemporaryRolesStrategy(strategy, accountingModule, accountingToken, deployer);
     }
 }

@@ -58,9 +58,9 @@ contract VerifyFlexStrategy is BaseScript, Test {
             "accountingModule.accountingToken() not set"
         );
         assertEq(
-            address(accountingModule.STRATEGY()),
+            address(accountingModule.strategy()),
             address(strategy),
-            "accountingModule.STRATEGY() does not match strategy address"
+            "accountingModule.strategy() does not match strategy address"
         );
         assertEq(
             address(accountingToken.TRACKED_ASSET()),

@@ -371,7 +371,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         skip(10 minutes);
 
         // Do one sweep.
-        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), 1e6);
+        deal(address(accountingModule.baseAsset()), address(rewardsSweeper), 1e6);
         rewardsSweeper.sweepRewardsUpToAPRMax();
 
         // Set up a scenario where rewards cannot be swept
@@ -380,7 +380,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         skip(10 minutes);
 
         // Deal rewards sweeper to simulate having rewards available
-        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), 1e6);
+        deal(address(accountingModule.baseAsset()), address(rewardsSweeper), 1e6);
 
         assertFalse(rewardsSweeper.canSweepRewards(), "canSweepRewards should be false");
 
@@ -393,7 +393,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
     function test_canSweepRewards_correctness() public {
         assertFalse(rewardsSweeper.canSweepRewards(), "canSweepRewards should be false");
 
-        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), 1e6);
+        deal(address(accountingModule.baseAsset()), address(rewardsSweeper), 1e6);
         skip(10 minutes);
         assertTrue(rewardsSweeper.canSweepRewards(), "canSweepRewards should be true");
 
@@ -419,7 +419,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         skip(365.25 days);
 
         // excess rewards
-        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), depositAmount * 10);
+        deal(address(accountingModule.baseAsset()), address(rewardsSweeper), depositAmount * 10);
 
         uint256 amountToSweep = rewardsSweeper.previewSweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
 
@@ -435,7 +435,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         uint256 maxApy = 1050; // 10.5% APY in basis points
 
         // Deal rewards to sweeper well in excess of depositAmount
-        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), depositAmount * 12);
+        deal(address(accountingModule.baseAsset()), address(rewardsSweeper), depositAmount * 12);
 
         IERC20 baseAsset = IERC20(strategy.asset());
 
