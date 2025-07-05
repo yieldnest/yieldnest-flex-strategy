@@ -123,7 +123,7 @@ contract RewardsSweeperTest is BaseIntegrationTest_6Decimals {
         uint256 maxApy = 1050; // 10.5% APY in basis points
 
         // Deal rewards to sweeper well in excess of depositAmount
-        deal(address(accountingModule.BASE_ASSET()), address(rewardsSweeper), depositAmount * 12);
+        deal(address(accountingModule.baseAsset()), address(rewardsSweeper), depositAmount * 12);
 
         IERC20 baseAsset = IERC20(strategy.asset());
 

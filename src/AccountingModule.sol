@@ -38,7 +38,8 @@ interface IAccountingModule {
     function processLosses(uint256 amount) external;
     function setCooldownSeconds(uint16 cooldownSeconds) external;
 
-    function BASE_ASSET() external view returns (address);
+    function baseAsset() external view returns (address);
+    function strategy() external view returns (address);
     function DIVISOR() external view returns (uint256);
     function YEAR() external view returns (uint256);
     function accountingToken() external view returns (IAccountingToken);
@@ -47,7 +48,6 @@ interface IAccountingModule {
     function targetApy() external view returns (uint256);
     function lowerBound() external view returns (uint256);
     function cooldownSeconds() external view returns (uint16);
-    function STRATEGY() external view returns (address);
     function SAFE_MANAGER_ROLE() external view returns (bytes32);
     function REWARDS_PROCESSOR_ROLE() external view returns (bytes32);
     function LOSS_PROCESSOR_ROLE() external view returns (bytes32);
@@ -261,10 +261,10 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         uint256 totalSupply = s.accountingToken.totalSupply();
         if (totalSupply < s.minRewardableAssets) revert TvlTooLow();
 
-        IVault strategy = IVault(s.strategy);
+        IVault strategyVault = IVault(s.strategy);
 
         s.accountingToken.mintTo(s.strategy, amount);
-        strategy.processAccounting();
+        strategyVault.processAccounting();
 
         // check if apr is within acceptable bounds
 
@@ -282,16 +282,16 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
     function createStrategySnapshot() internal returns (StrategySnapshot memory) {
         AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        IVault strategy = IVault(s.strategy);
+        IVault strategyVault = IVault(s.strategy);
 
         // Take snapshot of current state
-        uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
+        uint256 currentPricePerShare = strategyVault.convertToAssets(10 ** strategyVault.decimals());
 
         StrategySnapshot memory snapshot = StrategySnapshot({
             timestamp: block.timestamp,
             pricePerShare: currentPricePerShare,
-            totalSupply: strategy.totalSupply(),
-            totalAssets: strategy.totalAssets()
+            totalSupply: strategyVault.totalSupply(),
+            totalAssets: strategyVault.totalAssets()
         });
 
         s._snapshots.push(snapshot);
@@ -407,11 +407,11 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
     /// VIEWS ///
 
-    function BASE_ASSET() external view returns (address) {
+    function baseAsset() external view returns (address) {
         return _getAccountingModuleStorage().baseAsset;
     }
 
-    function STRATEGY() external view returns (address) {
+    function strategy() external view returns (address) {
         return _getAccountingModuleStorage().strategy;
     }
 

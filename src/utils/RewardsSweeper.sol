@@ -79,7 +79,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         IAccountingModule.StrategySnapshot memory snapshot = accountingModule.snapshots(snapshotIndex);
         uint256 pricePerShareAtSnapshot = snapshot.pricePerShare;
 
-        IERC4626 strategy = IERC4626(accountingModule.STRATEGY());
+        IERC4626 strategy = IERC4626(accountingModule.strategy());
 
         uint256 maxRewards = calculateMaxRewards(
             pricePerShareAtSnapshot,
@@ -94,7 +94,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         );
 
         // Get current balance and use the minimum of maxRewards and balance
-        uint256 currentBalance = IERC20(accountingModule.BASE_ASSET()).balanceOf(address(this));
+        uint256 currentBalance = IERC20(accountingModule.baseAsset()).balanceOf(address(this));
         uint256 amountToSweep = maxRewards < currentBalance ? maxRewards : currentBalance;
 
         return amountToSweep;
@@ -155,7 +155,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         if (snapshotIndex >= accountingModule.snapshotsLength()) revert SnapshotIndexOutOfBounds(snapshotIndex);
 
         // Transfer rewards to safe
-        IERC20(accountingModule.BASE_ASSET()).safeTransfer(accountingModule.safe(), amount);
+        IERC20(accountingModule.baseAsset()).safeTransfer(accountingModule.safe(), amount);
 
         // Process rewards through accounting module with specific snapshot index
         accountingModule.processRewards(amount, snapshotIndex);
@@ -169,7 +169,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
 
     function canSweepRewards() public view returns (bool) {
         return block.timestamp >= accountingModule.nextUpdateWindow()
-            && IERC20(accountingModule.BASE_ASSET()).balanceOf(address(this)) > 0;
+            && IERC20(accountingModule.baseAsset()).balanceOf(address(this)) > 0;
     }
     /**
      * @notice Updates the accounting module address
