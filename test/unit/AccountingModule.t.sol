@@ -39,12 +39,14 @@ contract AccountingModuleTest is Test {
         );
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
-        AccountingModule accountingModule_impl = new AccountingModule(address(mockStrategy), address(mockErc20));
+        AccountingModule accountingModule_impl = new AccountingModule();
         TransparentUpgradeableProxy accountingModule_tu = new TransparentUpgradeableProxy(
             address(accountingModule_impl),
             ADMIN,
             abi.encodeWithSelector(
                 AccountingModule.initialize.selector,
+                address(mockStrategy),
+                address(mockErc20),
                 ADMIN,
                 SAFE,
                 address(accountingToken),

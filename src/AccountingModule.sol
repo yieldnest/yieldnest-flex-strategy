@@ -73,6 +73,8 @@ interface IAccountingModule {
 struct AccountingModuleStorage {
     IAccountingToken accountingToken;
     address safe;
+    address baseAsset;
+    address strategy;
     uint64 nextUpdateWindow;
     uint16 cooldownSeconds;
     uint256 targetApy; // in bips;
@@ -99,17 +101,12 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     uint256 public constant DIVISOR = 1e18;
     uint256 public constant MAX_LOWER_BOUND = DIVISOR / 2;
 
-    address public immutable BASE_ASSET;
-    address public immutable STRATEGY;
-
     /// @notice Storage slot for AccountingModule data
     bytes32 private constant ACCOUNTING_MODULE_STORAGE_SLOT = keccak256("yieldnest.storage.accountingModule");
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address strategy, address baseAsset) {
+    constructor() {
         _disableInitializers();
-        BASE_ASSET = baseAsset;
-        STRATEGY = strategy;
     }
 
     /**
@@ -124,6 +121,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
     /**
      * @notice Initializes the vault.
+     * @param strategy_ The strategy address.
+     * @param baseAsset_ The base asset address.
      * @param admin The address of the admin.
      * @param safe_ The safe associated with the module.
      * @param accountingToken_ The accountingToken associated with the module.
@@ -132,6 +131,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param minRewardableAssets_ The minimum rewardable assets.
      */
     function initialize(
+        address strategy_,
+        address baseAsset_,
         address admin,
         address safe_,
         IAccountingToken accountingToken_,
@@ -153,6 +154,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         s.lowerBound = lowerBound_;
         s.cooldownSeconds = 3600;
         s.minRewardableAssets = minRewardableAssets_;
+        s.strategy = strategy_;
+        s.baseAsset = baseAsset_;
 
         createStrategySnapshot();
     }
@@ -165,7 +168,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     }
 
     modifier onlyStrategy() {
-        if (msg.sender != STRATEGY) revert NotStrategy();
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        if (msg.sender != s.strategy) revert NotStrategy();
         _;
     }
 
@@ -178,8 +182,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      */
     function deposit(uint256 amount) external onlyStrategy {
         AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        IERC20(BASE_ASSET).safeTransferFrom(STRATEGY, s.safe, amount);
-        s.accountingToken.mintTo(STRATEGY, amount);
+        IERC20(s.baseAsset).safeTransferFrom(s.strategy, s.safe, amount);
+        s.accountingToken.mintTo(s.strategy, amount);
     }
 
     /**
@@ -190,8 +194,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      */
     function withdraw(uint256 amount, address recipient) external onlyStrategy {
         AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        s.accountingToken.burnFrom(STRATEGY, amount);
-        IERC20(BASE_ASSET).safeTransferFrom(s.safe, recipient, amount);
+        s.accountingToken.burnFrom(s.strategy, amount);
+        IERC20(s.baseAsset).safeTransferFrom(s.safe, recipient, amount);
     }
 
     /// REWARDS ///
@@ -257,9 +261,9 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         uint256 totalSupply = s.accountingToken.totalSupply();
         if (totalSupply < s.minRewardableAssets) revert TvlTooLow();
 
-        IVault strategy = IVault(STRATEGY);
+        IVault strategy = IVault(s.strategy);
 
-        s.accountingToken.mintTo(STRATEGY, amount);
+        s.accountingToken.mintTo(s.strategy, amount);
         strategy.processAccounting();
 
         // check if apr is within acceptable bounds
@@ -278,7 +282,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
     function createStrategySnapshot() internal returns (StrategySnapshot memory) {
         AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        IVault strategy = IVault(STRATEGY);
+        IVault strategy = IVault(s.strategy);
 
         // Take snapshot of current state
         uint256 currentPricePerShare = strategy.convertToAssets(10 ** strategy.decimals());
@@ -346,8 +350,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
             revert LossLimitsExceeded(amount, totalSupply * s.lowerBound / DIVISOR);
         }
 
-        s.accountingToken.burnFrom(STRATEGY, amount);
-        IVault(STRATEGY).processAccounting();
+        s.accountingToken.burnFrom(s.strategy, amount);
+        IVault(s.strategy).processAccounting();
 
         createStrategySnapshot();
     }
@@ -402,6 +406,14 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     }
 
     /// VIEWS ///
+
+    function BASE_ASSET() external view returns (address) {
+        return _getAccountingModuleStorage().baseAsset;
+    }
+
+    function STRATEGY() external view returns (address) {
+        return _getAccountingModuleStorage().strategy;
+    }
 
     function accountingToken() external view returns (IAccountingToken) {
         return _getAccountingModuleStorage().accountingToken;

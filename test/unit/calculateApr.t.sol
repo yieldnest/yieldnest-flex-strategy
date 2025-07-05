@@ -6,7 +6,7 @@ import { AccountingModule } from "src/AccountingModule.sol";
 
 contract CalculateAprTest is Test {
     function testFuzz_calculateApr_success(uint256 depositAmount, uint256 rewardAmount, uint256 timePassed) public {
-        AccountingModule accountingModule = new AccountingModule(address(this), address(this));
+        AccountingModule accountingModule = new AccountingModule();
         // Bound inputs to reasonable ranges
         depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
 

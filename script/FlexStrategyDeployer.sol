@@ -76,13 +76,20 @@ contract FlexStrategyDeployer {
         paused = params.paused;
     }
 
-    function deploy() public virtual {
+    struct Implementations {
+        FlexStrategy flexStrategyImplementation;
+        AccountingToken accountingTokenImplementation;
+        AccountingModule accountingModuleImplementation;
+        TimelockController timelockController;
+    }
+
+    function deploy(Implementations memory implementations) public virtual {
         address admin = address(this);
 
-        _deployTimelockController();
+        timelock = implementations.timelockController;
 
-        FlexStrategy strategyImplementation = new FlexStrategy();
-        AccountingToken accountingTokenImplementation = new AccountingToken(address(baseAsset));
+        FlexStrategy strategyImplementation = implementations.flexStrategyImplementation;
+        AccountingToken accountingTokenImplementation = implementations.accountingTokenImplementation;
 
         accountingToken = AccountingToken(
             payable(
@@ -123,7 +130,8 @@ contract FlexStrategyDeployer {
             )
         );
 
-        AccountingModule accountingModuleImplementation = new AccountingModule(address(strategy), baseAsset);
+        AccountingModule accountingModuleImplementation =
+            AccountingModule(address(implementations.accountingModuleImplementation));
         accountingModule = AccountingModule(
             payable(
                 address(
@@ -132,6 +140,8 @@ contract FlexStrategyDeployer {
                         address(timelock),
                         abi.encodeWithSelector(
                             AccountingModule.initialize.selector,
+                            address(strategy),
+                            baseAsset,
                             admin,
                             safe,
                             address(accountingToken),
@@ -182,18 +192,6 @@ contract FlexStrategyDeployer {
         strategy.unpause();
 
         BaseRoles.renounceTemporaryRolesStrategy(strategy, accountingModule, accountingToken, deployer);
-    }
-
-    function _deployTimelockController() internal {
-        address[] memory proposers = new address[](1);
-        proposers[0] = actors.PROPOSER_1();
-
-        address[] memory executors = new address[](1);
-        executors[0] = actors.EXECUTOR_1();
-
-        address admin = actors.ADMIN();
-
-        timelock = new TimelockController(minDelay, proposers, executors, admin);
     }
 
     function deployRateProvider() internal {
