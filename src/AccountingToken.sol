@@ -29,6 +29,7 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
     error NotAllowed();
     error ZeroAddress();
     error AccountingTokenMismatch();
+    error BaseAssetMismatch();
 
     event AccountingModuleUpdated(address newValue, address oldValue);
 
@@ -121,6 +122,10 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
 
         if (address(IAccountingModule(accountingModule_).accountingToken()) != address(this)) {
             revert AccountingTokenMismatch();
+        }
+
+        if (IAccountingModule(accountingModule_).baseAsset() != TRACKED_ASSET) {
+            revert BaseAssetMismatch();
         }
 
         s.accountingModule = accountingModule_;

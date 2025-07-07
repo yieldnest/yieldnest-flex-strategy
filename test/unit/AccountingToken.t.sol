@@ -15,11 +15,12 @@ contract AccountingTokenTest is Test {
     MockERC20 public mockErc20;
     MockERC20 public mockErc20e6;
     AccountingToken public accountingToken;
-    MockAccountingModule public accountingModule = new MockAccountingModule();
+    MockAccountingModule public accountingModule;
 
     function setUp() public {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
         mockErc20e6 = new MockERC20("MOCK", "MOCK", 6);
+        accountingModule = new MockAccountingModule(address(mockErc20));
 
         AccountingToken accountingToken_impl = new AccountingToken(address(mockErc20));
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
@@ -104,7 +105,7 @@ contract AccountingTokenTest is Test {
     }
 
     function test_setAccountingModule_success() public {
-        MockAccountingModule mockAccountingModule2 = new MockAccountingModule();
+        MockAccountingModule mockAccountingModule2 = new MockAccountingModule(address(mockErc20));
         mockAccountingModule2.setAccountingToken(address(accountingToken));
         vm.startPrank(ADMIN);
         accountingToken.setAccountingModule(address(mockAccountingModule2));
@@ -112,7 +113,7 @@ contract AccountingTokenTest is Test {
     }
 
     function test_setAccountingModule_revertIfAccountingTokenMismatch() public {
-        MockAccountingModule mockAccountingModule2 = new MockAccountingModule();
+        MockAccountingModule mockAccountingModule2 = new MockAccountingModule(address(mockErc20));
         mockAccountingModule2.setAccountingToken(address(mockAccountingModule2));
         vm.startPrank(ADMIN);
         vm.expectRevert(AccountingToken.AccountingTokenMismatch.selector);
