@@ -121,6 +121,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     }
 
     /**
+     * /**
      * @notice Initializes the vault.
      * @param strategy_ The strategy address.
      * @param admin The address of the admin.
@@ -129,6 +130,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param targetApy_ The target APY of the strategy.
      * @param lowerBound_ The lower bound of losses of the strategy(as % of TVL).
      * @param minRewardableAssets_ The minimum rewardable assets.
+     * @param cooldownSeconds_ The cooldown period in seconds.
      */
     function initialize(
         address strategy_,
@@ -137,24 +139,34 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         IAccountingToken accountingToken_,
         uint256 targetApy_,
         uint256 lowerBound_,
-        uint256 minRewardableAssets_
+        uint256 minRewardableAssets_,
+        uint16 cooldownSeconds_
     )
         external
         virtual
         initializer
     {
         __AccessControl_init();
+
+        if (admin == address(0)) revert ZeroAddress();
+
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
         AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        s.safe = safe_;
+
+        if (address(accountingToken_) == address(0)) revert ZeroAddress();
         s.accountingToken = accountingToken_;
-        s.targetApy = targetApy_;
-        s.lowerBound = lowerBound_;
-        s.cooldownSeconds = 3600;
+
         s.minRewardableAssets = minRewardableAssets_;
+
+        if (strategy_ == address(0)) revert ZeroAddress();
         s.strategy = strategy_;
         s.baseAsset = IERC4626(strategy_).asset();
+
+        _setSafeAddress(safe_);
+        _setTargetApy(targetApy_);
+        _setLowerBound(lowerBound_);
+        _setCooldownSeconds(cooldownSeconds_);
 
         createStrategySnapshot();
     }
@@ -363,11 +375,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @dev hard max of 100% targetApy
      */
     function setTargetApy(uint256 targetApyInBips) external onlyRole(SAFE_MANAGER_ROLE) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        if (targetApyInBips > DIVISOR) revert InvariantViolation();
-
-        emit TargetApyUpdated(targetApyInBips, s.targetApy);
-        s.targetApy = targetApyInBips;
+        _setTargetApy(targetApyInBips);
     }
 
     /**
@@ -376,11 +384,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @dev hard max of 50% of tvl
      */
     function setLowerBound(uint256 _lowerBound) external onlyRole(SAFE_MANAGER_ROLE) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        if (_lowerBound > MAX_LOWER_BOUND) revert InvariantViolation();
-
-        emit LowerBoundUpdated(_lowerBound, s.lowerBound);
-        s.lowerBound = _lowerBound;
+        _setLowerBound(_lowerBound);
     }
 
     /**
@@ -388,9 +392,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param cooldownSeconds_ new cooldown seconds
      */
     function setCooldownSeconds(uint16 cooldownSeconds_) external onlyRole(SAFE_MANAGER_ROLE) {
-        AccountingModuleStorage storage s = _getAccountingModuleStorage();
-        emit CooldownSecondsUpdated(cooldownSeconds_, s.cooldownSeconds);
-        s.cooldownSeconds = cooldownSeconds_;
+        _setCooldownSeconds(cooldownSeconds_);
     }
 
     /**
@@ -398,6 +400,34 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      * @param newSafe new safe address
      */
     function setSafeAddress(address newSafe) external virtual onlyRole(SAFE_MANAGER_ROLE) {
+        _setSafeAddress(newSafe);
+    }
+
+    /// ADMIN INTERNAL SETTERS ///
+
+    function _setTargetApy(uint256 targetApyInBips) internal {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        if (targetApyInBips > 10 * DIVISOR) revert InvariantViolation();
+
+        emit TargetApyUpdated(targetApyInBips, s.targetApy);
+        s.targetApy = targetApyInBips;
+    }
+
+    function _setLowerBound(uint256 _lowerBound) internal {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        if (_lowerBound > MAX_LOWER_BOUND) revert InvariantViolation();
+
+        emit LowerBoundUpdated(_lowerBound, s.lowerBound);
+        s.lowerBound = _lowerBound;
+    }
+
+    function _setCooldownSeconds(uint16 cooldownSeconds_) internal {
+        AccountingModuleStorage storage s = _getAccountingModuleStorage();
+        emit CooldownSecondsUpdated(cooldownSeconds_, s.cooldownSeconds);
+        s.cooldownSeconds = cooldownSeconds_;
+    }
+
+    function _setSafeAddress(address newSafe) internal {
         AccountingModuleStorage storage s = _getAccountingModuleStorage();
         if (newSafe == address(0)) revert ZeroAddress();
         emit SafeUpdated(newSafe, s.safe);

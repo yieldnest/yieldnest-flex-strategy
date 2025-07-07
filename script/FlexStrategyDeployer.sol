@@ -146,7 +146,8 @@ contract FlexStrategyDeployer {
                             address(accountingToken),
                             targetApy,
                             lowerBound,
-                            minRewardableAssets
+                            minRewardableAssets,
+                            1 hours
                         )
                     )
                 )

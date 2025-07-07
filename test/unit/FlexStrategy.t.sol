@@ -77,7 +77,8 @@ contract FlexStrategyTest is Test {
             address(accountingToken),
             TARGET_APY,
             LOWER_BOUND,
-            1e18
+            1e18,
+            1 hours
         );
         AccountingModule am_impl = new AccountingModule();
         TransparentUpgradeableProxy am_tu = new TransparentUpgradeableProxy(address(am_impl), ADMIN, am_initData);
