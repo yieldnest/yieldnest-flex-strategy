@@ -27,7 +27,7 @@ contract AccountingModuleTest is Test {
 
     function setUp() public {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
-        mockStrategy = new MockStrategy();
+        mockStrategy = new MockStrategy(mockErc20);
 
         mockStrategy.setRate(1e18);
 
@@ -46,7 +46,6 @@ contract AccountingModuleTest is Test {
             abi.encodeWithSelector(
                 AccountingModule.initialize.selector,
                 address(mockStrategy),
-                address(mockErc20),
                 ADMIN,
                 SAFE,
                 address(accountingToken),

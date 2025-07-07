@@ -11,20 +11,23 @@ contract MockStrategy is IFlexStrategy, ERC20 {
     using Math for uint256;
 
     IAccountingModule am;
+    IERC20 public baseAsset;
 
     uint256 rate;
     uint256 _totalAssets;
 
-    constructor() ERC20("Mock Strategy", "MOCK") { }
+    constructor(IERC20 baseAsset_) ERC20("Mock Strategy", "MOCK") {
+        baseAsset = baseAsset_;
+    }
 
     function setAccountingModule(IAccountingModule am_) public {
         am = am_;
-        IERC20(am.baseAsset()).approve(address(am), type(uint256).max);
+        baseAsset.approve(address(am), type(uint256).max);
         IERC20(am.accountingToken()).approve(address(am), type(uint256).max);
     }
 
     function deposit(uint256 amount) public {
-        IERC20(am.baseAsset()).transferFrom(msg.sender, address(this), amount);
+        baseAsset.transferFrom(msg.sender, address(this), amount);
         am.deposit(amount);
         uint256 shares = amount.mulDiv(1e18, rate, Math.Rounding.Floor);
         _mint(msg.sender, shares);
@@ -55,5 +58,9 @@ contract MockStrategy is IFlexStrategy, ERC20 {
 
     function totalAssets() public view returns (uint256) {
         return _totalAssets;
+    }
+
+    function asset() public view returns (IERC20) {
+        return baseAsset;
     }
 }

@@ -72,7 +72,6 @@ contract FlexStrategyTest is Test {
         bytes memory am_initData = abi.encodeWithSelector(
             AccountingModule.initialize.selector,
             address(flexStrategy),
-            address(mockErc20),
             ADMIN,
             SAFE,
             address(accountingToken),

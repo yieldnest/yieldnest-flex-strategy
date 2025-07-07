@@ -7,6 +7,7 @@ import { IAccountingToken } from "./AccountingToken.sol";
 import { IVault } from "@yieldnest-vault/interface/IVault.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 interface IAccountingModule {
     struct StrategySnapshot {
@@ -122,7 +123,6 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
     /**
      * @notice Initializes the vault.
      * @param strategy_ The strategy address.
-     * @param baseAsset_ The base asset address.
      * @param admin The address of the admin.
      * @param safe_ The safe associated with the module.
      * @param accountingToken_ The accountingToken associated with the module.
@@ -132,7 +132,6 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
      */
     function initialize(
         address strategy_,
-        address baseAsset_,
         address admin,
         address safe_,
         IAccountingToken accountingToken_,
@@ -155,7 +154,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         s.cooldownSeconds = 3600;
         s.minRewardableAssets = minRewardableAssets_;
         s.strategy = strategy_;
-        s.baseAsset = baseAsset_;
+        s.baseAsset = IERC4626(strategy_).asset();
 
         createStrategySnapshot();
     }
