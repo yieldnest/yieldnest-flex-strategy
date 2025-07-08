@@ -202,8 +202,9 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      *      It returns the balance of the asset in the associated SAFE.
      */
     function _availableAssets(address asset_) internal view virtual override returns (uint256 availableAssets) {
-        if (asset_ == asset()) {
-            return IERC20(asset()).balanceOf(_getFlexStrategyStorage().accountingModule.safe());
+        address baseAsset = asset();
+        if (asset_ == baseAsset) {
+            return IERC20(baseAsset).balanceOf(_getFlexStrategyStorage().accountingModule.safe());
         }
 
         return super._availableAssets(asset_);
