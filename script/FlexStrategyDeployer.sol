@@ -141,13 +141,13 @@ contract FlexStrategyDeployer {
                         abi.encodeWithSelector(
                             AccountingModule.initialize.selector,
                             address(strategy),
-                            baseAsset,
                             admin,
                             safe,
                             address(accountingToken),
                             targetApy,
                             lowerBound,
-                            minRewardableAssets
+                            minRewardableAssets,
+                            1 hours
                         )
                     )
                 )

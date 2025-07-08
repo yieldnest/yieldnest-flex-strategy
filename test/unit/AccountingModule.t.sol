@@ -6,7 +6,7 @@ import { TransparentUpgradeableProxy } from "@yieldnest-vault/Common.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockStrategy } from "../mocks/MockStrategy.sol";
 import { AccountingModule, IAccountingModule } from "../../src/AccountingModule.sol";
-import { AccountingToken } from "../../src/AccountingToken.sol";
+import { AccountingToken, IAccountingToken } from "../../src/AccountingToken.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -27,7 +27,7 @@ contract AccountingModuleTest is Test {
 
     function setUp() public {
         mockErc20 = new MockERC20("MOCK", "MOCK", 18);
-        mockStrategy = new MockStrategy();
+        mockStrategy = new MockStrategy(mockErc20);
 
         mockStrategy.setRate(1e18);
 
@@ -46,13 +46,13 @@ contract AccountingModuleTest is Test {
             abi.encodeWithSelector(
                 AccountingModule.initialize.selector,
                 address(mockStrategy),
-                address(mockErc20),
                 ADMIN,
                 SAFE,
                 address(accountingToken),
                 TARGET_APY,
                 LOWER_BOUND,
-                1e18
+                1e18,
+                1 hours
             )
         );
         accountingModule = AccountingModule(payable(address(accountingModule_tu)));
@@ -84,6 +84,206 @@ contract AccountingModuleTest is Test {
         assertEq(address(accountingModule.accountingToken()), address(accountingToken));
         assertEq(accountingModule.targetApy(), TARGET_APY);
         assertEq(accountingModule.lowerBound(), LOWER_BOUND);
+    }
+
+    function test_initialize_AccountingModule_success() public {
+        // Deploy a new AccountingModule implementation
+        AccountingModule accountingModule_impl = new AccountingModule();
+
+        // Deploy a new TransparentUpgradeableProxy with the AccountingModule implementation
+        TransparentUpgradeableProxy accountingModule_tu =
+            new TransparentUpgradeableProxy(address(accountingModule_impl), ADMIN, "");
+
+        // Cast the proxy to the AccountingModule interface
+        AccountingModule newAccountingModule = AccountingModule(payable(address(accountingModule_tu)));
+
+        // Initialize the AccountingModule separately
+        newAccountingModule.initialize(
+            address(mockStrategy),
+            ADMIN,
+            SAFE,
+            IAccountingToken(address(accountingToken)),
+            TARGET_APY,
+            LOWER_BOUND,
+            1e18,
+            1 hours
+        );
+
+        // Verify that the initialization was successful
+        assertEq(newAccountingModule.baseAsset(), address(mockErc20), "Base asset should be set correctly");
+        assertEq(
+            address(newAccountingModule.accountingToken()),
+            address(accountingToken),
+            "Accounting token should be set correctly"
+        );
+        assertEq(newAccountingModule.targetApy(), TARGET_APY, "Target APY should be set correctly");
+        assertEq(newAccountingModule.lowerBound(), LOWER_BOUND, "Lower bound should be set correctly");
+        assertEq(newAccountingModule.cooldownSeconds(), 1 hours, "Cooldown seconds should be set correctly");
+        assertEq(newAccountingModule.safe(), SAFE, "Safe address should be set correctly");
+    }
+
+    function test_initialize_revertIfZeroAddressAccountingToken() public {
+        // Deploy a new AccountingModule implementation
+        AccountingModule accountingModuleImpl = new AccountingModule();
+
+        // Deploy a new TransparentUpgradeableProxy with the AccountingModule implementation
+        TransparentUpgradeableProxy accountingModule_tu =
+            new TransparentUpgradeableProxy(address(accountingModuleImpl), ADMIN, "");
+
+        // Cast the proxy to the AccountingModule interface
+        AccountingModule newAccountingModule = AccountingModule(payable(address(accountingModule_tu)));
+
+        // Expect revert due to zero address for accounting token
+        vm.expectRevert(IAccountingModule.ZeroAddress.selector);
+
+        // Attempt to initialize with zero address for accounting token
+        newAccountingModule.initialize(
+            address(mockStrategy),
+            ADMIN,
+            SAFE,
+            IAccountingToken(address(0)), // Zero address for accounting token
+            TARGET_APY,
+            LOWER_BOUND,
+            1e18,
+            1 hours
+        );
+    }
+
+    function test_initialize_revertIfZeroAddressStrategy() public {
+        // Deploy a new AccountingModule implementation
+        AccountingModule accountingModuleImpl = new AccountingModule();
+
+        // Deploy a new TransparentUpgradeableProxy with the AccountingModule implementation
+        TransparentUpgradeableProxy accountingModule_tu =
+            new TransparentUpgradeableProxy(address(accountingModuleImpl), ADMIN, "");
+
+        // Cast the proxy to the AccountingModule interface
+        AccountingModule newAccountingModule = AccountingModule(payable(address(accountingModule_tu)));
+
+        // Expect revert due to zero address for strategy
+        vm.expectRevert(IAccountingModule.ZeroAddress.selector);
+
+        // Attempt to initialize with zero address for strategy
+        newAccountingModule.initialize(
+            address(0), // Zero address for strategy
+            ADMIN,
+            SAFE,
+            IAccountingToken(address(accountingToken)),
+            TARGET_APY,
+            LOWER_BOUND,
+            1e18,
+            1 hours
+        );
+    }
+
+    function test_initialize_revertIfZeroAddressSafe() public {
+        // Deploy a new AccountingModule implementation
+        AccountingModule accountingModuleImpl = new AccountingModule();
+
+        // Deploy a new TransparentUpgradeableProxy with the AccountingModule implementation
+        TransparentUpgradeableProxy accountingModule_tu =
+            new TransparentUpgradeableProxy(address(accountingModuleImpl), ADMIN, "");
+
+        // Cast the proxy to the AccountingModule interface
+        AccountingModule newAccountingModule = AccountingModule(payable(address(accountingModule_tu)));
+
+        // Expect revert due to zero address for safe
+        vm.expectRevert(IAccountingModule.ZeroAddress.selector);
+
+        // Attempt to initialize with zero address for safe
+        newAccountingModule.initialize(
+            address(mockStrategy),
+            ADMIN,
+            address(0), // Zero address for safe
+            IAccountingToken(address(accountingToken)),
+            TARGET_APY,
+            LOWER_BOUND,
+            1e18,
+            1 hours
+        );
+    }
+
+    function test_initialize_revertIfZeroAddressAdmin() public {
+        // Deploy a new AccountingModule implementation
+        AccountingModule accountingModuleImpl = new AccountingModule();
+
+        // Deploy a new TransparentUpgradeableProxy with the AccountingModule implementation
+        TransparentUpgradeableProxy accountingModule_tu =
+            new TransparentUpgradeableProxy(address(accountingModuleImpl), ADMIN, "");
+
+        // Cast the proxy to the AccountingModule interface
+        AccountingModule newAccountingModule = AccountingModule(payable(address(accountingModule_tu)));
+
+        // Expect revert due to zero address for admin
+        vm.expectRevert(IAccountingModule.ZeroAddress.selector);
+
+        // Attempt to initialize with zero address for admin
+        newAccountingModule.initialize(
+            address(mockStrategy),
+            address(0), // Zero address for admin
+            SAFE,
+            IAccountingToken(address(accountingToken)),
+            TARGET_APY,
+            LOWER_BOUND,
+            1e18,
+            1 hours
+        );
+    }
+
+    function test_initialize_revertIfTargetApyExceedsLimit() public {
+        // Deploy a new AccountingModule implementation
+        AccountingModule accountingModuleImpl = new AccountingModule();
+
+        // Deploy a new TransparentUpgradeableProxy with the AccountingModule implementation
+        TransparentUpgradeableProxy accountingModule_tu =
+            new TransparentUpgradeableProxy(address(accountingModuleImpl), ADMIN, "");
+
+        // Cast the proxy to the AccountingModule interface
+        AccountingModule newAccountingModule = AccountingModule(payable(address(accountingModule_tu)));
+        uint256 excessiveTargetApy = 11 * accountingModuleImpl.DIVISOR();
+
+        // Expect revert due to target APY exceeding limit
+        vm.expectRevert(IAccountingModule.InvariantViolation.selector);
+
+        // Attempt to initialize with target APY exceeding limit
+        newAccountingModule.initialize(
+            address(mockStrategy),
+            ADMIN,
+            SAFE,
+            IAccountingToken(address(accountingToken)),
+            excessiveTargetApy, // Exceeds 10 * DIVISOR limit
+            LOWER_BOUND,
+            1e18,
+            1 hours
+        );
+    }
+
+    function test_initialize_revertIfLowerBoundExceedsLimit() public {
+        // Deploy a new AccountingModule implementation
+        AccountingModule accountingModuleImpl = new AccountingModule();
+
+        // Deploy a new TransparentUpgradeableProxy with the AccountingModule implementation
+        TransparentUpgradeableProxy accountingModule_tu =
+            new TransparentUpgradeableProxy(address(accountingModuleImpl), ADMIN, "");
+
+        // Cast the proxy to the AccountingModule interface
+        AccountingModule newAccountingModule = AccountingModule(payable(address(accountingModule_tu)));
+        uint256 maxLowerBound = accountingModuleImpl.MAX_LOWER_BOUND();
+
+        // Expect revert due to lower bound exceeding limit
+        vm.expectRevert(abi.encodeWithSelector(IAccountingModule.InvariantViolation.selector));
+
+        // Attempt to initialize with lower bound exceeding limit
+        newAccountingModule.initialize(
+            address(mockStrategy),
+            ADMIN,
+            SAFE,
+            IAccountingToken(address(accountingToken)),
+            TARGET_APY,
+            maxLowerBound + 1, // Exceeds MAX_LOWER_BOUND
+            1e18,
+            1 hours
+        );
     }
 
     function test_deposit_revertIfNotStrategy() public {
@@ -387,7 +587,7 @@ contract AccountingModuleTest is Test {
         accountingModule.setTargetApy(5000);
     }
 
-    function test_setTargetApy_revertIfExceedDivisor() public {
+    function test_setTargetApy_revertIfExceed10xDivisor() public {
         vm.startPrank(ADMIN);
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), SAFE_MANAGER);
         vm.startPrank(SAFE_MANAGER);
@@ -395,7 +595,7 @@ contract AccountingModuleTest is Test {
         accountingModule.setTargetApy(1e4);
 
         vm.expectRevert(IAccountingModule.InvariantViolation.selector);
-        accountingModule.setTargetApy(1e18 + 1);
+        accountingModule.setTargetApy(1e19 + 1);
     }
 
     function test_setTargetApy_success() public {

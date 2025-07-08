@@ -350,6 +350,51 @@ contract RewardsIntegrationTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
+    function test_processRewards_revertIfAprTooHigh_with_two_snapshots() public {
+        // Assume initial setup and deposits have been made
+        uint256 depositAmount = 1e18;
+
+        // Setup initial state
+        {
+            IERC20 baseAsset = IERC20(strategy.asset());
+
+            // Give Alice tokens and deposit
+            deal(address(baseAsset), alice, depositAmount);
+            vm.startPrank(alice);
+            baseAsset.approve(address(strategy), depositAmount);
+            strategy.deposit(depositAmount, alice);
+            vm.stopPrank();
+        }
+
+        uint256 timeInterval = 1 days;
+
+        vm.warp(block.timestamp + timeInterval);
+
+        uint256 dailyRewardAmount =
+            (depositAmount * accountingModule.targetApy() * timeInterval) / (accountingModule.DIVISOR() * 365.5 days);
+
+        uint256 firstSnapshotIndex = accountingModule.snapshotsLength() - 1;
+
+        vm.startPrank(accountingModule.safe());
+        accountingModule.processRewards(dailyRewardAmount);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + timeInterval);
+
+        // increase daily allotment by 1%
+        vm.startPrank(accountingModule.safe());
+        vm.expectRevert();
+        accountingModule.processRewards(dailyRewardAmount + dailyRewardAmount / 100, firstSnapshotIndex);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + timeInterval);
+
+        // stay wtihin bounds
+        vm.expectRevert();
+        accountingModule.processRewards(dailyRewardAmount, firstSnapshotIndex);
+        vm.stopPrank();
+    }
+
     function test_processRewards_WithUpdatedTargetApy() public {
         // Assume initial setup and deposits have been made
         uint256 depositAmount = 1e18;

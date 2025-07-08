@@ -72,13 +72,13 @@ contract FlexStrategyTest is Test {
         bytes memory am_initData = abi.encodeWithSelector(
             AccountingModule.initialize.selector,
             address(flexStrategy),
-            address(mockErc20),
             ADMIN,
             SAFE,
             address(accountingToken),
             TARGET_APY,
             LOWER_BOUND,
-            1e18
+            1e18,
+            1 hours
         );
         AccountingModule am_impl = new AccountingModule();
         TransparentUpgradeableProxy am_tu = new TransparentUpgradeableProxy(address(am_impl), ADMIN, am_initData);
@@ -614,21 +614,6 @@ contract FlexStrategyTest is Test {
         flexStrategy.deposit(deposit, ALLOCATOR);
         vm.expectRevert(abi.encodeWithSelector(IVault.ExceededMaxWithdraw.selector, ALLOCATOR, deposit, 0));
         flexStrategy.withdraw(deposit, ALLOCATOR, ALLOCATOR);
-    }
-
-    function testFuzz_withdraw_revertIfInvariantViolation(uint128 deposit) public {
-        vm.startPrank(ALLOCATOR);
-        flexStrategy.deposit(deposit, ALLOCATOR);
-
-        address otherAccount = address(0x034ef);
-
-        // break invariant by minting some accountingTokens to strategy
-        vm.startPrank(address(accountingModule));
-        accountingToken.mintTo(otherAccount, 1e18);
-
-        vm.startPrank(ALLOCATOR);
-        vm.expectRevert(IFlexStrategy.InvariantViolation.selector);
-        flexStrategy.withdraw(deposit, WITHDRAW_RECEIVER, ALLOCATOR);
     }
 
     function testFuzz_withdraw_whenFundsAreInSafe_success(uint128 deposit) public {

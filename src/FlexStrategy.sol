@@ -98,17 +98,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         _;
     }
 
-    modifier checkInvariantsAfter() {
-        _;
-
-        IERC20 asset = IERC20(asset());
-
-        IERC20 accountingToken = IERC20(_getFlexStrategyStorage().accountingModule.accountingToken());
-        if (accountingToken.totalSupply() != accountingToken.balanceOf(address(this))) {
-            revert InvariantViolation();
-        }
-    }
-
     /**
      * @notice Internal function to handle deposits.
      * @param asset_ The address of the asset.
@@ -130,7 +119,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         virtual
         override
         hasAccountingModule
-        checkInvariantsAfter
     {
         // call the base strategy deposit function for accounting
         super._deposit(asset_, caller, receiver, assets, shares, baseAssets);
@@ -161,7 +149,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         override
         hasAccountingModule
         onlyAllocator
-        checkInvariantsAfter
     {
         if (asset_ != asset()) {
             revert InvalidAsset(asset_);
@@ -215,8 +202,9 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      *      It returns the balance of the asset in the associated SAFE.
      */
     function _availableAssets(address asset_) internal view virtual override returns (uint256 availableAssets) {
-        if (asset_ == asset()) {
-            return IERC20(asset()).balanceOf(_getFlexStrategyStorage().accountingModule.safe());
+        address baseAsset = asset();
+        if (asset_ == baseAsset) {
+            return IERC20(baseAsset).balanceOf(_getFlexStrategyStorage().accountingModule.safe());
         }
 
         return super._availableAssets(asset_);
@@ -227,7 +215,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @dev This function iterates through the list of assets, gets their balances and rates,
      *      and updates the total assets denominated in the base asset.
      */
-    function processAccounting() public virtual override nonReentrant checkInvariantsAfter {
+    function processAccounting() public virtual override nonReentrant {
         _processAccounting();
     }
 
