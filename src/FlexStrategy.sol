@@ -211,15 +211,6 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     }
 
     /**
-     * @notice Processes the accounting of the vault by calculating the total base balance.
-     * @dev This function iterates through the list of assets, gets their balances and rates,
-     *      and updates the total assets denominated in the base asset.
-     */
-    function processAccounting() public virtual override nonReentrant {
-        _processAccounting();
-    }
-
-    /**
      * @notice Returns the fee on total amount.
      * @return 0 as this strategy does not charge any fee on total amount.
      */
