@@ -79,5 +79,95 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
         );
 
         vm.stopPrank();
+
+        // Test moving money from SAFE to a random receiver
+        address randomReceiver = address(0x123456789);
+        uint256 safeBalanceBeforeTransfer = usdc.balanceOf(deployment.safe());
+        uint256 totalAssetsBeforeTransfer = strategy.totalAssets();
+
+        // Move money from SAFE to random receiver
+        vm.startPrank(deployment.safe());
+        usdc.transfer(randomReceiver, safeBalanceBeforeTransfer);
+        vm.stopPrank();
+
+        // Verify the transfer was successful
+        assertEq(usdc.balanceOf(deployment.safe()), 0, "SAFE should have zero USDC balance after transfer");
+        assertEq(
+            usdc.balanceOf(randomReceiver),
+            safeBalanceBeforeTransfer,
+            "Random receiver should have received all USDC from SAFE"
+        );
+
+        strategy.processAccounting();
+
+        // Assert totalAssets is still the same
+        uint256 totalAssetsAfterTransfer = strategy.totalAssets();
+        assertEq(
+            totalAssetsAfterTransfer,
+            totalAssetsBeforeTransfer,
+            "Total assets should remain the same after transfer from SAFE"
+        );
+    }
+
+    function test_deposit_and_withdraw_roundtrip(uint8 i) public {
+        i = uint8(bound(i, 0, strategies.length - 1));
+
+        FlexStrategy strategy = strategies[i];
+        DeployFlexStrategy deployment = deployments[i];
+        IERC20 usdc = IERC20(strategy.asset());
+
+        // Grant DEPOSITOR the ALLOCATOR_ROLE
+        vm.startPrank(deployment.actors().ADMIN());
+        FlexStrategy(payable(address(strategy))).grantRole(
+            FlexStrategy(payable(address(strategy))).ALLOCATOR_ROLE(), DEPOSITOR
+        );
+        vm.stopPrank();
+
+        // 1 million USDC (6 decimals)
+        uint256 depositAmount = 1_000_000 * 1e6;
+
+        // Deal USDC to depositor
+        deal(address(usdc), DEPOSITOR, depositAmount);
+
+        // Switch to depositor for the deposit
+        vm.startPrank(DEPOSITOR);
+
+        // Approve strategy to spend USDC
+        usdc.approve(address(strategy), depositAmount);
+
+        // Get totalAssets before deposit
+        uint256 totalAssetsBefore = strategy.totalAssets();
+
+        // Perform deposit
+        uint256 shares = strategy.deposit(depositAmount, DEPOSITOR);
+
+        // Perform withdrawal of the same amount
+        strategy.withdraw(depositAmount, DEPOSITOR, DEPOSITOR);
+
+        vm.stopPrank();
+
+        strategy.processAccounting();
+
+        // Get totalAssets after withdrawal
+        uint256 totalAssetsAfter = strategy.totalAssets();
+
+        // Assert that totalAssets before and after are the same
+        assertEq(
+            totalAssetsAfter,
+            totalAssetsBefore,
+            "Total assets should be the same before and after deposit/withdrawal roundtrip"
+        );
+
+        // Assert that the depositor's share balance is now zero
+        uint256 depositorSharesAfter = strategy.balanceOf(DEPOSITOR);
+        assertEq(depositorSharesAfter, 0, "Depositor should have zero shares after withdrawal");
+
+        // Assert that the depositor's USDC balance is back to the original amount
+        uint256 depositorUsdcAfter = usdc.balanceOf(DEPOSITOR);
+        assertEq(depositorUsdcAfter, depositAmount, "Depositor should have received back exactly the same USDC amount");
+
+        // Assert that total supply decreased by exactly the shares that were burned
+        uint256 totalSupplyAfter = strategy.totalSupply();
+        assertEq(totalSupplyAfter, 0, "Total supply should be zero after complete withdrawal");
     }
 }

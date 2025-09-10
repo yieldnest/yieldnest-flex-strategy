@@ -98,5 +98,9 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
         // Test constants
         assertEq(accountingModule.YEAR(), 365.25 days, "YEAR constant should be 365.25 days");
         assertEq(accountingModule.DIVISOR(), 1e18, "DIVISOR constant should be 10000");
+
+        // Test lower bound
+        uint256 lowerBound = accountingModule.lowerBound();
+        assertEq(lowerBound, 0.0001 ether, "Lower bound should be 0.01%");
     }
 }
