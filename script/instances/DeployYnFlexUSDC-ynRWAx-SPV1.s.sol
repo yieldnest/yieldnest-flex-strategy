@@ -23,7 +23,7 @@ contract DeployYnFlexUSDCynRWAxSPV1 is DeployFlexStrategy {
                 decimals: 6, // 6 decimals for USDC
                 paused: true,
                 targetApy: 0.15 ether, // max 15% rewards per year
-                lowerBound: 0.0001 ether, // no use of marking losses
+                lowerBound: 0.0001 ether, // Ability to mark 0.01% of TVL as losses
                 minRewardableAssets: 1000e6, // min 1000 USDC
                 accountingProcessor: YNRWAX_PROCESSOR,
                 baseAsset: IVault(YNRWAX).asset(),

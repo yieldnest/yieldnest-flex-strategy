@@ -33,8 +33,8 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
         }
     }
 
-    function test_Vault_Upgrade_Implementation_Set_Correctly() public {
-        uint256 i = 0;
+    function test_Vault_Upgrade_Implementation_Set_Correctly(uint8 i) public {
+        i = uint8(bound(i, 0, strategies.length - 1));
         IVault vault = IVault(address(strategies[i]));
         FlexStrategy implementation =
             upgradeStrategy(vault, address(deployments[i].timelock()), deployments[i].actors().ADMIN());
