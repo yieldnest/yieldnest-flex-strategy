@@ -13,7 +13,7 @@ import { UpgradeUtils } from "script/UpgradeUtils.sol";
 import { MainnetActors } from "@yieldnest-vault-script/Actors.sol";
 import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
 import { RolesVerification } from "script/verification/RolesVerification.sol";
-import { DeployYnFlexUSDCynRWAxSPV1 } from "script/instances/DeployynFlexUSDC-ynRWAx-SPV1.s.sol";
+import { DeployYnFlexUSDCynRWAxSPV1 } from "script/instances/DeployYnFlexUSDCynRWAxSPV1.s.sol";
 
 contract BaseMainnetTest is Test {
     DeployYnFlexUSDCynRWAxSPV1 public spv1Deployment;
@@ -34,7 +34,6 @@ contract BaseMainnetTest is Test {
             FlexStrategy strategy = FlexStrategy(spv1Deployment.strategy());
             strategies.push(strategy);
             IAccountingModule accountingModule = strategy.accountingModule();
-            IAccountingToken accountingToken = accountingModule.accountingToken();
 
             // Give safe permissions
             vm.startPrank(accountingModule.safe());

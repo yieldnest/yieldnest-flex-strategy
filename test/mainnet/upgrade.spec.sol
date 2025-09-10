@@ -35,11 +35,52 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
 
     function test_Vault_Upgrade_Implementation_Set_Correctly(uint8 i) public {
         i = uint8(bound(i, 0, strategies.length - 1));
+
         IVault vault = IVault(address(strategies[i]));
         FlexStrategy implementation =
             upgradeStrategy(vault, address(deployments[i].timelock()), deployments[i].actors().ADMIN());
         // Verify the vault implementation was upgraded correctly
         address currentVaultImpl = ProxyUtils.getImplementation(address(vault));
         assertEq(currentVaultImpl, address(implementation), "Vault implementation not set correctly");
+    }
+
+    function test_Vault_Upgrade_totalAssets_unchanged(uint8 i, bool processAccountingBeforeCheck) public {
+        i = uint8(bound(i, 0, strategies.length - 1));
+
+        IVault vault = IVault(address(strategies[i]));
+
+        if (processAccountingBeforeCheck) {
+            vault.processAccounting();
+        }
+
+        // Get totalAssets before upgrade
+        uint256 totalAssetsBefore = vault.totalAssets();
+        uint256 totalSupplyBefore = vault.totalSupply();
+
+        // Perform the upgrade
+        upgradeStrategy(vault, address(deployments[i].timelock()), deployments[i].actors().ADMIN());
+
+        if (processAccountingBeforeCheck) {
+            vault.processAccounting();
+        }
+
+        // Get totalAssets after upgrade
+        uint256 totalAssetsAfter = vault.totalAssets();
+        uint256 totalSupplyAfter = vault.totalSupply();
+
+        // Assert that totalAssets after upgrade is greater than or equal to totalAssets before upgrade
+        assertGe(
+            totalAssetsAfter,
+            totalAssetsBefore,
+            "Total assets after upgrade should be greater than or equal to total assets before upgrade"
+        );
+
+        // Increase due to sfrxETH and potentially other assets that accumulate rewards in a streaming fashion
+        assertApproxEqRel(
+            totalAssetsAfter, totalAssetsBefore, 1e16, "Total assets should be equal within 1e16 (1%) relative error"
+        );
+
+        // Assert that totalSupply remains unchanged after the upgrade
+        assertEq(totalSupplyAfter, totalSupplyBefore, "Total supply should remain unchanged after upgrade");
     }
 }
