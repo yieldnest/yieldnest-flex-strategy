@@ -28,7 +28,6 @@ contract MainnetVerificationTest is BaseMainnetTest {
     function test_usdc_ynrwax_spv1_Verification() public {
         VerifyFlexStrategy verifyFlexStrategy = new VerifyFlexStrategy();
         verifyFlexStrategy.setEnv(BaseScript.Env.TEST);
-        verifyFlexStrategy.setSymbol("ynFlex-USDC-ynRWAx-SPV1");
 
         verifyFlexStrategy.setDeploymentParameters(
             BaseScript.DeploymentParameters({

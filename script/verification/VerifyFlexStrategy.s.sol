@@ -10,10 +10,6 @@ import { RolesVerification } from "./RolesVerification.sol";
 
 // forge script VerifyFlexStrategy --rpc-url <MAINNET_RPC_URL>
 contract VerifyFlexStrategy is BaseScript, Test {
-    function setSymbol(string memory symbol) public {
-        symbol_ = symbol;
-    }
-
     function symbol() public view override returns (string memory) {
         return symbol_;
     }
@@ -35,7 +31,11 @@ contract VerifyFlexStrategy is BaseScript, Test {
         assertEq(accountingModule.targetApy(), targetApy, "targetApy is not set");
         assertEq(accountingModule.lowerBound(), lowerBound, "lowerBound is not set");
         RolesVerification.verifyRole(
-            accountingModule, safe, accountingModule.REWARDS_PROCESSOR_ROLE(), true, "safe has rewards processor role"
+            accountingModule,
+            accountingProcessor,
+            accountingModule.REWARDS_PROCESSOR_ROLE(),
+            true,
+            "safe has rewards processor role"
         );
 
         RolesVerification.verifyRole(

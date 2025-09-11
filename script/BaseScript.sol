@@ -148,7 +148,6 @@ abstract contract BaseScript is Script {
         rateProvider = IProvider(payable(address(vm.parseJsonAddress(jsonInput, ".rateProvider"))));
         safe = vm.parseJsonAddress(jsonInput, ".safe");
         allocator = vm.parseJsonAddress(jsonInput, ".allocator");
-        baseAsset = vm.parseJsonAddress(jsonInput, ".baseAsset");
 
         strategy =
             FlexStrategy(payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-proxy")))));
