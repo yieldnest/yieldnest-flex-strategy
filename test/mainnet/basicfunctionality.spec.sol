@@ -11,6 +11,7 @@ import { BaseMainnetTest } from "test/mainnet/BaseMainnetTest.sol";
 import { UpgradeUtils } from "script/UpgradeUtils.sol";
 import { DeployFlexStrategy } from "script/DeployFlexStrategy.s.sol";
 import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 contract VaultMainnetUpgradeTest is BaseMainnetTest {
     address public constant DEPOSITOR = address(0x1234567890123456789012345678901234567890);
@@ -114,7 +115,7 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
 
         FlexStrategy strategy = strategies[i];
         DeployFlexStrategy deployment = deployments[i];
-        IERC20 usdc = IERC20(strategy.asset());
+        IERC20 asset = IERC20(strategy.asset());
 
         // Grant DEPOSITOR the ALLOCATOR_ROLE
         vm.startPrank(deployment.actors().ADMIN());
@@ -123,17 +124,17 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
         );
         vm.stopPrank();
 
-        // 1 million USDC (6 decimals)
-        uint256 depositAmount = 1_000_000 * 1e6;
+        // 1 million of the asset (assuming 6 decimals, but this will work for any decimals)
+        uint256 depositAmount = 1_000_000 * 10 ** IERC20Metadata(address(asset)).decimals();
 
-        // Deal USDC to depositor
-        deal(address(usdc), DEPOSITOR, depositAmount);
+        // Deal asset to depositor
+        deal(address(asset), DEPOSITOR, depositAmount);
 
         // Switch to depositor for the deposit
         vm.startPrank(DEPOSITOR);
 
-        // Approve strategy to spend USDC
-        usdc.approve(address(strategy), depositAmount);
+        // Approve strategy to spend asset
+        asset.approve(address(strategy), depositAmount);
 
         // Get totalAssets before deposit
         uint256 totalAssetsBefore = strategy.totalAssets();
@@ -162,9 +163,11 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
         uint256 depositorSharesAfter = strategy.balanceOf(DEPOSITOR);
         assertEq(depositorSharesAfter, 0, "Depositor should have zero shares after withdrawal");
 
-        // Assert that the depositor's USDC balance is back to the original amount
-        uint256 depositorUsdcAfter = usdc.balanceOf(DEPOSITOR);
-        assertEq(depositorUsdcAfter, depositAmount, "Depositor should have received back exactly the same USDC amount");
+        // Assert that the depositor's asset balance is back to the original amount
+        uint256 depositorAssetAfter = asset.balanceOf(DEPOSITOR);
+        assertEq(
+            depositorAssetAfter, depositAmount, "Depositor should have received back exactly the same asset amount"
+        );
 
         // Assert that total supply decreased by exactly the shares that were burned
         uint256 totalSupplyAfter = strategy.totalSupply();
