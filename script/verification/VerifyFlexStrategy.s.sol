@@ -10,8 +10,12 @@ import { RolesVerification } from "./RolesVerification.sol";
 
 // forge script VerifyFlexStrategy --rpc-url <MAINNET_RPC_URL>
 contract VerifyFlexStrategy is BaseScript, Test {
-    function symbol() public pure override returns (string memory) {
-        return "ynFlexEth";
+    function setSymbol(string memory symbol) public {
+        symbol_ = symbol;
+    }
+
+    function symbol() public view override returns (string memory) {
+        return symbol_;
     }
 
     function run() public {
@@ -22,14 +26,14 @@ contract VerifyFlexStrategy is BaseScript, Test {
     }
 
     function _verifyDeploymentParams() internal view virtual {
-        assertEq(strategy.name(), "YieldNest Flex Strategy", "name is invalid");
-        assertEq(strategy.symbol(), "ynFlexEth", "symbol is invalid");
-        assertEq(strategy.decimals(), 18, "decimals is invalid");
+        assertEq(strategy.name(), name, "name is invalid");
+        assertEq(strategy.symbol(), symbol_, "symbol is invalid");
+        assertEq(strategy.decimals(), decimals, "decimals is invalid");
         RolesVerification.verifyRole(
-            strategy, allocator, strategy.ALLOCATOR_ROLE(), true, "parent vault has allocator role"
+            strategy, allocator, strategy.ALLOCATOR_ROLE(), true, "allocator has allocator role"
         );
-        assertEq(accountingModule.targetApy(), 0.1 ether, "targetApy is not set");
-        assertEq(accountingModule.lowerBound(), 0.1 ether, "lowerBound is not set");
+        assertEq(accountingModule.targetApy(), targetApy, "targetApy is not set");
+        assertEq(accountingModule.lowerBound(), lowerBound, "lowerBound is not set");
         RolesVerification.verifyRole(
             accountingModule, safe, accountingModule.REWARDS_PROCESSOR_ROLE(), true, "safe has rewards processor role"
         );
