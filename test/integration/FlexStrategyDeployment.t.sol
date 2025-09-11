@@ -14,11 +14,14 @@ import { MainnetActors } from "@yieldnest-vault-script/Actors.sol";
 import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
 import { RolesVerification } from "script/verification/RolesVerification.sol";
 import { BaseIntegrationTest } from "./BaseIntegrationTest.sol";
+import { IContracts, L1Contracts } from "@yieldnest-vault-script/Contracts.sol";
 
 contract FlexStrategyDeployment is BaseIntegrationTest {
     function test_verify_setup() public {
         VerifyFlexStrategy verify = new VerifyFlexStrategy();
         verify.setEnv(BaseScript.Env.TEST);
+
+        IContracts contracts = IContracts(new L1Contracts());
 
         verify.setDeploymentParameters(
             BaseScript.DeploymentParameters({
@@ -32,8 +35,8 @@ contract FlexStrategyDeployment is BaseIntegrationTest {
                 lowerBound: 0.1 ether, // max loss: 10% of tvl
                 minRewardableAssets: 1e18,
                 accountingProcessor: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
-                baseAsset: IVault(deployment.contracts().YNETHX()).asset(),
-                allocator: deployment.contracts().YNETHX(),
+                baseAsset: IVault(contracts.YNETHX()).asset(),
+                allocator: contracts.YNETHX(),
                 safe: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
                 alwaysComputeTotalAssets: true
             })

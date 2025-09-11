@@ -103,26 +103,10 @@ contract DeployFlexStrategy is BaseScript {
     }
 
     function assignDeploymentParameters() internal virtual {
-        if (decimals > 0) {
-            console.log("Already configured. skipping default settings.");
-            return;
+        if (decimals == 0) {
+            revert("Not pre-configured");
         }
-
-        name = "YieldNest Flex Strategy";
-        symbol_ = "ynFlexEth";
-        accountTokenName = "YieldNest Flex Strategy IOU";
-        accountTokenSymbol = "ynFlex_iou";
-        decimals = 18;
-        paused = true;
-        allocator = contracts.YNETHX();
         baseAsset = IVault(allocator).asset();
-
-        targetApy = 0.1 ether; // max rewards per year: 10% of tvl
-        lowerBound = 0.1 ether; // max loss: 10% of tvl
-        safe = 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64;
-        accountingProcessor = safe;
-        minRewardableAssets = 1e18;
-        alwaysComputeTotalAssets = true;
     }
 
     function _verifyDeploymentParams() internal view virtual {
