@@ -12,6 +12,7 @@ import { UpgradeUtils } from "script/UpgradeUtils.sol";
 import { DeployFlexStrategy } from "script/DeployFlexStrategy.s.sol";
 import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
 import { IAccountingModule } from "src/AccountingModule.sol";
+import { FlexStrategy } from "src/FlexStrategy.sol";
 
 contract VaultMainnetUpgradeTest is BaseMainnetTest {
     function setUp() public override {
@@ -43,6 +44,9 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
             );
         }
 
+        // Test that the strategy is paused
+        assertFalse(FlexStrategy(payable(address(strategy))).paused(), "Strategy should not be paused");
+
         {
             // Test max functions
             uint256 maxDeposit = strategy.maxDeposit(address(this));
@@ -70,6 +74,8 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
             assertApproxEqAbs(
                 convertToAssets, testAmount, 1, "Convert to assets should be approximately equal to original amount"
             );
+
+            assertGe(convertToAssets, 1e6, "Convert to assets should return a value greater than 1e6");
         }
 
         // Get AccountingModule from deployment
@@ -91,7 +97,7 @@ contract VaultMainnetUpgradeTest is BaseMainnetTest {
         uint256 snapshotsLength = accountingModule.snapshotsLength();
         if (snapshotsLength > 0) {
             IAccountingModule.StrategySnapshot memory latestSnapshot = accountingModule.snapshots(snapshotsLength - 1);
-            assertGt(latestSnapshot.pricePerShare, 0, "Latest snapshot price per share should be greater than 0");
+            assertGe(latestSnapshot.pricePerShare, 1e6, "Latest snapshot price per share should be greater than 0");
             assertGt(latestSnapshot.timestamp, 0, "Latest snapshot timestamp should be greater than 0");
         }
 
