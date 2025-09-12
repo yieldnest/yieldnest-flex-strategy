@@ -14,11 +14,33 @@ import { MainnetActors } from "@yieldnest-vault-script/Actors.sol";
 import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
 import { RolesVerification } from "script/verification/RolesVerification.sol";
 import { BaseIntegrationTest } from "./BaseIntegrationTest.sol";
+import { IContracts, L1Contracts } from "@yieldnest-vault-script/Contracts.sol";
 
 contract FlexStrategyDeployment is BaseIntegrationTest {
     function test_verify_setup() public {
         VerifyFlexStrategy verify = new VerifyFlexStrategy();
         verify.setEnv(BaseScript.Env.TEST);
+
+        IContracts contracts = IContracts(new L1Contracts());
+
+        verify.setDeploymentParameters(
+            BaseScript.DeploymentParameters({
+                name: "YieldNest Flex Strategy",
+                symbol_: "ynFlexEth",
+                accountTokenName: "YieldNest Flex Strategy IOU",
+                accountTokenSymbol: "ynFlex_iou",
+                decimals: 18,
+                paused: true,
+                targetApy: 0.1 ether, // max rewards per year: 10% of tvl
+                lowerBound: 0.1 ether, // max loss: 10% of tvl
+                minRewardableAssets: 1e18,
+                accountingProcessor: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
+                baseAsset: IVault(contracts.YNETHX()).asset(),
+                allocator: contracts.YNETHX(),
+                safe: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
+                alwaysComputeTotalAssets: true
+            })
+        );
         verify.run();
     }
 
