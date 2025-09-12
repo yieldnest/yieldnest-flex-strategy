@@ -11,6 +11,7 @@ import { IContracts, L1Contracts } from "@yieldnest-vault-script/Contracts.sol";
 import { FlexStrategy } from "src/FlexStrategy.sol";
 import { AccountingModule } from "src/AccountingModule.sol";
 import { AccountingToken } from "src/AccountingToken.sol";
+import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
 
 abstract contract BaseScript is Script {
     using stdJson for string;
@@ -35,6 +36,7 @@ abstract contract BaseScript is Script {
         address allocator;
         address safe;
         bool alwaysComputeTotalAssets;
+        bool useRewardsSweeper;
     }
 
     function setDeploymentParameters(DeploymentParameters memory params) public {
@@ -52,6 +54,7 @@ abstract contract BaseScript is Script {
         allocator = params.allocator;
         safe = params.safe;
         alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
+        useRewardsSweeper = params.useRewardsSweeper;
     }
 
     Env public deploymentEnv = Env.PROD;
@@ -90,6 +93,11 @@ abstract contract BaseScript is Script {
     AccountingToken public accountingToken;
     AccountingToken public accountingTokenImplementation;
     address public accountingTokenProxyAdmin;
+
+    bool public useRewardsSweeper;
+    RewardsSweeper public rewardsSweeper;
+    RewardsSweeper public rewardsSweeperImplementation;
+    address public rewardsSweeperProxyAdmin;
 
     error UnsupportedChain();
     error InvalidSetup(string);

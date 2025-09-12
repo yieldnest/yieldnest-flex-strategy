@@ -49,7 +49,8 @@ contract BaseIntegrationTest_6Decimals is Test {
                 baseAsset: Contracts.USDC,
                 allocator: mockAllocator,
                 safe: safe,
-                alwaysComputeTotalAssets: true
+                alwaysComputeTotalAssets: true,
+                useRewardsSweeper: false
             })
         );
         deployment.setEnv(BaseScript.Env.TEST);

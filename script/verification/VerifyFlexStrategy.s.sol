@@ -112,6 +112,40 @@ contract VerifyFlexStrategy is BaseScript, Test {
             "bootstrapper has allocator role"
         );
 
+        RolesVerification.verifyRole(
+            accountingToken,
+            deployer,
+            accountingToken.DEFAULT_ADMIN_ROLE(),
+            false,
+            "deployer should not have DEFAULT_ADMIN_ROLE on accountingToken"
+        );
+
+        RolesVerification.verifyRole(
+            accountingModule,
+            deployer,
+            accountingModule.DEFAULT_ADMIN_ROLE(),
+            false,
+            "deployer should not have DEFAULT_ADMIN_ROLE on accountingModule"
+        );
+
+        if (useRewardsSweeper) {
+            RolesVerification.verifyRole(
+                rewardsSweeper,
+                deployer,
+                rewardsSweeper.DEFAULT_ADMIN_ROLE(),
+                false,
+                "deployer should not have DEFAULT_ADMIN_ROLE on rewardsSweeper"
+            );
+
+            RolesVerification.verifyRole(
+                rewardsSweeper,
+                MainnetActors(address(actors)).PROCESSOR(),
+                rewardsSweeper.REWARDS_SWEEPER_ROLE(),
+                true,
+                "deployer should not have REWARDS_SWEEPER_ROLE on rewardsSweeper"
+            );
+        }
+
         assertGe(timelock.getMinDelay(), minDelay, "min delay is invalid");
         assertEq(Ownable(strategyProxyAdmin).owner(), address(timelock), "proxy admin owner is invalid");
     }

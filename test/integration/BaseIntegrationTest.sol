@@ -44,7 +44,8 @@ contract BaseIntegrationTest is Test {
                 baseAsset: IVault(contracts.YNETHX()).asset(),
                 allocator: contracts.YNETHX(),
                 safe: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
-                alwaysComputeTotalAssets: true
+                alwaysComputeTotalAssets: true,
+                useRewardsSweeper: false
             })
         );
         deployment.run();
