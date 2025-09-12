@@ -29,7 +29,8 @@ contract DeployYnFlexUSDCynRWAxSPV1 is DeployFlexStrategy {
                 baseAsset: IVault(YNRWAX).asset(),
                 allocator: YNRWAX,
                 safe: SAFE,
-                alwaysComputeTotalAssets: true
+                alwaysComputeTotalAssets: true,
+                useRewardsSweeper: true
             })
         );
     }

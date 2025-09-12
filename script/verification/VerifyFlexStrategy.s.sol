@@ -7,6 +7,7 @@ import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 import { BaseScript } from "script/BaseScript.sol";
 import { MainnetActors } from "@yieldnest-vault-script/Actors.sol";
 import { RolesVerification } from "./RolesVerification.sol";
+import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
 
 // forge script VerifyFlexStrategy --rpc-url <MAINNET_RPC_URL>
 contract VerifyFlexStrategy is BaseScript, Test {
@@ -46,8 +47,46 @@ contract VerifyFlexStrategy is BaseScript, Test {
         );
     }
 
+    function _verifyAgainstDeployer() internal view virtual {
+        FlexStrategyDeployer deployerContract = FlexStrategyDeployer(deployer);
+        assertEq(deployerContract.name(), name, "deployer name does not match");
+        assertEq(deployerContract.symbol_(), symbol_, "deployer symbol does not match");
+        assertEq(deployerContract.accountTokenName(), accountTokenName, "deployer accountTokenName does not match");
+        assertEq(
+            deployerContract.accountTokenSymbol(), accountTokenSymbol, "deployer accountTokenSymbol does not match"
+        );
+        assertEq(deployerContract.decimals(), decimals, "deployer decimals does not match");
+        assertEq(deployerContract.allocator(), allocator, "deployer allocator does not match");
+        assertEq(deployerContract.baseAsset(), baseAsset, "deployer baseAsset does not match");
+        assertEq(deployerContract.targetApy(), targetApy, "deployer targetApy does not match");
+        assertEq(deployerContract.lowerBound(), lowerBound, "deployer lowerBound does not match");
+        assertEq(deployerContract.safe(), safe, "deployer safe does not match");
+        assertEq(
+            deployerContract.accountingProcessor(), accountingProcessor, "deployer accountingProcessor does not match"
+        );
+        assertEq(
+            deployerContract.minRewardableAssets(), minRewardableAssets, "deployer minRewardableAssets does not match"
+        );
+        assertEq(
+            deployerContract.alwaysComputeTotalAssets(),
+            alwaysComputeTotalAssets,
+            "deployer alwaysComputeTotalAssets does not match"
+        );
+        assertEq(deployerContract.paused(), paused, "deployer paused does not match");
+        assertEq(deployerContract.useRewardsSweeper(), useRewardsSweeper, "deployer useRewardsSweeper does not match");
+    }
+
+    function _verifyProxies() internal view virtual {
+        RolesVerification.verifyProxyRoles(address(strategy), strategyProxyAdmin, address(timelock));
+        RolesVerification.verifyProxyRoles(address(accountingModule), accountingModuleProxyAdmin, address(timelock));
+        RolesVerification.verifyProxyRoles(address(accountingToken), accountingTokenProxyAdmin, address(timelock));
+        RolesVerification.verifyProxyRoles(address(rewardsSweeper), rewardsSweeperProxyAdmin, address(timelock));
+    }
+
     function verify() internal view virtual {
+        _verifyAgainstDeployer();
         _verifyDeploymentParams();
+        _verifyProxies();
 
         assertNotEq(address(strategy), address(0), "strategy is not set");
         assertNotEq(address(strategyImplementation), address(0), "strategy implementation is not set");
@@ -111,6 +150,38 @@ contract VerifyFlexStrategy is BaseScript, Test {
             true,
             "bootstrapper has allocator role"
         );
+
+        if (useRewardsSweeper) {
+            RolesVerification.verifyRole(
+                rewardsSweeper,
+                deployer,
+                rewardsSweeper.DEFAULT_ADMIN_ROLE(),
+                false,
+                "deployer should not have DEFAULT_ADMIN_ROLE on rewardsSweeper"
+            );
+
+            RolesVerification.verifyRole(
+                rewardsSweeper,
+                MainnetActors(address(actors)).PROCESSOR(),
+                rewardsSweeper.REWARDS_SWEEPER_ROLE(),
+                true,
+                "deployer should not have REWARDS_SWEEPER_ROLE on rewardsSweeper"
+            );
+
+            RolesVerification.verifyRole(
+                accountingModule,
+                address(rewardsSweeper),
+                accountingModule.REWARDS_PROCESSOR_ROLE(),
+                true,
+                "rewardsSweeper has rewards processor role"
+            );
+
+            assertEq(
+                address(rewardsSweeper.accountingModule()),
+                address(accountingModule),
+                "rewardsSweeper accountingModule is invalid"
+            );
+        }
 
         assertGe(timelock.getMinDelay(), minDelay, "min delay is invalid");
         assertEq(Ownable(strategyProxyAdmin).owner(), address(timelock), "proxy admin owner is invalid");

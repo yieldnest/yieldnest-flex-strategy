@@ -11,6 +11,7 @@ import { IContracts, L1Contracts } from "@yieldnest-vault-script/Contracts.sol";
 import { FlexStrategy } from "src/FlexStrategy.sol";
 import { AccountingModule } from "src/AccountingModule.sol";
 import { AccountingToken } from "src/AccountingToken.sol";
+import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
 
 abstract contract BaseScript is Script {
     using stdJson for string;
@@ -35,6 +36,7 @@ abstract contract BaseScript is Script {
         address allocator;
         address safe;
         bool alwaysComputeTotalAssets;
+        bool useRewardsSweeper;
     }
 
     function setDeploymentParameters(DeploymentParameters memory params) public {
@@ -52,6 +54,7 @@ abstract contract BaseScript is Script {
         allocator = params.allocator;
         safe = params.safe;
         alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
+        useRewardsSweeper = params.useRewardsSweeper;
     }
 
     Env public deploymentEnv = Env.PROD;
@@ -90,6 +93,11 @@ abstract contract BaseScript is Script {
     AccountingToken public accountingToken;
     AccountingToken public accountingTokenImplementation;
     address public accountingTokenProxyAdmin;
+
+    bool public useRewardsSweeper;
+    RewardsSweeper public rewardsSweeper;
+    RewardsSweeper public rewardsSweeperImplementation;
+    address public rewardsSweeperProxyAdmin;
 
     error UnsupportedChain();
     error InvalidSetup(string);
@@ -179,6 +187,19 @@ abstract contract BaseScript is Script {
         );
         accountingTokenProxyAdmin =
             address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxyAdmin")));
+
+        useRewardsSweeper = vm.parseJsonBool(jsonInput, string.concat(".useRewardsSweeper"));
+
+        if (useRewardsSweeper) {
+            rewardsSweeper = RewardsSweeper(
+                payable(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-rewardsSweeper-proxy")))
+            );
+            rewardsSweeperImplementation = RewardsSweeper(
+                payable(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-rewardsSweeper-implementation")))
+            );
+            rewardsSweeperProxyAdmin =
+                address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-rewardsSweeper-proxyAdmin")));
+        }
     }
 
     function _deploymentFilePath(Env env) internal view virtual returns (string memory) {
@@ -219,6 +240,22 @@ abstract contract BaseScript is Script {
             string.concat(symbol(), "-accountingModule-implementation"),
             address(accountingModuleImplementation)
         );
+
+        vm.serializeBool(symbol(), "useRewardsSweeper", useRewardsSweeper);
+
+        if (useRewardsSweeper) {
+            vm.serializeAddress(symbol(), string.concat(symbol(), "-rewardsSweeper-proxy"), address(rewardsSweeper));
+            vm.serializeAddress(
+                symbol(),
+                string.concat(symbol(), "-rewardsSweeper-proxyAdmin"),
+                ProxyUtils.getProxyAdmin(address(rewardsSweeper))
+            );
+            vm.serializeAddress(
+                symbol(),
+                string.concat(symbol(), "-rewardsSweeper-implementation"),
+                address(rewardsSweeperImplementation)
+            );
+        }
 
         vm.serializeAddress(symbol(), string.concat(symbol(), "-accountingToken-proxy"), address(accountingToken));
         vm.serializeAddress(

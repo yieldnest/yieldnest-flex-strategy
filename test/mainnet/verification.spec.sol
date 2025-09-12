@@ -44,7 +44,8 @@ contract MainnetVerificationTest is BaseMainnetTest {
                 baseAsset: IVault(YNRWAX).asset(),
                 allocator: YNRWAX,
                 safe: SAFE,
-                alwaysComputeTotalAssets: true
+                alwaysComputeTotalAssets: true,
+                useRewardsSweeper: true
             })
         );
         verifyFlexStrategy.run();

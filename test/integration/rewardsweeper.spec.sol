@@ -19,20 +19,12 @@ contract RewardsSweeperTest is BaseIntegrationTest {
     function setUp() public override {
         super.setUp();
 
-        // Deploy rewards sweeper
-        // Deploy RewardsSweeper behind a TransparentUpgradeableProxy
-        RewardsSweeper implementation = new RewardsSweeper();
-        bytes memory data =
-            abi.encodeWithSelector(RewardsSweeper.initialize.selector, address(this), address(accountingModule));
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
-            address(this), // admin
-            data
-        );
-        rewardsSweeper = RewardsSweeper(address(proxy));
+        rewardsSweeper = deployment.rewardsSweeper();
 
         // Grant rewards sweeper role
+        vm.startPrank(deployment.actors().ADMIN());
         rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), REWARDS_SWEEPER);
+        vm.stopPrank();
 
         // Grant rewards processor role to rewards sweeper as ADMIN
         vm.startPrank(deployment.actors().ADMIN());
@@ -51,6 +43,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
     }
 
     function test_setAccountingModule_Admin() public {
+        vm.startPrank(deployment.actors().ADMIN());
         rewardsSweeper.setAccountingModule(address(accountingModule));
         vm.stopPrank();
     }
