@@ -187,6 +187,19 @@ abstract contract BaseScript is Script {
         );
         accountingTokenProxyAdmin =
             address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxyAdmin")));
+
+        useRewardsSweeper = vm.parseJsonBool(jsonInput, string.concat(".useRewardsSweeper"));
+
+        if (useRewardsSweeper) {
+            rewardsSweeper = RewardsSweeper(
+                payable(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-rewardsSweeper-proxy")))
+            );
+            rewardsSweeperImplementation = RewardsSweeper(
+                payable(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-rewardsSweeper-implementation")))
+            );
+            rewardsSweeperProxyAdmin =
+                address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-rewardsSweeper-proxyAdmin")));
+        }
     }
 
     function _deploymentFilePath(Env env) internal view virtual returns (string memory) {

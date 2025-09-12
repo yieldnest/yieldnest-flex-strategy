@@ -18,6 +18,7 @@ import { SafeRules, IVault } from "@yieldnest-vault-script/rules/SafeRules.sol";
 import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
 import { ProxyUtils } from "lib/yieldnest-vault/script/ProxyUtils.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
+import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
 
 // forge script DeployFlexStrategy --rpc-url <MAINNET_RPC_URL>  --slow --broadcast --account
 // <CAST_WALLET_ACCOUNT>  --sender <SENDER_ADDRESS>  --verify --etherscan-api-key <ETHERSCAN_API_KEY>  -vvv
@@ -77,6 +78,9 @@ contract DeployFlexStrategy is BaseScript {
         implementations.flexStrategyImplementation = new FlexStrategy();
         implementations.accountingTokenImplementation = new AccountingToken(baseAsset);
         implementations.accountingModuleImplementation = new AccountingModule();
+        if (useRewardsSweeper) {
+            implementations.rewardsSweeperImplementation = new RewardsSweeper();
+        }
         implementations.timelockController = timelock;
 
         strategyDeployer.deploy(implementations);
@@ -97,6 +101,13 @@ contract DeployFlexStrategy is BaseScript {
             AccountingModule(payable(ProxyUtils.getImplementation(address(accountingModule))));
         accountingToken = strategyDeployer.accountingToken();
         accountingTokenImplementation = AccountingToken(payable(ProxyUtils.getImplementation(address(accountingToken))));
+
+        if (useRewardsSweeper) {
+            rewardsSweeper = strategyDeployer.rewardsSweeper();
+            rewardsSweeperImplementation =
+                RewardsSweeper(payable(ProxyUtils.getImplementation(address(rewardsSweeper))));
+        }
+
         rateProvider = strategyDeployer.rateProvider();
         timelock = strategyDeployer.timelock();
     }
