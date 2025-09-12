@@ -59,7 +59,7 @@ contract BaseIntegrationTest is Test {
                 allocator: contracts.YNETHX(),
                 safe: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
                 alwaysComputeTotalAssets: true,
-                useRewardsSweeper: false
+                useRewardsSweeper: true
             })
         );
     }
