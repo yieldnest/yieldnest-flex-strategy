@@ -28,6 +28,9 @@ contract VerifyFlexStrategy is BaseScript, Test {
         RolesVerification.verifyRole(
             strategy, allocator, strategy.ALLOCATOR_ROLE(), true, "allocator has allocator role"
         );
+        RolesVerification.verifyRole(
+            strategy, actors.BOOTSTRAPPER(), strategy.ALLOCATOR_ROLE(), true, "bootstrapper has allocator role"
+        );
         assertEq(accountingModule.targetApy(), targetApy, "targetApy is not set");
         assertEq(accountingModule.lowerBound(), lowerBound, "lowerBound is not set");
         RolesVerification.verifyRole(
