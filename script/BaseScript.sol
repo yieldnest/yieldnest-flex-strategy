@@ -228,6 +228,22 @@ abstract contract BaseScript is Script {
             address(accountingModuleImplementation)
         );
 
+        vm.serializeBool(symbol(), "useRewardsSweeper", useRewardsSweeper);
+
+        if (useRewardsSweeper) {
+            vm.serializeAddress(symbol(), string.concat(symbol(), "-rewardsSweeper-proxy"), address(rewardsSweeper));
+            vm.serializeAddress(
+                symbol(),
+                string.concat(symbol(), "-rewardsSweeper-proxyAdmin"),
+                ProxyUtils.getProxyAdmin(address(rewardsSweeper))
+            );
+            vm.serializeAddress(
+                symbol(),
+                string.concat(symbol(), "-rewardsSweeper-implementation"),
+                address(rewardsSweeperImplementation)
+            );
+        }
+
         vm.serializeAddress(symbol(), string.concat(symbol(), "-accountingToken-proxy"), address(accountingToken));
         vm.serializeAddress(
             symbol(),

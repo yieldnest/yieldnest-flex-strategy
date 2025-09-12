@@ -7,6 +7,7 @@ import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 import { BaseScript } from "script/BaseScript.sol";
 import { MainnetActors } from "@yieldnest-vault-script/Actors.sol";
 import { RolesVerification } from "./RolesVerification.sol";
+import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
 
 // forge script VerifyFlexStrategy --rpc-url <MAINNET_RPC_URL>
 contract VerifyFlexStrategy is BaseScript, Test {
@@ -46,7 +47,37 @@ contract VerifyFlexStrategy is BaseScript, Test {
         );
     }
 
+    function _verifyAgainstDeployer() internal view virtual {
+        FlexStrategyDeployer deployerContract = FlexStrategyDeployer(deployer);
+        assertEq(deployerContract.name(), name, "deployer name does not match");
+        assertEq(deployerContract.symbol_(), symbol_, "deployer symbol does not match");
+        assertEq(deployerContract.accountTokenName(), accountTokenName, "deployer accountTokenName does not match");
+        assertEq(
+            deployerContract.accountTokenSymbol(), accountTokenSymbol, "deployer accountTokenSymbol does not match"
+        );
+        assertEq(deployerContract.decimals(), decimals, "deployer decimals does not match");
+        assertEq(deployerContract.allocator(), allocator, "deployer allocator does not match");
+        assertEq(deployerContract.baseAsset(), baseAsset, "deployer baseAsset does not match");
+        assertEq(deployerContract.targetApy(), targetApy, "deployer targetApy does not match");
+        assertEq(deployerContract.lowerBound(), lowerBound, "deployer lowerBound does not match");
+        assertEq(deployerContract.safe(), safe, "deployer safe does not match");
+        assertEq(
+            deployerContract.accountingProcessor(), accountingProcessor, "deployer accountingProcessor does not match"
+        );
+        assertEq(
+            deployerContract.minRewardableAssets(), minRewardableAssets, "deployer minRewardableAssets does not match"
+        );
+        assertEq(
+            deployerContract.alwaysComputeTotalAssets(),
+            alwaysComputeTotalAssets,
+            "deployer alwaysComputeTotalAssets does not match"
+        );
+        assertEq(deployerContract.paused(), paused, "deployer paused does not match");
+        assertEq(deployerContract.useRewardsSweeper(), useRewardsSweeper, "deployer useRewardsSweeper does not match");
+    }
+
     function verify() internal view virtual {
+        _verifyAgainstDeployer();
         _verifyDeploymentParams();
 
         assertNotEq(address(strategy), address(0), "strategy is not set");
