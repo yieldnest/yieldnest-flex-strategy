@@ -9,6 +9,8 @@ import { IActors } from "@yieldnest-vault-script/Actors.sol";
 import { FlexStrategy } from "src/FlexStrategy.sol";
 import { AccountingModule } from "src/AccountingModule.sol";
 import { AccountingToken } from "src/AccountingToken.sol";
+import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
+import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 library RolesVerification {
     function verifyRole(
@@ -108,5 +110,17 @@ library RolesVerification {
             false,
             "Deployer has accountingToken.DEFAULT_ADMIN_ROLE"
         );
+    }
+
+    function verifyProxyRoles(address proxy, address proxyAdmin, address proxyAdminOwner) internal view {
+        Vm vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+        bool isProxyAdmin = ProxyUtils.getProxyAdmin(proxy) == proxyAdmin;
+        console.log(isProxyAdmin ? "\u2705" : "\u274C", "Proxy admin is correct:", proxyAdmin);
+        vm.assertTrue(isProxyAdmin, "Proxy admin is not correct");
+
+        bool isProxyAdminOwner = Ownable(ProxyUtils.getProxyAdmin(proxy)).owner() == proxyAdminOwner;
+        console.log(isProxyAdminOwner ? "\u2705" : "\u274C", "Proxy admin owner is correct:", proxyAdminOwner);
+        vm.assertTrue(isProxyAdminOwner, "Proxy admin owner is not correct");
     }
 }

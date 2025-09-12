@@ -76,9 +76,17 @@ contract VerifyFlexStrategy is BaseScript, Test {
         assertEq(deployerContract.useRewardsSweeper(), useRewardsSweeper, "deployer useRewardsSweeper does not match");
     }
 
+    function _verifyProxies() internal view virtual {
+        RolesVerification.verifyProxyRoles(address(strategy), strategyProxyAdmin, address(timelock));
+        RolesVerification.verifyProxyRoles(address(accountingModule), accountingModuleProxyAdmin, address(timelock));
+        RolesVerification.verifyProxyRoles(address(accountingToken), accountingTokenProxyAdmin, address(timelock));
+        RolesVerification.verifyProxyRoles(address(rewardsSweeper), rewardsSweeperProxyAdmin, address(timelock));
+    }
+
     function verify() internal view virtual {
         _verifyAgainstDeployer();
         _verifyDeploymentParams();
+        _verifyProxies();
 
         assertNotEq(address(strategy), address(0), "strategy is not set");
         assertNotEq(address(strategyImplementation), address(0), "strategy implementation is not set");
