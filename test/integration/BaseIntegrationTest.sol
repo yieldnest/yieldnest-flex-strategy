@@ -23,13 +23,27 @@ contract BaseIntegrationTest is Test {
     IAccountingModule public accountingModule;
     IAccountingToken public accountingToken;
 
-    function setUp() public virtual {
+    function deployFlexStrategy(BaseScript.DeploymentParameters memory params) public virtual {
         deployment = new DeployFlexStrategy();
         deployment.setEnv(BaseScript.Env.TEST);
 
+        deployment.setDeploymentParameters(params);
+        deployment.run();
+
+        strategy = FlexStrategy(deployment.strategy());
+        accountingModule = strategy.accountingModule();
+        accountingToken = accountingModule.accountingToken();
+
+        // Give safe permissions
+        vm.startPrank(accountingModule.safe());
+        IERC20(strategy.asset()).approve(address(accountingModule), type(uint256).max);
+        vm.stopPrank();
+    }
+
+    function setUp() public virtual {
         IContracts contracts = IContracts(new L1Contracts());
 
-        deployment.setDeploymentParameters(
+        deployFlexStrategy(
             BaseScript.DeploymentParameters({
                 name: "YieldNest Flex Strategy",
                 symbol_: "ynFlexEth",
@@ -48,15 +62,5 @@ contract BaseIntegrationTest is Test {
                 useRewardsSweeper: false
             })
         );
-        deployment.run();
-
-        strategy = FlexStrategy(deployment.strategy());
-        accountingModule = strategy.accountingModule();
-        accountingToken = accountingModule.accountingToken();
-
-        // Give safe permissions
-        vm.startPrank(accountingModule.safe());
-        IERC20(strategy.asset()).approve(address(accountingModule), type(uint256).max);
-        vm.stopPrank();
     }
 }
