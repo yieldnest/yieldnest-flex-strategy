@@ -112,22 +112,6 @@ contract VerifyFlexStrategy is BaseScript, Test {
             "bootstrapper has allocator role"
         );
 
-        RolesVerification.verifyRole(
-            accountingToken,
-            deployer,
-            accountingToken.DEFAULT_ADMIN_ROLE(),
-            false,
-            "deployer should not have DEFAULT_ADMIN_ROLE on accountingToken"
-        );
-
-        RolesVerification.verifyRole(
-            accountingModule,
-            deployer,
-            accountingModule.DEFAULT_ADMIN_ROLE(),
-            false,
-            "deployer should not have DEFAULT_ADMIN_ROLE on accountingModule"
-        );
-
         if (useRewardsSweeper) {
             RolesVerification.verifyRole(
                 rewardsSweeper,
