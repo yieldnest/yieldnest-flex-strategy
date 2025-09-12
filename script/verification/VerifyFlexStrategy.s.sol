@@ -159,6 +159,20 @@ contract VerifyFlexStrategy is BaseScript, Test {
                 true,
                 "deployer should not have REWARDS_SWEEPER_ROLE on rewardsSweeper"
             );
+
+            RolesVerification.verifyRole(
+                accountingModule,
+                address(rewardsSweeper),
+                accountingModule.REWARDS_PROCESSOR_ROLE(),
+                true,
+                "rewardsSweeper has rewards processor role"
+            );
+
+            assertEq(
+                address(rewardsSweeper.accountingModule()),
+                address(accountingModule),
+                "rewardsSweeper accountingModule is invalid"
+            );
         }
 
         assertGe(timelock.getMinDelay(), minDelay, "min delay is invalid");
