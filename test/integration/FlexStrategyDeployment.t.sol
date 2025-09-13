@@ -39,26 +39,6 @@ contract FlexStrategyDeployment is BaseIntegrationTest {
                 alwaysComputeTotalAssets: true
             })
         );
-
-        // verify.setDeploymentParameters(
-        //     BaseScript.DeploymentParameters({
-        //         name: "YieldNest Flex Strategy",
-        //         symbol_: "ynFlexEth",
-        //         accountTokenName: "YieldNest Flex Strategy IOU",
-        //         accountTokenSymbol: "ynFlex_iou",
-        //         decimals: 18,
-        //         paused: true,
-        //         targetApy: 0.1 ether, // max rewards per year: 10% of tvl
-        //         lowerBound: 0.1 ether, // max loss: 10% of tvl
-        //         minRewardableAssets: 1e18,
-        //         accountingProcessor: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
-        //         baseAsset: IVault(contracts.YNETHX()).asset(),
-        //         allocator: contracts.YNETHX(),
-        //         safe: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
-        //         alwaysComputeTotalAssets: true,
-        //         useRewardsSweeper: false
-        //     })
-        // );
         verify.run();
     }
 
