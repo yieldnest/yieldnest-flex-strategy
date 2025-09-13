@@ -34,6 +34,8 @@ contract BaseIntegrationTest_6Decimals is Test {
         mockAllocator = address(new MockERC4626(ERC20(Contracts.USDC), "Mock USDC", "mUSDC"));
         deployment = new DeployFlexStrategy();
 
+        address[] memory allocators = new address[](1);
+        allocators[0] = mockAllocator;
         deployment.setDeploymentParameters(
             BaseScript.DeploymentParameters({
                 name: "YieldNest Flex Strategy",
@@ -47,7 +49,7 @@ contract BaseIntegrationTest_6Decimals is Test {
                 minRewardableAssets: 1000e6,
                 accountingProcessor: accountingProcessor,
                 baseAsset: Contracts.USDC,
-                allocator: mockAllocator,
+                allocators: allocators,
                 safe: safe,
                 alwaysComputeTotalAssets: true,
                 useRewardsSweeper: true

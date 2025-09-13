@@ -21,6 +21,8 @@ contract DeployYnFlexEthStrategy is DeployFlexStrategy {
             revert UnsupportedChain();
         }
 
+        address[] memory allocators = new address[](1);
+        allocators[0] = contracts.YNETHX();
         setDeploymentParameters(
             BaseScript.DeploymentParameters({
                 name: "YieldNest Flex Strategy",
@@ -34,7 +36,7 @@ contract DeployYnFlexEthStrategy is DeployFlexStrategy {
                 minRewardableAssets: 1e18,
                 accountingProcessor: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
                 baseAsset: IVault(contracts.YNETHX()).asset(),
-                allocator: contracts.YNETHX(),
+                allocators: allocators,
                 safe: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
                 alwaysComputeTotalAssets: true,
                 useRewardsSweeper: true

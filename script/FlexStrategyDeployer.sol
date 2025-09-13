@@ -19,7 +19,7 @@ contract FlexStrategyDeployer {
         string accountTokenName;
         string accountTokenSymbol;
         uint8 decimals;
-        address allocator;
+        address[] allocators;
         address baseAsset;
         uint256 targetApy;
         uint256 lowerBound;
@@ -39,7 +39,7 @@ contract FlexStrategyDeployer {
     string public accountTokenName;
     string public accountTokenSymbol;
     uint8 public decimals;
-    address public allocator;
+    address[] public allocators;
     address public baseAsset;
     uint256 public targetApy;
     uint256 public lowerBound;
@@ -75,7 +75,7 @@ contract FlexStrategyDeployer {
         accountTokenName = params.accountTokenName;
         accountTokenSymbol = params.accountTokenSymbol;
         decimals = params.decimals;
-        allocator = params.allocator;
+        allocators = params.allocators;
         baseAsset = params.baseAsset;
         targetApy = params.targetApy;
         lowerBound = params.lowerBound;
@@ -201,7 +201,9 @@ contract FlexStrategyDeployer {
         // set has allocator
         strategy.setHasAllocator(true);
         // grant allocator roles
-        strategy.grantRole(strategy.ALLOCATOR_ROLE(), allocator);
+        for (uint256 i = 0; i < allocators.length; i++) {
+            strategy.grantRole(strategy.ALLOCATOR_ROLE(), allocators[i]);
+        }
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), IActors(address(actors)).BOOTSTRAPPER());
 
         // set accounting module for token

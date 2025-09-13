@@ -34,7 +34,7 @@ abstract contract BaseScript is Script {
         uint256 minRewardableAssets;
         address accountingProcessor;
         address baseAsset;
-        address allocator;
+        address[] allocators;
         address safe;
         bool alwaysComputeTotalAssets;
         bool useRewardsSweeper;
@@ -52,7 +52,7 @@ abstract contract BaseScript is Script {
         minRewardableAssets = params.minRewardableAssets;
         accountingProcessor = params.accountingProcessor;
         baseAsset = params.baseAsset;
-        allocator = params.allocator;
+        allocators = params.allocators;
         safe = params.safe;
         alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
         useRewardsSweeper = params.useRewardsSweeper;
@@ -71,7 +71,7 @@ abstract contract BaseScript is Script {
     uint256 public minRewardableAssets;
     address public accountingProcessor;
     address public baseAsset;
-    address public allocator;
+    address[] public allocators;
     bool public alwaysComputeTotalAssets;
 
     uint256 public minDelay;
@@ -157,7 +157,6 @@ abstract contract BaseScript is Script {
         timelock = TimelockController(payable(address(vm.parseJsonAddress(jsonInput, ".timelock"))));
         rateProvider = IProvider(payable(address(vm.parseJsonAddress(jsonInput, ".rateProvider"))));
         safe = vm.parseJsonAddress(jsonInput, ".safe");
-        allocator = vm.parseJsonAddress(jsonInput, ".allocator");
 
         strategy =
             FlexStrategy(payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-proxy")))));
@@ -223,7 +222,6 @@ abstract contract BaseScript is Script {
         vm.serializeAddress(symbol(), "timelock", address(timelock));
         vm.serializeAddress(symbol(), "rateProvider", address(rateProvider));
         vm.serializeAddress(symbol(), "safe", address(safe));
-        vm.serializeAddress(symbol(), "allocator", address(allocator));
         vm.serializeAddress(symbol(), "baseAsset", address(baseAsset));
         vm.serializeAddress(symbol(), string.concat(symbol(), "-proxy"), address(strategy));
         vm.serializeAddress(

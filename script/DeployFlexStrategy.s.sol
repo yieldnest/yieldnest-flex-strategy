@@ -51,7 +51,7 @@ contract DeployFlexStrategy is BaseScript {
                 accountTokenName: accountTokenName,
                 accountTokenSymbol: accountTokenSymbol,
                 decimals: decimals,
-                allocator: allocator,
+                allocators: allocators,
                 baseAsset: baseAsset,
                 targetApy: targetApy,
                 lowerBound: lowerBound,
@@ -122,7 +122,7 @@ contract DeployFlexStrategy is BaseScript {
         if (decimals == 0) {
             revert("Not pre-configured");
         }
-        baseAsset = IVault(allocator).asset();
+        baseAsset = IVault(allocators[0]).asset();
     }
 
     function _verifyDeploymentParams() internal view virtual {
@@ -138,8 +138,10 @@ contract DeployFlexStrategy is BaseScript {
             revert InvalidDeploymentParams("strategy decimals not set");
         }
 
-        if (allocator == address(0)) {
-            revert InvalidDeploymentParams("allocator is not set");
+        for (uint256 i = 0; i < allocators.length; i++) {
+            if (allocators[i] == address(0)) {
+                revert InvalidDeploymentParams("allocator is not set");
+            }
         }
 
         if (baseAsset == address(0)) {
