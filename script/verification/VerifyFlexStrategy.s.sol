@@ -32,8 +32,8 @@ contract VerifyFlexStrategy is BaseScript, Test {
     }
 
     function run() public {
-        _loadDeployment(deploymentEnv);
         _setup();
+        _loadDeployment(deploymentEnv);
 
         verify();
     }
