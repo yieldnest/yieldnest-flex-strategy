@@ -63,7 +63,7 @@ contract DeployFlexStrategy is BaseScript {
     }
 
     function run() public virtual {
-        vm.startBroadcast(deployer);
+        vm.startBroadcast();
 
         _setup();
         assignDeploymentParameters();
@@ -72,6 +72,7 @@ contract DeployFlexStrategy is BaseScript {
         _deployTimelockController();
 
         FlexStrategyDeployer strategyDeployer = createDeployer();
+        // The Deployer is the Strategy Deployer contract
         deployer = address(strategyDeployer);
 
         FlexStrategyDeployer.Implementations memory implementations;

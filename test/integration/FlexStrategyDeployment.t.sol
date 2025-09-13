@@ -23,8 +23,8 @@ contract FlexStrategyDeployment is BaseIntegrationTest {
 
         IContracts contracts = IContracts(new L1Contracts());
 
-        verify.setDeploymentParameters(
-            BaseScript.DeploymentParameters({
+        verify.setVerificationParameters(
+            VerifyFlexStrategy.VerificationParameters({
                 name: "YieldNest Flex Strategy",
                 symbol_: "ynFlexEth",
                 accountTokenName: "YieldNest Flex Strategy IOU",
@@ -36,10 +36,7 @@ contract FlexStrategyDeployment is BaseIntegrationTest {
                 minRewardableAssets: 1e18,
                 accountingProcessor: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
                 baseAsset: IVault(contracts.YNETHX()).asset(),
-                allocator: contracts.YNETHX(),
-                safe: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
-                alwaysComputeTotalAssets: true,
-                useRewardsSweeper: false
+                alwaysComputeTotalAssets: true
             })
         );
         verify.run();

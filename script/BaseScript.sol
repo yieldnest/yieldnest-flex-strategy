@@ -12,6 +12,7 @@ import { FlexStrategy } from "src/FlexStrategy.sol";
 import { AccountingModule } from "src/AccountingModule.sol";
 import { AccountingToken } from "src/AccountingToken.sol";
 import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
+import { console } from "forge-std/console.sol";
 
 abstract contract BaseScript is Script {
     using stdJson for string;
@@ -39,7 +40,7 @@ abstract contract BaseScript is Script {
         bool useRewardsSweeper;
     }
 
-    function setDeploymentParameters(DeploymentParameters memory params) public {
+    function setDeploymentParameters(DeploymentParameters memory params) public virtual {
         name = params.name;
         symbol_ = params.symbol_;
         accountTokenName = params.accountTokenName;
@@ -147,6 +148,7 @@ abstract contract BaseScript is Script {
 
     function _loadDeployment(Env env) internal virtual {
         if (!vm.isFile(_deploymentFilePath(env))) {
+            console.log("No deployment file found");
             return;
         }
         string memory jsonInput = vm.readFile(_deploymentFilePath(env));
