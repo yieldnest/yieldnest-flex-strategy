@@ -26,14 +26,6 @@ contract RewardsSweeperTest_6Decimals is BaseIntegrationTest_6Decimals {
         vm.startPrank(deployment.actors().ADMIN());
         rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), REWARDS_SWEEPER);
         vm.stopPrank();
-
-        // Grant rewards processor role to rewards sweeper as ADMIN
-        vm.startPrank(deployment.actors().ADMIN());
-        IAccessControl(address(accountingModule)).grantRole(
-            accountingModule.REWARDS_PROCESSOR_ROLE(), address(rewardsSweeper)
-        );
-        vm.stopPrank();
-
         // Grant BOB allocator role using ADMIN
         vm.startPrank(deployment.actors().ADMIN());
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), BOB);
