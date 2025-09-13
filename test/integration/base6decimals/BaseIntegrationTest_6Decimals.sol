@@ -50,7 +50,7 @@ contract BaseIntegrationTest_6Decimals is Test {
                 allocator: mockAllocator,
                 safe: safe,
                 alwaysComputeTotalAssets: true,
-                useRewardsSweeper: false
+                useRewardsSweeper: true
             })
         );
         deployment.setEnv(BaseScript.Env.TEST);

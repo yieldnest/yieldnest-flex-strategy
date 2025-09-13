@@ -10,7 +10,7 @@ import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/trans
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { console } from "forge-std/console.sol";
 
-contract RewardsSweeperTest is BaseIntegrationTest_6Decimals {
+contract RewardsSweeperTest_6Decimals is BaseIntegrationTest_6Decimals {
     RewardsSweeper public rewardsSweeper;
 
     address public constant REWARDS_SWEEPER = address(0x1234567890123456789012345678901234567890);
@@ -19,20 +19,13 @@ contract RewardsSweeperTest is BaseIntegrationTest_6Decimals {
     function setUp() public override {
         super.setUp();
 
-        // Deploy rewards sweeper
-        // Deploy RewardsSweeper behind a TransparentUpgradeableProxy
-        RewardsSweeper implementation = new RewardsSweeper();
-        bytes memory data =
-            abi.encodeWithSelector(RewardsSweeper.initialize.selector, address(this), address(accountingModule));
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(implementation),
-            address(this), // admin
-            data
-        );
-        rewardsSweeper = RewardsSweeper(address(proxy));
+        rewardsSweeper = deployment.rewardsSweeper();
 
         // Grant rewards sweeper role
+        // Grant rewards sweeper role
+        vm.startPrank(deployment.actors().ADMIN());
         rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), REWARDS_SWEEPER);
+        vm.stopPrank();
 
         // Grant rewards processor role to rewards sweeper as ADMIN
         vm.startPrank(deployment.actors().ADMIN());
