@@ -8,9 +8,25 @@ import { BaseScript } from "script/BaseScript.sol";
 import { MainnetActors } from "@yieldnest-vault-script/Actors.sol";
 import { RolesVerification } from "./RolesVerification.sol";
 import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
+import { console } from "forge-std/console.sol";
 
 // forge script VerifyFlexStrategy --rpc-url <MAINNET_RPC_URL>
 contract VerifyFlexStrategy is BaseScript, Test {
+    struct VerificationParameters {
+        string name;
+        string symbol_;
+        string accountTokenName;
+        string accountTokenSymbol;
+        uint8 decimals;
+        bool paused;
+        uint256 targetApy;
+        uint256 lowerBound;
+        uint256 minRewardableAssets;
+        address accountingProcessor;
+        address baseAsset;
+        bool alwaysComputeTotalAssets;
+    }
+
     function symbol() public view override returns (string memory) {
         return symbol_;
     }
@@ -20,6 +36,25 @@ contract VerifyFlexStrategy is BaseScript, Test {
         _setup();
 
         verify();
+    }
+
+    function setVerificationParameters(VerificationParameters memory params) public {
+        name = params.name;
+        symbol_ = params.symbol_;
+        accountTokenName = params.accountTokenName;
+        accountTokenSymbol = params.accountTokenSymbol;
+        decimals = params.decimals;
+        paused = params.paused;
+        targetApy = params.targetApy;
+        lowerBound = params.lowerBound;
+        minRewardableAssets = params.minRewardableAssets;
+        accountingProcessor = params.accountingProcessor;
+        baseAsset = params.baseAsset;
+        alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
+    }
+
+    function setDeploymentParameters(DeploymentParameters memory params) public virtual override {
+        revert("Not available in the context of verification");
     }
 
     function _verifyDeploymentParams() internal view virtual {
