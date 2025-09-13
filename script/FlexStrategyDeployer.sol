@@ -29,6 +29,7 @@ contract FlexStrategyDeployer {
         bool paused;
         IActors actors;
         uint256 minDelay;
+        Implementations implementations;
     }
 
     address public deployer;
@@ -57,6 +58,8 @@ contract FlexStrategyDeployer {
 
     bool public useRewardsSweeper;
 
+    Implementations public implementations;
+
     constructor(DeploymentParams memory params) {
         // the contract is the deployer
         deployer = address(this);
@@ -78,6 +81,7 @@ contract FlexStrategyDeployer {
         minRewardableAssets = params.minRewardableAssets;
         alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
         paused = params.paused;
+        implementations = params.implementations;
     }
 
     struct Implementations {
@@ -88,7 +92,7 @@ contract FlexStrategyDeployer {
         RewardsSweeper rewardsSweeperImplementation;
     }
 
-    function deploy(Implementations memory implementations) public virtual {
+    function deploy() public virtual {
         address admin = deployer;
 
         timelock = implementations.timelockController;
