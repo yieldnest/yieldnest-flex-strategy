@@ -15,6 +15,7 @@ import { ProxyUtils } from "@yieldnest-vault-script/ProxyUtils.sol";
 import { RolesVerification } from "script/verification/RolesVerification.sol";
 import { BaseIntegrationTest } from "./BaseIntegrationTest.sol";
 import { IContracts, L1Contracts } from "@yieldnest-vault-script/Contracts.sol";
+import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
 
 contract FlexStrategyDeployment is BaseIntegrationTest {
     function test_verify_setup() public {
@@ -64,5 +65,11 @@ contract FlexStrategyDeployment is BaseIntegrationTest {
             true,
             "newAdmin has DEFAULT_ADMIN_ROLE"
         );
+    }
+
+    function test_deployer_deploy_reverts_if_deployed() public {
+        FlexStrategyDeployer deployer = FlexStrategyDeployer(deployment.deployer());
+        vm.expectRevert(FlexStrategyDeployer.DeploymentDone.selector);
+        deployer.deploy();
     }
 }

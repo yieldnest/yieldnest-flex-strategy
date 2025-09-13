@@ -11,6 +11,7 @@ import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
 
 contract FlexStrategyDeployer {
     error InvalidDeploymentParams(string);
+    error DeploymentDone();
 
     struct DeploymentParams {
         string name;
@@ -60,6 +61,8 @@ contract FlexStrategyDeployer {
 
     Implementations public implementations;
 
+    bool public deploymentDone;
+
     constructor(DeploymentParams memory params) {
         // the contract is the deployer
         deployer = address(this);
@@ -93,6 +96,11 @@ contract FlexStrategyDeployer {
     }
 
     function deploy() public virtual {
+        if (deploymentDone) {
+            revert DeploymentDone();
+        }
+        deploymentDone = true;
+
         address admin = deployer;
 
         timelock = implementations.timelockController;

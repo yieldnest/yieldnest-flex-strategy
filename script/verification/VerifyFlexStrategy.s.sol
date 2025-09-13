@@ -53,7 +53,7 @@ contract VerifyFlexStrategy is BaseScript, Test {
         alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
     }
 
-    function setDeploymentParameters(DeploymentParameters memory params) public virtual override {
+    function setDeploymentParameters(DeploymentParameters memory) public virtual override {
         revert("Not available in the context of verification");
     }
 
