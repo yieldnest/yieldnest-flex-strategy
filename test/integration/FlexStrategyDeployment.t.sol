@@ -23,6 +23,8 @@ contract FlexStrategyDeployment is BaseIntegrationTest {
         verify.setEnv(BaseScript.Env.TEST);
 
         IContracts contracts = IContracts(new L1Contracts());
+        address[] memory allocators = new address[](1);
+        allocators[0] = contracts.YNETHX();
 
         verify.setVerificationParameters(
             VerifyFlexStrategy.VerificationParameters({
@@ -37,6 +39,7 @@ contract FlexStrategyDeployment is BaseIntegrationTest {
                 minRewardableAssets: 1e18,
                 accountingProcessor: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
                 baseAsset: IVault(contracts.YNETHX()).asset(),
+                allocators: allocators,
                 alwaysComputeTotalAssets: true
             })
         );

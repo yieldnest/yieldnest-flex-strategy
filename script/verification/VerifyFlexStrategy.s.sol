@@ -25,6 +25,7 @@ contract VerifyFlexStrategy is BaseScript, Test {
         address accountingProcessor;
         address baseAsset;
         bool alwaysComputeTotalAssets;
+        address[] allocators;
     }
 
     function symbol() public view override returns (string memory) {
@@ -51,6 +52,7 @@ contract VerifyFlexStrategy is BaseScript, Test {
         accountingProcessor = params.accountingProcessor;
         baseAsset = params.baseAsset;
         alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
+        allocators = params.allocators;
     }
 
     function setDeploymentParameters(DeploymentParameters memory) public virtual override {
