@@ -22,6 +22,9 @@ contract VerifyYnFlexEthStrategy is VerifyFlexStrategy {
             actors = IActors(_actors);
         }
 
+        address[] memory allocators = new address[](1);
+        allocators[0] = contracts.YNETHX();
+
         setVerificationParameters(
             VerifyFlexStrategy.VerificationParameters({
                 name: "YieldNest Flex Strategy",
@@ -35,6 +38,7 @@ contract VerifyYnFlexEthStrategy is VerifyFlexStrategy {
                 minRewardableAssets: 1e18,
                 accountingProcessor: 0xF080905b7AF7fA52952C0Bb0463F358F21c06a64,
                 baseAsset: IVault(contracts.YNETHX()).asset(),
+                allocators: allocators,
                 alwaysComputeTotalAssets: true
             })
         );
