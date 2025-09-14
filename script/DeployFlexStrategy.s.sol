@@ -39,7 +39,11 @@ contract DeployFlexStrategy is BaseScript {
         super._verifySetup();
     }
 
-    function createDeployer() internal virtual returns (FlexStrategyDeployer) {
+    function createDeployer(FlexStrategyDeployer.Implementations memory implementations)
+        internal
+        virtual
+        returns (FlexStrategyDeployer)
+    {
         return new FlexStrategyDeployer(
             FlexStrategyDeployer.DeploymentParams({
                 name: name,
@@ -47,7 +51,7 @@ contract DeployFlexStrategy is BaseScript {
                 accountTokenName: accountTokenName,
                 accountTokenSymbol: accountTokenSymbol,
                 decimals: decimals,
-                allocator: allocator,
+                allocators: allocators,
                 baseAsset: baseAsset,
                 targetApy: targetApy,
                 lowerBound: lowerBound,
@@ -57,7 +61,8 @@ contract DeployFlexStrategy is BaseScript {
                 alwaysComputeTotalAssets: alwaysComputeTotalAssets,
                 paused: paused,
                 actors: actors,
-                minDelay: minDelay
+                minDelay: minDelay,
+                implementations: implementations
             })
         );
     }
@@ -71,10 +76,6 @@ contract DeployFlexStrategy is BaseScript {
 
         _deployTimelockController();
 
-        FlexStrategyDeployer strategyDeployer = createDeployer();
-        // The Deployer is the Strategy Deployer contract
-        deployer = address(strategyDeployer);
-
         FlexStrategyDeployer.Implementations memory implementations;
         implementations.flexStrategyImplementation = new FlexStrategy();
         implementations.accountingTokenImplementation = new AccountingToken(baseAsset);
@@ -84,7 +85,11 @@ contract DeployFlexStrategy is BaseScript {
         }
         implementations.timelockController = timelock;
 
-        strategyDeployer.deploy(implementations);
+        FlexStrategyDeployer strategyDeployer = createDeployer(implementations);
+        // The Deployer is the Strategy Deployer contract
+        deployer = address(strategyDeployer);
+
+        strategyDeployer.deploy();
         readDeployedContracts(strategyDeployer);
 
         _verifySetup();
@@ -117,7 +122,7 @@ contract DeployFlexStrategy is BaseScript {
         if (decimals == 0) {
             revert("Not pre-configured");
         }
-        baseAsset = IVault(allocator).asset();
+        baseAsset = IVault(allocators[0]).asset();
     }
 
     function _verifyDeploymentParams() internal view virtual {
@@ -133,8 +138,10 @@ contract DeployFlexStrategy is BaseScript {
             revert InvalidDeploymentParams("strategy decimals not set");
         }
 
-        if (allocator == address(0)) {
-            revert InvalidDeploymentParams("allocator is not set");
+        for (uint256 i = 0; i < allocators.length; i++) {
+            if (allocators[i] == address(0)) {
+                revert InvalidDeploymentParams("allocator is not set");
+            }
         }
 
         if (baseAsset == address(0)) {

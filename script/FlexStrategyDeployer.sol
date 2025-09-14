@@ -11,6 +11,7 @@ import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
 
 contract FlexStrategyDeployer {
     error InvalidDeploymentParams(string);
+    error DeploymentDone();
 
     struct DeploymentParams {
         string name;
@@ -18,7 +19,7 @@ contract FlexStrategyDeployer {
         string accountTokenName;
         string accountTokenSymbol;
         uint8 decimals;
-        address allocator;
+        address[] allocators;
         address baseAsset;
         uint256 targetApy;
         uint256 lowerBound;
@@ -29,6 +30,7 @@ contract FlexStrategyDeployer {
         bool paused;
         IActors actors;
         uint256 minDelay;
+        Implementations implementations;
     }
 
     address public deployer;
@@ -37,7 +39,7 @@ contract FlexStrategyDeployer {
     string public accountTokenName;
     string public accountTokenSymbol;
     uint8 public decimals;
-    address public allocator;
+    address[] public allocators;
     address public baseAsset;
     uint256 public targetApy;
     uint256 public lowerBound;
@@ -57,6 +59,10 @@ contract FlexStrategyDeployer {
 
     bool public useRewardsSweeper;
 
+    Implementations public implementations;
+
+    bool public deploymentDone;
+
     constructor(DeploymentParams memory params) {
         // the contract is the deployer
         deployer = address(this);
@@ -69,7 +75,7 @@ contract FlexStrategyDeployer {
         accountTokenName = params.accountTokenName;
         accountTokenSymbol = params.accountTokenSymbol;
         decimals = params.decimals;
-        allocator = params.allocator;
+        allocators = params.allocators;
         baseAsset = params.baseAsset;
         targetApy = params.targetApy;
         lowerBound = params.lowerBound;
@@ -78,6 +84,7 @@ contract FlexStrategyDeployer {
         minRewardableAssets = params.minRewardableAssets;
         alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
         paused = params.paused;
+        implementations = params.implementations;
     }
 
     struct Implementations {
@@ -88,7 +95,12 @@ contract FlexStrategyDeployer {
         RewardsSweeper rewardsSweeperImplementation;
     }
 
-    function deploy(Implementations memory implementations) public virtual {
+    function deploy() public virtual {
+        if (deploymentDone) {
+            revert DeploymentDone();
+        }
+        deploymentDone = true;
+
         address admin = deployer;
 
         timelock = implementations.timelockController;
@@ -189,7 +201,9 @@ contract FlexStrategyDeployer {
         // set has allocator
         strategy.setHasAllocator(true);
         // grant allocator roles
-        strategy.grantRole(strategy.ALLOCATOR_ROLE(), allocator);
+        for (uint256 i = 0; i < allocators.length; i++) {
+            strategy.grantRole(strategy.ALLOCATOR_ROLE(), allocators[i]);
+        }
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), IActors(address(actors)).BOOTSTRAPPER());
 
         // set accounting module for token

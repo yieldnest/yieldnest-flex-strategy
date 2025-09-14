@@ -53,7 +53,7 @@ contract VerifyFlexStrategy is BaseScript, Test {
         alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
     }
 
-    function setDeploymentParameters(DeploymentParameters memory params) public virtual override {
+    function setDeploymentParameters(DeploymentParameters memory) public virtual override {
         revert("Not available in the context of verification");
     }
 
@@ -61,9 +61,11 @@ contract VerifyFlexStrategy is BaseScript, Test {
         assertEq(strategy.name(), name, "name is invalid");
         assertEq(strategy.symbol(), symbol_, "symbol is invalid");
         assertEq(strategy.decimals(), decimals, "decimals is invalid");
-        RolesVerification.verifyRole(
-            strategy, allocator, strategy.ALLOCATOR_ROLE(), true, "allocator has allocator role"
-        );
+        for (uint256 i = 0; i < allocators.length; i++) {
+            RolesVerification.verifyRole(
+                strategy, allocators[i], strategy.ALLOCATOR_ROLE(), true, "allocator has allocator role"
+            );
+        }
         RolesVerification.verifyRole(
             strategy, actors.BOOTSTRAPPER(), strategy.ALLOCATOR_ROLE(), true, "bootstrapper has allocator role"
         );
@@ -91,7 +93,7 @@ contract VerifyFlexStrategy is BaseScript, Test {
             deployerContract.accountTokenSymbol(), accountTokenSymbol, "deployer accountTokenSymbol does not match"
         );
         assertEq(deployerContract.decimals(), decimals, "deployer decimals does not match");
-        assertEq(deployerContract.allocator(), allocator, "deployer allocator does not match");
+
         assertEq(deployerContract.baseAsset(), baseAsset, "deployer baseAsset does not match");
         assertEq(deployerContract.targetApy(), targetApy, "deployer targetApy does not match");
         assertEq(deployerContract.lowerBound(), lowerBound, "deployer lowerBound does not match");
