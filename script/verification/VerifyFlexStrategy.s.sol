@@ -63,11 +63,17 @@ contract VerifyFlexStrategy is BaseScript, Test {
         assertEq(strategy.name(), name, "name is invalid");
         assertEq(strategy.symbol(), symbol_, "symbol is invalid");
         assertEq(strategy.decimals(), decimals, "decimals is invalid");
+
+        console.log("================================================");
+        console.log("Allocators:");
+        console.log("================================================");
         for (uint256 i = 0; i < allocators.length; i++) {
+            console.log("Configured allocator:", allocators[i]);
             RolesVerification.verifyRole(
                 strategy, allocators[i], strategy.ALLOCATOR_ROLE(), true, "allocator has allocator role"
             );
         }
+        console.log("================================================");
         RolesVerification.verifyRole(
             strategy, actors.BOOTSTRAPPER(), strategy.ALLOCATOR_ROLE(), true, "bootstrapper has allocator role"
         );
