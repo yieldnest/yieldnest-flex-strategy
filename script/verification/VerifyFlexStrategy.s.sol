@@ -125,7 +125,9 @@ contract VerifyFlexStrategy is BaseScript, Test {
         RolesVerification.verifyProxyRoles(address(strategy), strategyProxyAdmin, address(timelock));
         RolesVerification.verifyProxyRoles(address(accountingModule), accountingModuleProxyAdmin, address(timelock));
         RolesVerification.verifyProxyRoles(address(accountingToken), accountingTokenProxyAdmin, address(timelock));
-        RolesVerification.verifyProxyRoles(address(rewardsSweeper), rewardsSweeperProxyAdmin, address(timelock));
+        if (useRewardsSweeper) {
+            RolesVerification.verifyProxyRoles(address(rewardsSweeper), rewardsSweeperProxyAdmin, address(timelock));
+        }
     }
 
     function verify() internal view virtual {
