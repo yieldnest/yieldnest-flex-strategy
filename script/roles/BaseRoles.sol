@@ -28,6 +28,7 @@ library BaseRoles {
         strategy.grantRole(strategy.BUFFER_MANAGER_ROLE(), timelock);
         strategy.grantRole(strategy.PROCESSOR_MANAGER_ROLE(), timelock);
         strategy.grantRole(strategy.ALLOCATOR_MANAGER_ROLE(), timelock);
+        strategy.grantRole(strategy.HOOKS_MANAGER_ROLE(), timelock);
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), timelock);
         accountingModule.grantRole(accountingModule.DEFAULT_ADMIN_ROLE(), actors.ADMIN());
         accountingToken.grantRole(accountingToken.DEFAULT_ADMIN_ROLE(), actors.ADMIN());
@@ -60,6 +61,7 @@ library BaseRoles {
         strategy.grantRole(strategy.ASSET_MANAGER_ROLE(), deployer);
         strategy.grantRole(strategy.UNPAUSER_ROLE(), deployer);
         strategy.grantRole(strategy.ALLOCATOR_MANAGER_ROLE(), deployer);
+        strategy.grantRole(strategy.HOOKS_MANAGER_ROLE(), deployer);
         accountingToken.grantRole(accountingToken.DEFAULT_ADMIN_ROLE(), deployer);
         accountingModule.grantRole(accountingModule.DEFAULT_ADMIN_ROLE(), deployer);
     }
@@ -90,6 +92,7 @@ library BaseRoles {
         strategy.renounceRole(strategy.ASSET_MANAGER_ROLE(), deployer);
         strategy.renounceRole(strategy.UNPAUSER_ROLE(), deployer);
         strategy.renounceRole(strategy.ALLOCATOR_MANAGER_ROLE(), deployer);
+        strategy.renounceRole(strategy.HOOKS_MANAGER_ROLE(), deployer);
         accountingToken.renounceRole(accountingToken.DEFAULT_ADMIN_ROLE(), deployer);
         accountingModule.renounceRole(accountingModule.DEFAULT_ADMIN_ROLE(), deployer);
     }
