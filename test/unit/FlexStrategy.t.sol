@@ -247,11 +247,11 @@ contract FlexStrategyTest is Test {
     }
 
     function testFuzz_feeOnTotal_returnsZero(uint128 assets) public view {
-        assertEq(flexStrategy._feeOnTotal(assets), 0, "Fee on total should always return 0");
+        assertEq(flexStrategy._feeOnTotal(assets, address(0)), 0, "Fee on total should always return 0");
     }
 
     function testFuzz_feeOnRaw_returnsZero(uint128 assets) public view {
-        assertEq(flexStrategy._feeOnRaw(assets), 0, "Fee on raw should always return 0");
+        assertEq(flexStrategy._feeOnRaw(assets, address(0)), 0, "Fee on raw should always return 0");
     }
 
     function testFuzz_addAsset_withoutDecimals(bool depositable, bool withdrawable) public {

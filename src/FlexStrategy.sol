@@ -214,7 +214,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @notice Returns the fee on total amount.
      * @return 0 as this strategy does not charge any fee on total amount.
      */
-    function _feeOnTotal(uint256) public view virtual override returns (uint256) {
+    function _feeOnTotal(uint256, address) public view virtual override returns (uint256) {
         return 0;
     }
 
@@ -222,7 +222,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @notice Returns the fee on total amount.
      * @return 0 as this strategy does not charge any fee on total amount.
      */
-    function _feeOnRaw(uint256) public view virtual override returns (uint256) {
+    function _feeOnRaw(uint256, address) public view virtual override returns (uint256) {
         return 0;
     }
 
