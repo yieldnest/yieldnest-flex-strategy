@@ -333,11 +333,11 @@ contract FlexStrategyTest is Test {
         vm.prank(ALLOCATOR);
         flexStrategy.deposit(depositAmount, ALLOCATOR);
 
-        // assertEq(
-        //     mockErc20.balanceOf(address(flexStrategy)),
-        //     initialStrategyBalance,
-        //     "Strategy balance should remain unchanged"
-        // );
+        assertEq(
+            mockErc20.balanceOf(address(flexStrategy)),
+            initialStrategyBalance,
+            "Strategy balance should remain unchanged"
+        );
         assertEq(
             mockErc20.balanceOf(SAFE),
             initialSafeBalance + depositAmount,
@@ -440,7 +440,7 @@ contract FlexStrategyTest is Test {
         flexStrategy.deposit(deposit, ALLOCATOR);
     }
 
-    function test_deposit_does_not_revertWhen_NoAccountingModule() public {
+    function test_deposit_does_not_revert_When_NoAccountingModule() public {
         // write zero address to accountingModule
         stdstore.target(address(flexStrategy)).sig("accountingModule()").checked_write(address(0));
 
