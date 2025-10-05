@@ -89,6 +89,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
         _addAsset(accountingToken, IERC20Metadata(accountingToken).decimals(), false);
         _setAssetWithdrawable(baseAsset, true);
+        // Permissioned by default
+        _setHasAllocator(true);
 
         VaultLib.setProvider(provider);
     }
