@@ -9,6 +9,7 @@ import { FlexStrategyRules } from "script/rules/FlexStrategyRules.sol";
 import { SafeRules, IVault } from "@yieldnest-vault-script/rules/SafeRules.sol";
 import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
 import { AccountingModuleHook } from "src/hooks/AccountingModuleHook.sol";
+import { HooksDeployer } from "script/HooksDeployer.sol";
 
 contract FlexStrategyDeployer {
     error InvalidDeploymentParams(string);
@@ -94,6 +95,7 @@ contract FlexStrategyDeployer {
         AccountingModule accountingModuleImplementation;
         TimelockController timelockController;
         RewardsSweeper rewardsSweeperImplementation;
+        HooksDeployer hooksDeployer;
     }
 
     function deploy() public virtual {
@@ -218,8 +220,9 @@ contract FlexStrategyDeployer {
         accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), safe);
 
         {
-            AccountingModuleHook accountingModuleHook =
-                new AccountingModuleHook(address(strategy), accountingModule, address(strategy));
+            AccountingModuleHook accountingModuleHook = implementations.hooksDeployer.deployAccountingModuleHook(
+                address(strategy), address(accountingModule), address(strategy)
+            );
             // set hooks
             IVault(address(strategy)).setHooks(address(accountingModuleHook));
 
