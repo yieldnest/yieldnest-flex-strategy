@@ -31,6 +31,11 @@ contract AccountingModuleHook is IHooks {
         flexStrategy = IVault(payable(flexStrategy_));
     }
 
+    /// @inheritdoc IHooks
+    function name() external view override returns (string memory) {
+        return "AccountingModuleHook";
+    }
+
     /**
      * @notice Modifier to ensure that the caller is the Vault
      */
