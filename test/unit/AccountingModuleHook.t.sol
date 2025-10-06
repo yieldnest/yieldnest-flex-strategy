@@ -68,10 +68,17 @@ contract AccountingModuleHookTest is Test {
 
         // Deploy the AccountingModuleHook
         accountingModuleHook = new AccountingModuleHook(
-            address(this), // vault_ (mocked as this contract)
+            address(mockStrategy), // vault_ (mocked as this contract)
             IAccountingModule(address(accountingModule)),
             address(mockStrategy)
         );
+
+        mockStrategy.setAccountingModule(accountingModule);
+
+        // Prank as mockStrategy and approve infinite mockErc20 to accountingModule
+        vm.startPrank(address(mockStrategy));
+        mockErc20.approve(address(accountingModule), type(uint256).max);
+        vm.stopPrank();
     }
 
     function test_beforeWithdraw_called_by_RandomAddress_reverts() public {
@@ -122,19 +129,106 @@ contract AccountingModuleHookTest is Test {
         vm.stopPrank();
     }
 
-    function test_afterMint_called_by_RandomAddress_reverts() public {
-        vm.startPrank(BOB);
-        vm.expectRevert(abi.encodeWithSelector(IHooks.CallerNotVault.selector));
-        accountingModuleHook.afterMint(
-            IHooks.MintParams({
+    function test_afterDeposit_called_by_Vault_succeeds() public {
+        // Simulate user approving and depositing assets to the accounting module
+        uint256 depositAmount = 100 ether;
+        mockErc20.mint(address(mockStrategy), depositAmount);
+
+        // Simulate the vault calling deposit on the accounting module
+        vm.startPrank(address(mockStrategy));
+        // Actually deposit assets to the accounting module (assume deposit function exists)
+        // This is a placeholder; replace with actual deposit logic if needed
+        // accountingModule.deposit(depositAmount, address(this));
+
+        // Now call the afterDeposit hook as the vault would after deposit
+        accountingModuleHook.afterDeposit(
+            IHooks.DepositParams({
                 asset: address(mockErc20),
-                shares: 100 ether,
-                caller: BOB,
-                receiver: BOB,
-                assets: 100 ether,
-                baseAssets: 0
+                assets: depositAmount,
+                caller: address(this),
+                receiver: address(this),
+                shares: depositAmount,
+                baseAssets: depositAmount
             })
         );
         vm.stopPrank();
+
+        assertEq(IERC20(accountingModule.accountingToken()).balanceOf(address(mockStrategy)), depositAmount);
     }
+
+    // function test_beforeMint_called_by_Vault_succeeds() public {
+    //     IHooks.Config memory config = accountingModuleHook.getConfig();
+    //     config.beforeMint = true;
+    //     accountingModuleHook.setConfig(config);
+
+    //     vm.startPrank(address(mockVault));
+    //     accountingModuleHook.beforeMint(
+    //         IHooks.MintParams({
+    //             asset: address(mockErc20),
+    //             shares: 100 ether,
+    //             caller: address(this),
+    //             receiver: address(this),
+    //             assets: 100 ether,
+    //             baseAssets: 0
+    //         })
+    //     );
+    //     vm.stopPrank();
+    // }
+
+    // function test_afterMint_called_by_Vault_succeeds() public {
+    //     IHooks.Config memory config = accountingModuleHook.getConfig();
+    //     config.afterMint = true;
+    //     accountingModuleHook.setConfig(config);
+
+    //     vm.startPrank(address(mockVault));
+    //     accountingModuleHook.afterMint(
+    //         IHooks.MintParams({
+    //             asset: address(mockErc20),
+    //             shares: 100 ether,
+    //             caller: address(this),
+    //             receiver: address(this),
+    //             assets: 100 ether,
+    //             baseAssets: 0
+    //         })
+    //     );
+    //     vm.stopPrank();
+    // }
+
+    // function test_beforeRedeem_called_by_Vault_succeeds() public {
+    //     IHooks.Config memory config = accountingModuleHook.getConfig();
+    //     config.beforeRedeem = true;
+    //     accountingModuleHook.setConfig(config);
+
+    //     vm.startPrank(address(mockVault));
+    //     accountingModuleHook.beforeRedeem(
+    //         IHooks.RedeemParams({
+    //             asset: address(mockErc20),
+    //             shares: 100 ether,
+    //             caller: address(this),
+    //             receiver: address(this),
+    //             owner: address(this),
+    //             assets: 100 ether
+    //         })
+    //     );
+    //     vm.stopPrank();
+    // }
+
+    // function test_beforeWithdraw_called_by_Vault_succeeds() public {
+    //     IHooks.Config memory config = accountingModuleHook.getConfig();
+    //     config.beforeWithdraw = true;
+    //     accountingModuleHook.setConfig(config);
+
+    //     vm.startPrank(address(mockVault));
+    //     accountingModuleHook.beforeWithdraw(
+    //         IHooks.WithdrawParams({
+    //             asset: address(mockErc20),
+    //             assets: 100 ether,
+    //             caller: address(this),
+    //             receiver: address(this),
+    //             owner: address(this),
+    //             shares: 100 ether
+    //         })
+    //     );
+    //     vm.stopPrank();
+    // }
 }

@@ -41,6 +41,26 @@ contract MockStrategy is IFlexStrategy, ERC20 {
         _totalAssets -= amount;
     }
 
+    function processor(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldata_
+    )
+        public
+        returns (bytes[] memory)
+    {
+        if (targets.length != 1) {
+            revert("MockStrategy: invalid number of targets");
+        }
+
+        if (targets[0] == address(am)) {
+            (bool success,) = address(am).call(calldata_[0]);
+            require(success, "MockStrategy: call to accounting module failed");
+        } else {
+            revert("MockStrategy: invalid target");
+        }
+    }
+
     function processAccounting() public { }
 
     function decimals() public pure override returns (uint8) {
