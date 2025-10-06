@@ -135,6 +135,70 @@ contract AccountingModuleHookTest is Test {
         vm.stopPrank();
     }
 
+    function test_afterWithdraw_called_by_RandomAddress_reverts() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(abi.encodeWithSelector(IHooks.CallerNotVault.selector));
+        accountingModuleHook.afterWithdraw(
+            IHooks.WithdrawParams({
+                asset: address(mockErc20),
+                assets: 100 ether,
+                caller: BOB,
+                receiver: BOB,
+                owner: BOB,
+                shares: 100 ether
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function test_afterRedeem_called_by_RandomAddress_reverts() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(abi.encodeWithSelector(IHooks.CallerNotVault.selector));
+        accountingModuleHook.afterRedeem(
+            IHooks.RedeemParams({
+                asset: address(mockErc20),
+                shares: 100 ether,
+                caller: BOB,
+                receiver: BOB,
+                owner: BOB,
+                assets: 100 ether
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function test_beforeDeposit_called_by_RandomAddress_reverts() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(abi.encodeWithSelector(IHooks.CallerNotVault.selector));
+        accountingModuleHook.beforeDeposit(
+            IHooks.DepositParams({
+                asset: address(mockErc20),
+                assets: 100 ether,
+                caller: BOB,
+                receiver: BOB,
+                shares: 100 ether,
+                baseAssets: 0
+            })
+        );
+        vm.stopPrank();
+    }
+
+    function test_beforeMint_called_by_RandomAddress_reverts() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(abi.encodeWithSelector(IHooks.CallerNotVault.selector));
+        accountingModuleHook.beforeMint(
+            IHooks.MintParams({
+                asset: address(mockErc20),
+                shares: 100 ether,
+                caller: BOB,
+                receiver: BOB,
+                assets: 100 ether,
+                baseAssets: 0
+            })
+        );
+        vm.stopPrank();
+    }
+
     function test_afterDeposit_called_by_Vault_succeeds() public {
         // Simulate user approving and depositing assets to the accounting module
         uint256 depositAmount = 100 ether;
@@ -306,5 +370,19 @@ contract AccountingModuleHookTest is Test {
         assertEq(
             mockErc20.balanceOf(address(receiver)), 0, "Receiver should have received the withdrawn mockErc20 assets"
         );
+    }
+
+    function test_getConfig_returns_expected_config() public {
+        IHooks.Config memory config = accountingModuleHook.getConfig();
+        assertFalse(config.beforeDeposit, "beforeDeposit should be false");
+        assertTrue(config.afterDeposit, "afterDeposit should be true");
+        assertFalse(config.beforeMint, "beforeMint should be false");
+        assertTrue(config.afterMint, "afterMint should be true");
+        assertTrue(config.beforeRedeem, "beforeRedeem should be true");
+        assertFalse(config.afterRedeem, "afterRedeem should be false");
+        assertTrue(config.beforeWithdraw, "beforeWithdraw should be true");
+        assertFalse(config.afterWithdraw, "afterWithdraw should be false");
+        assertFalse(config.beforeProcessAccounting, "beforeProcessAccounting should be false");
+        assertFalse(config.afterProcessAccounting, "afterProcessAccounting should be false");
     }
 }
