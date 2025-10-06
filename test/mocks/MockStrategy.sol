@@ -43,11 +43,11 @@ contract MockStrategy is IFlexStrategy, ERC20 {
 
     function processor(
         address[] memory targets,
-        uint256[] memory values,
+        uint256[] memory, /* values */
         bytes[] memory calldata_
     )
         public
-        returns (bytes[] memory)
+        returns (bytes[] memory returnData)
     {
         if (targets.length != 1) {
             revert("MockStrategy: invalid number of targets");
@@ -59,6 +59,7 @@ contract MockStrategy is IFlexStrategy, ERC20 {
         } else {
             revert("MockStrategy: invalid target");
         }
+        returnData = new bytes[](1);
     }
 
     function processAccounting() public { }

@@ -32,7 +32,7 @@ contract AccountingModuleHook is IHooks {
     }
 
     /// @inheritdoc IHooks
-    function name() external view override returns (string memory) {
+    function name() external pure override returns (string memory) {
         return "AccountingModuleHook";
     }
 
@@ -45,10 +45,9 @@ contract AccountingModuleHook is IHooks {
     }
 
     /**
-     * @notice Set the config
-     * @param config_ The config struct
+     * @notice Set the config (unused)
      */
-    function setConfig(Config memory config_) external {
+    function setConfig(Config memory) external pure {
         revert NotSupported();
     }
 
@@ -56,7 +55,7 @@ contract AccountingModuleHook is IHooks {
      * @notice Get the hooks config
      * @return The hooks config struct
      */
-    function getConfig() external view returns (Config memory) {
+    function getConfig() external pure returns (Config memory) {
         return Config({
             beforeDeposit: false,
             afterDeposit: true,
