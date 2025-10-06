@@ -217,7 +217,6 @@ contract AccountingModuleHookTest is Test {
         address receiver = address(0xBEEF);
 
         // Mint accountingToken to the strategy to simulate it having assets to withdraw
-        address accountingToken = address(accountingModule.accountingToken());
         uint256 redeemAmount = 100 ether;
         // Place some mockERC20 token into strategy by minting it directly
         mockErc20.mint(address(mockStrategy), redeemAmount);
@@ -226,7 +225,7 @@ contract AccountingModuleHookTest is Test {
         vm.prank(address(mockStrategy));
         accountingModule.deposit(redeemAmount);
         // Confirm the strategy has the accountingToken
-        assertEq(IERC20(accountingToken).balanceOf(address(mockStrategy)), redeemAmount);
+        assertEq(IERC20(accountingModule.accountingToken()).balanceOf(address(mockStrategy)), redeemAmount);
 
         // Simulate the vault calling beforeRedeem on the hook
         vm.startPrank(address(mockStrategy));
@@ -244,7 +243,7 @@ contract AccountingModuleHookTest is Test {
 
         // Assert that the strategy's accountingToken balance is now 0 after redeem
         assertEq(
-            IERC20(accountingToken).balanceOf(address(mockStrategy)),
+            IERC20(accountingModule.accountingToken()).balanceOf(address(mockStrategy)),
             0,
             "Strategy's accountingToken balance should be 0 after redeem"
         );
@@ -266,7 +265,6 @@ contract AccountingModuleHookTest is Test {
         address receiver = address(0xBEEF);
 
         // Mint accountingToken to the strategy to simulate it having assets to withdraw
-        address accountingToken = address(accountingModule.accountingToken());
         uint256 withdrawAmount = 100 ether;
         // Place some mockERC20 token into strategy by minting it directly
         mockErc20.mint(address(mockStrategy), withdrawAmount);
@@ -275,7 +273,7 @@ contract AccountingModuleHookTest is Test {
         vm.prank(address(mockStrategy));
         accountingModule.deposit(withdrawAmount);
         // Confirm the strategy has the accountingToken
-        assertEq(IERC20(accountingToken).balanceOf(address(mockStrategy)), withdrawAmount);
+        assertEq(IERC20(accountingModule.accountingToken()).balanceOf(address(mockStrategy)), withdrawAmount);
 
         // Simulate the vault calling beforeWithdraw on the hook
         vm.startPrank(address(mockStrategy));
@@ -293,7 +291,7 @@ contract AccountingModuleHookTest is Test {
 
         // Assert that the strategy's accountingToken balance is now 0 after withdraw
         assertEq(
-            IERC20(accountingToken).balanceOf(address(mockStrategy)),
+            IERC20(accountingModule.accountingToken()).balanceOf(address(mockStrategy)),
             0,
             "Strategy's accountingToken balance should be 0 after withdraw"
         );
