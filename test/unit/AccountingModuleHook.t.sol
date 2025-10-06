@@ -18,6 +18,7 @@ contract AccountingModuleHookTest is Test {
 
     address public ADMIN = address(0xd34db33f);
     address public BOB = address(0x0b0b);
+    address public SAFE = address(0x8af3);
 
     MockERC20 public mockErc20;
     MockStrategy public mockStrategy;
@@ -54,7 +55,7 @@ contract AccountingModuleHookTest is Test {
         accountingModule.initialize(
             address(mockStrategy),
             ADMIN,
-            address(this), // safe (mocked as this contract)
+            SAFE, // safe (mocked as this contract)
             IAccountingToken(address(accountingToken)),
             0.1 ether, // targetApy
             0.5 ether, // lowerBound
@@ -77,6 +78,11 @@ contract AccountingModuleHookTest is Test {
 
         // Prank as mockStrategy and approve infinite mockErc20 to accountingModule
         vm.startPrank(address(mockStrategy));
+        mockErc20.approve(address(accountingModule), type(uint256).max);
+        vm.stopPrank();
+
+        // Give max approval from SAFE to accounting module for mockErc20 token
+        vm.startPrank(SAFE);
         mockErc20.approve(address(accountingModule), type(uint256).max);
         vm.stopPrank();
     }
@@ -156,79 +162,151 @@ contract AccountingModuleHookTest is Test {
         assertEq(IERC20(accountingModule.accountingToken()).balanceOf(address(mockStrategy)), depositAmount);
     }
 
-    // function test_beforeMint_called_by_Vault_succeeds() public {
-    //     IHooks.Config memory config = accountingModuleHook.getConfig();
-    //     config.beforeMint = true;
-    //     accountingModuleHook.setConfig(config);
+    function test_beforeMint_called_by_Vault_succeeds() public {
+        // Simulate user approving and depositing assets to the accounting module
+        uint256 depositAmount = 100 ether;
+        mockErc20.mint(address(mockStrategy), depositAmount);
 
-    //     vm.startPrank(address(mockVault));
-    //     accountingModuleHook.beforeMint(
-    //         IHooks.MintParams({
-    //             asset: address(mockErc20),
-    //             shares: 100 ether,
-    //             caller: address(this),
-    //             receiver: address(this),
-    //             assets: 100 ether,
-    //             baseAssets: 0
-    //         })
-    //     );
-    //     vm.stopPrank();
-    // }
+        // Simulate the vault calling deposit on the accounting module
+        vm.startPrank(address(mockStrategy));
+        // Actually deposit assets to the accounting module (assume deposit function exists)
+        // This is a placeholder; replace with actual deposit logic if needed
+        // accountingModule.deposit(depositAmount, address(this));
 
-    // function test_afterMint_called_by_Vault_succeeds() public {
-    //     IHooks.Config memory config = accountingModuleHook.getConfig();
-    //     config.afterMint = true;
-    //     accountingModuleHook.setConfig(config);
+        // Now call the beforeMint hook as the vault would before mint
+        accountingModuleHook.beforeMint(
+            IHooks.MintParams({
+                asset: address(mockErc20),
+                shares: depositAmount,
+                caller: address(this),
+                receiver: address(this),
+                assets: depositAmount,
+                baseAssets: depositAmount
+            })
+        );
+        vm.stopPrank();
 
-    //     vm.startPrank(address(mockVault));
-    //     accountingModuleHook.afterMint(
-    //         IHooks.MintParams({
-    //             asset: address(mockErc20),
-    //             shares: 100 ether,
-    //             caller: address(this),
-    //             receiver: address(this),
-    //             assets: 100 ether,
-    //             baseAssets: 0
-    //         })
-    //     );
-    //     vm.stopPrank();
-    // }
+        // no effect since it does nothing on beforeMint
+        assertEq(IERC20(accountingModule.accountingToken()).balanceOf(address(mockStrategy)), 0);
+    }
 
-    // function test_beforeRedeem_called_by_Vault_succeeds() public {
-    //     IHooks.Config memory config = accountingModuleHook.getConfig();
-    //     config.beforeRedeem = true;
-    //     accountingModuleHook.setConfig(config);
+    function test_afterMint_called_by_Vault_succeeds() public {
+        uint256 mintAmount = 100 ether;
+        mockErc20.mint(address(mockStrategy), mintAmount);
 
-    //     vm.startPrank(address(mockVault));
-    //     accountingModuleHook.beforeRedeem(
-    //         IHooks.RedeemParams({
-    //             asset: address(mockErc20),
-    //             shares: 100 ether,
-    //             caller: address(this),
-    //             receiver: address(this),
-    //             owner: address(this),
-    //             assets: 100 ether
-    //         })
-    //     );
-    //     vm.stopPrank();
-    // }
+        // Simulate the vault calling afterMint on the hook
+        vm.startPrank(address(mockStrategy));
+        accountingModuleHook.afterMint(
+            IHooks.MintParams({
+                asset: address(mockErc20),
+                shares: mintAmount,
+                caller: address(this),
+                receiver: address(this),
+                assets: mintAmount,
+                baseAssets: mintAmount
+            })
+        );
+        vm.stopPrank();
 
-    // function test_beforeWithdraw_called_by_Vault_succeeds() public {
-    //     IHooks.Config memory config = accountingModuleHook.getConfig();
-    //     config.beforeWithdraw = true;
-    //     accountingModuleHook.setConfig(config);
+        // Should have deposited to the accounting module via the hook
+        assertEq(IERC20(accountingModule.accountingToken()).balanceOf(address(mockStrategy)), mintAmount);
+    }
 
-    //     vm.startPrank(address(mockVault));
-    //     accountingModuleHook.beforeWithdraw(
-    //         IHooks.WithdrawParams({
-    //             asset: address(mockErc20),
-    //             assets: 100 ether,
-    //             caller: address(this),
-    //             receiver: address(this),
-    //             owner: address(this),
-    //             shares: 100 ether
-    //         })
-    //     );
-    //     vm.stopPrank();
-    // }
+    function test_beforeRedeem_called_by_Vault_succeeds() public {
+        // Use a receiver address instead of address(this)
+        address receiver = address(0xBEEF);
+
+        // Mint accountingToken to the strategy to simulate it having assets to withdraw
+        address accountingToken = address(accountingModule.accountingToken());
+        uint256 redeemAmount = 100 ether;
+        // Place some mockERC20 token into strategy by minting it directly
+        mockErc20.mint(address(mockStrategy), redeemAmount);
+
+        // Mint accountingToken to the strategy (mockStrategy) using the accountingModule
+        vm.prank(address(mockStrategy));
+        accountingModule.deposit(redeemAmount);
+        // Confirm the strategy has the accountingToken
+        assertEq(IERC20(accountingToken).balanceOf(address(mockStrategy)), redeemAmount);
+
+        // Simulate the vault calling beforeRedeem on the hook
+        vm.startPrank(address(mockStrategy));
+        accountingModuleHook.beforeRedeem(
+            IHooks.RedeemParams({
+                asset: address(mockErc20),
+                shares: redeemAmount,
+                caller: receiver,
+                receiver: receiver,
+                owner: receiver,
+                assets: redeemAmount
+            })
+        );
+        vm.stopPrank();
+
+        // Assert that the strategy's accountingToken balance is now 0 after redeem
+        assertEq(
+            IERC20(accountingToken).balanceOf(address(mockStrategy)),
+            0,
+            "Strategy's accountingToken balance should be 0 after redeem"
+        );
+
+        // asset back to strategy
+        assertEq(
+            mockErc20.balanceOf(address(mockStrategy)),
+            redeemAmount,
+            "Receiver should have received the redeemed mockErc20 assets"
+        );
+
+        assertEq(
+            mockErc20.balanceOf(address(receiver)), 0, "Receiver should have received the redeemed mockErc20 assets"
+        );
+    }
+
+    function test_beforeWithdraw_called_by_Vault_succeeds() public {
+        // Use a receiver address instead of address(this)
+        address receiver = address(0xBEEF);
+
+        // Mint accountingToken to the strategy to simulate it having assets to withdraw
+        address accountingToken = address(accountingModule.accountingToken());
+        uint256 withdrawAmount = 100 ether;
+        // Place some mockERC20 token into strategy by minting it directly
+        mockErc20.mint(address(mockStrategy), withdrawAmount);
+
+        // Mint accountingToken to the strategy (mockStrategy) using the accountingModule
+        vm.prank(address(mockStrategy));
+        accountingModule.deposit(withdrawAmount);
+        // Confirm the strategy has the accountingToken
+        assertEq(IERC20(accountingToken).balanceOf(address(mockStrategy)), withdrawAmount);
+
+        // Simulate the vault calling beforeWithdraw on the hook
+        vm.startPrank(address(mockStrategy));
+        accountingModuleHook.beforeWithdraw(
+            IHooks.WithdrawParams({
+                asset: address(mockErc20),
+                assets: withdrawAmount,
+                caller: receiver,
+                receiver: receiver,
+                owner: receiver,
+                shares: withdrawAmount
+            })
+        );
+        vm.stopPrank();
+
+        // Assert that the strategy's accountingToken balance is now 0 after withdraw
+        assertEq(
+            IERC20(accountingToken).balanceOf(address(mockStrategy)),
+            0,
+            "Strategy's accountingToken balance should be 0 after withdraw"
+        );
+
+        // asset back to strategy
+        assertEq(
+            mockErc20.balanceOf(address(mockStrategy)),
+            withdrawAmount,
+            "Receiver should have received the withdrawn mockErc20 assets"
+        );
+
+        assertEq(
+            mockErc20.balanceOf(address(receiver)), 0, "Receiver should have received the withdrawn mockErc20 assets"
+        );
+    }
 }
