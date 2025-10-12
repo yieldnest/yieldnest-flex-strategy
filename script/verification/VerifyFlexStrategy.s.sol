@@ -1,0 +1,236 @@
+// SPDX-License-Identifier: BSD-3-Clause
+pragma solidity ^0.8.28;
+
+import { Test } from "forge-std/Test.sol";
+import { IVault } from "@yieldnest-vault/interface/IVault.sol";
+import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import { BaseScript } from "script/BaseScript.sol";
+import { MainnetActors } from "@yieldnest-vault-script/Actors.sol";
+import { RolesVerification } from "./RolesVerification.sol";
+import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
+import { console } from "forge-std/console.sol";
+
+// forge script VerifyFlexStrategy --rpc-url <MAINNET_RPC_URL>
+contract VerifyFlexStrategy is BaseScript, Test {
+    struct VerificationParameters {
+        string name;
+        string symbol_;
+        string accountTokenName;
+        string accountTokenSymbol;
+        uint8 decimals;
+        bool paused;
+        uint256 targetApy;
+        uint256 lowerBound;
+        uint256 minRewardableAssets;
+        address accountingProcessor;
+        address baseAsset;
+        bool alwaysComputeTotalAssets;
+        address[] allocators;
+    }
+
+    function symbol() public view override returns (string memory) {
+        return symbol_;
+    }
+
+    function run() public {
+        _setup();
+        _loadDeployment(deploymentEnv);
+
+        verify();
+    }
+
+    function setVerificationParameters(VerificationParameters memory params) public {
+        name = params.name;
+        symbol_ = params.symbol_;
+        accountTokenName = params.accountTokenName;
+        accountTokenSymbol = params.accountTokenSymbol;
+        decimals = params.decimals;
+        paused = params.paused;
+        targetApy = params.targetApy;
+        lowerBound = params.lowerBound;
+        minRewardableAssets = params.minRewardableAssets;
+        accountingProcessor = params.accountingProcessor;
+        baseAsset = params.baseAsset;
+        alwaysComputeTotalAssets = params.alwaysComputeTotalAssets;
+        allocators = params.allocators;
+    }
+
+    function setDeploymentParameters(DeploymentParameters memory) public virtual override {
+        revert("Not available in the context of verification");
+    }
+
+    function _verifyDeploymentParams() internal view virtual {
+        assertEq(strategy.name(), name, "name is invalid");
+        assertEq(strategy.symbol(), symbol_, "symbol is invalid");
+        assertEq(strategy.decimals(), decimals, "decimals is invalid");
+
+        console.log("================================================");
+        console.log("Allocators:");
+        console.log("================================================");
+        for (uint256 i = 0; i < allocators.length; i++) {
+            console.log("Configured allocator:", allocators[i]);
+            RolesVerification.verifyRole(
+                strategy, allocators[i], strategy.ALLOCATOR_ROLE(), true, "allocator has allocator role"
+            );
+        }
+        console.log("================================================");
+        RolesVerification.verifyRole(
+            strategy, actors.BOOTSTRAPPER(), strategy.ALLOCATOR_ROLE(), true, "bootstrapper has allocator role"
+        );
+        assertEq(accountingModule.targetApy(), targetApy, "targetApy is not set");
+        assertEq(accountingModule.lowerBound(), lowerBound, "lowerBound is not set");
+        RolesVerification.verifyRole(
+            accountingModule,
+            accountingProcessor,
+            accountingModule.REWARDS_PROCESSOR_ROLE(),
+            true,
+            "safe has rewards processor role"
+        );
+
+        RolesVerification.verifyRole(
+            accountingModule, safe, accountingModule.LOSS_PROCESSOR_ROLE(), true, "safe has loss processor role"
+        );
+    }
+
+    function _verifyAgainstDeployer() internal view virtual {
+        FlexStrategyDeployer deployerContract = FlexStrategyDeployer(deployer);
+        assertEq(deployerContract.name(), name, "deployer name does not match");
+        assertEq(deployerContract.symbol_(), symbol_, "deployer symbol does not match");
+        assertEq(deployerContract.accountTokenName(), accountTokenName, "deployer accountTokenName does not match");
+        assertEq(
+            deployerContract.accountTokenSymbol(), accountTokenSymbol, "deployer accountTokenSymbol does not match"
+        );
+        assertEq(deployerContract.decimals(), decimals, "deployer decimals does not match");
+
+        assertEq(deployerContract.baseAsset(), baseAsset, "deployer baseAsset does not match");
+        assertEq(deployerContract.targetApy(), targetApy, "deployer targetApy does not match");
+        assertEq(deployerContract.lowerBound(), lowerBound, "deployer lowerBound does not match");
+        assertEq(deployerContract.safe(), safe, "deployer safe does not match");
+        assertEq(
+            deployerContract.accountingProcessor(), accountingProcessor, "deployer accountingProcessor does not match"
+        );
+        assertEq(
+            deployerContract.minRewardableAssets(), minRewardableAssets, "deployer minRewardableAssets does not match"
+        );
+        assertEq(
+            deployerContract.alwaysComputeTotalAssets(),
+            alwaysComputeTotalAssets,
+            "deployer alwaysComputeTotalAssets does not match"
+        );
+        assertEq(deployerContract.paused(), paused, "deployer paused does not match");
+        assertEq(deployerContract.useRewardsSweeper(), useRewardsSweeper, "deployer useRewardsSweeper does not match");
+    }
+
+    function _verifyProxies() internal view virtual {
+        RolesVerification.verifyProxyRoles(address(strategy), strategyProxyAdmin, address(timelock));
+        RolesVerification.verifyProxyRoles(address(accountingModule), accountingModuleProxyAdmin, address(timelock));
+        RolesVerification.verifyProxyRoles(address(accountingToken), accountingTokenProxyAdmin, address(timelock));
+        if (useRewardsSweeper) {
+            RolesVerification.verifyProxyRoles(address(rewardsSweeper), rewardsSweeperProxyAdmin, address(timelock));
+        }
+    }
+
+    function verify() internal view virtual {
+        _verifyAgainstDeployer();
+        _verifyDeploymentParams();
+        _verifyProxies();
+
+        assertNotEq(address(strategy), address(0), "strategy is not set");
+        assertNotEq(address(strategyImplementation), address(0), "strategy implementation is not set");
+        assertNotEq(address(strategyProxyAdmin), address(0), "strategy proxy admin is not set");
+
+        assertEq(address(strategy.accountingModule()), address(accountingModule), "strategy.accountingModule() not set");
+        assertEq(
+            address(accountingToken.accountingModule()),
+            address(accountingModule),
+            "accountingToken.accountingModule() not set"
+        );
+        assertEq(
+            address(accountingModule.accountingToken()),
+            address(accountingToken),
+            "accountingModule.accountingToken() not set"
+        );
+        assertEq(
+            address(accountingModule.strategy()),
+            address(strategy),
+            "accountingModule.strategy() does not match strategy address"
+        );
+        assertEq(
+            address(accountingToken.TRACKED_ASSET()),
+            baseAsset,
+            "accountingToken.TRACKED_ASSET() does not match base asset"
+        );
+
+        assertNotEq(address(rateProvider), address(0), "provider is invalid");
+        assertEq(strategy.provider(), address(rateProvider), "provider is invalid");
+
+        assertTrue(strategy.getHasAllocator(), "has allocator is invalid");
+        assertEq(strategy.countNativeAsset(), false, "count native asset is invalid");
+        assertEq(strategy.alwaysComputeTotalAssets(), true, "always compute total assets is invalid");
+
+        address[] memory assets = strategy.getAssets();
+        assertEq(assets.length, 2, "assets length is invalid");
+        assertEq(assets[0], baseAsset, "assets[0] is invalid");
+        assertEq(assets[1], address(accountingToken), "assets[1] is invalid");
+        assertFalse(strategy.paused(), "paused is invalid");
+
+        RolesVerification.verifyDefaultRoles(strategy, accountingModule, accountingToken, timelock, actors);
+        RolesVerification.verifyTemporaryRoles(strategy, accountingModule, accountingToken, deployer);
+        RolesVerification.verifyRole(
+            timelock,
+            MainnetActors(address(actors)).YnSecurityCouncil(),
+            timelock.PROPOSER_ROLE(),
+            true,
+            "proposer role for timelock is YnSecurityCouncil"
+        );
+        RolesVerification.verifyRole(
+            timelock,
+            MainnetActors(address(actors)).YnSecurityCouncil(),
+            timelock.EXECUTOR_ROLE(),
+            true,
+            "executor role for timelock is YnSecurityCouncil"
+        );
+        RolesVerification.verifyRole(
+            strategy,
+            MainnetActors(address(actors)).YnBootstrapper(),
+            strategy.ALLOCATOR_ROLE(),
+            true,
+            "bootstrapper has allocator role"
+        );
+
+        if (useRewardsSweeper) {
+            RolesVerification.verifyRole(
+                rewardsSweeper,
+                deployer,
+                rewardsSweeper.DEFAULT_ADMIN_ROLE(),
+                false,
+                "deployer should not have DEFAULT_ADMIN_ROLE on rewardsSweeper"
+            );
+
+            RolesVerification.verifyRole(
+                rewardsSweeper,
+                MainnetActors(address(actors)).PROCESSOR(),
+                rewardsSweeper.REWARDS_SWEEPER_ROLE(),
+                true,
+                "deployer should not have REWARDS_SWEEPER_ROLE on rewardsSweeper"
+            );
+
+            RolesVerification.verifyRole(
+                accountingModule,
+                address(rewardsSweeper),
+                accountingModule.REWARDS_PROCESSOR_ROLE(),
+                true,
+                "rewardsSweeper has rewards processor role"
+            );
+
+            assertEq(
+                address(rewardsSweeper.accountingModule()),
+                address(accountingModule),
+                "rewardsSweeper accountingModule is invalid"
+            );
+        }
+
+        assertGe(timelock.getMinDelay(), minDelay, "min delay is invalid");
+        assertEq(Ownable(strategyProxyAdmin).owner(), address(timelock), "proxy admin owner is invalid");
+    }
+}
