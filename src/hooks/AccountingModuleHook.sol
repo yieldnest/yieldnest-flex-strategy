@@ -70,6 +70,11 @@ contract AccountingModuleHook is IHooks {
         });
     }
 
+    /**
+     * @notice Deposit to the accounting module
+     * @param asset The asset to deposit
+     * @param amount The amount to deposit
+     */
     function depositToAccountingModule(address asset, uint256 amount) internal {
         if (asset == accountingModule.baseAsset()) {
             address[] memory targets = new address[](1);
@@ -84,6 +89,11 @@ contract AccountingModuleHook is IHooks {
         }
     }
 
+    /**
+     * @notice Withdraw from the accounting module
+     * @param asset The asset to withdraw
+     * @param amount The amount to withdraw
+     */
     function withdrawFromAccountingModule(address asset, uint256 assets) internal {
         if (asset == accountingModule.baseAsset()) {
             address[] memory targets = new address[](1);
