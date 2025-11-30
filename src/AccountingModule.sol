@@ -315,7 +315,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         s._snapshots.push(snapshot);
 
-        emit StrategySnapshotCreated(s._snapshots.length - 1, snapshot);
+        emit StrategySnapshotCreated(snapshotsLength() - 1, snapshot);
 
         return snapshot;
     }
