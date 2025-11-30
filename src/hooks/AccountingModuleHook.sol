@@ -92,7 +92,7 @@ contract AccountingModuleHook is IHooks {
     /**
      * @notice Withdraw from the accounting module
      * @param asset The asset to withdraw
-     * @param amount The amount to withdraw
+     * @param assets The amount to withdraw
      */
     function withdrawFromAccountingModule(address asset, uint256 assets) internal {
         if (asset == accountingModule.baseAsset()) {

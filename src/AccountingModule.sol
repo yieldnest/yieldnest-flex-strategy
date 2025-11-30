@@ -22,6 +22,12 @@ interface IAccountingModule {
     event CooldownSecondsUpdated(uint16 newValue, uint16 oldValue);
     event SafeUpdated(address newValue, address oldValue);
 
+    event RewardsProcessed(
+        uint256 amount, uint256 snapshotIndex, uint256 currentPricePerShare, uint256 aprSinceLastSnapshot
+    );
+    event StrategySnapshotCreated(uint256 snapshotIndex, StrategySnapshot snapshot);
+    event LossesProcessed(uint256 amount, uint256 snapshotIndex);
+
     error ZeroAddress();
     error TooEarly();
     error NotStrategy();
@@ -289,6 +295,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         );
 
         if (aprSinceLastSnapshot > s.targetApy) revert AccountingLimitsExceeded(aprSinceLastSnapshot, s.targetApy);
+
+        emit RewardsProcessed(amount, snapshotIndex, currentPricePerShare, aprSinceLastSnapshot);
     }
 
     function createStrategySnapshot() internal returns (StrategySnapshot memory) {
@@ -306,6 +314,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         });
 
         s._snapshots.push(snapshot);
+
+        emit StrategySnapshotCreated(s._snapshots.length - 1, snapshot);
 
         return snapshot;
     }
@@ -365,6 +375,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         IVault(s.strategy).processAccounting();
 
         createStrategySnapshot();
+
+        emit LossesProcessed(amount, snapshotsLength() - 1);
     }
 
     /// ADMIN ///
@@ -468,7 +480,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         return _getAccountingModuleStorage().targetApy;
     }
 
-    function snapshotsLength() external view returns (uint256) {
+    function snapshotsLength() public view returns (uint256) {
         return _getAccountingModuleStorage()._snapshots.length;
     }
 

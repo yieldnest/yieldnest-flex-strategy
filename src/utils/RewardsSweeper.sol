@@ -24,7 +24,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     error SnapshotIndexOutOfBounds(uint256 index);
     error PreviousTimestampGreaterThanCurrentTimestamp(uint256 currentTimestamp, uint256 previousTimestamp);
 
-    event RewardsSwept(uint256 amount);
+    event RewardsSwept(uint256 amount, uint256 snapshotIndex);
     event AccountingModuleUpdated(address newModule, address oldModule);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -160,7 +160,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         // Process rewards through accounting module with specific snapshot index
         accountingModule.processRewards(amount, snapshotIndex);
 
-        emit RewardsSwept(amount);
+        emit RewardsSwept(amount, snapshotIndex);
     }
     /**
      * @notice Checks if rewards can be swept based on cooldown period and base asset balance
