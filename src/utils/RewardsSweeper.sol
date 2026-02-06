@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IAccountingModule } from "../AccountingModule.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -17,6 +18,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant REWARDS_SWEEPER_ROLE = keccak256("REWARDS_SWEEPER_ROLE");
+    bytes32 public constant ASSET_RESCUER_ROLE = keccak256("ASSET_RESCUER_ROLE");
 
     IAccountingModule public accountingModule;
 
@@ -26,6 +28,8 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
 
     event RewardsSwept(uint256 amount, uint256 snapshotIndex);
     event AccountingModuleUpdated(address newModule, address oldModule);
+    event ERC20Rescued(address indexed token, address indexed to, uint256 amount);
+    event ERC721Rescued(address indexed token, address indexed to, uint256 tokenId);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -179,5 +183,27 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     function setAccountingModule(address accountingModule_) external onlyRole(DEFAULT_ADMIN_ROLE) {
         emit AccountingModuleUpdated(accountingModule_, address(accountingModule));
         accountingModule = IAccountingModule(accountingModule_);
+    }
+
+    /**
+     * @notice Transfers ERC20 tokens held by this contract to a specified address
+     * @param token The ERC20 token address
+     * @param to The recipient address
+     * @param amount The amount of tokens to transfer
+     */
+    function rescueERC20(address token, address to, uint256 amount) external onlyRole(ASSET_RESCUER_ROLE) {
+        IERC20(token).safeTransfer(to, amount);
+        emit ERC20Rescued(token, to, amount);
+    }
+
+    /**
+     * @notice Transfers an ERC721 NFT held by this contract to a specified address
+     * @param token The ERC721 token address
+     * @param to The recipient address
+     * @param tokenId The ID of the NFT to transfer
+     */
+    function rescueERC721(address token, address to, uint256 tokenId) external onlyRole(ASSET_RESCUER_ROLE) {
+        IERC721(token).safeTransferFrom(address(this), to, tokenId);
+        emit ERC721Rescued(token, to, tokenId);
     }
 }
