@@ -5,9 +5,12 @@ import { BaseIntegrationTest } from "test/integration/BaseIntegrationTest.sol";
 import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
 import { IAccountingModule } from "src/AccountingModule.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
+import { MockERC721 } from "test/mocks/MockERC721.sol";
 import { console } from "forge-std/console.sol";
 
 contract RewardsSweeperTest is BaseIntegrationTest {
@@ -473,5 +476,231 @@ contract RewardsSweeperTest is BaseIntegrationTest {
             initialTotalAssets + totalRewards,
             "Strategy total assets should equal initial plus total rewards"
         );
+    }
+
+    // =====================
+    // Rescue ERC20 integration tests
+    // =====================
+
+    function _grantRescuerRole(address rescuer) internal {
+        bytes32 role = rewardsSweeper.ASSET_RESCUER_ROLE();
+        vm.startPrank(deployment.actors().ADMIN());
+        rewardsSweeper.grantRole(role, rescuer);
+        vm.stopPrank();
+    }
+
+    function test_rescueERC20_withBaseAsset() public {
+        address RESCUER = address(0xabc123);
+        address RECIPIENT = address(0xdef456);
+
+        _grantRescuerRole(RESCUER);
+
+        // Deal base asset tokens to the sweeper (simulating stuck tokens)
+        IERC20 baseAsset = IERC20(strategy.asset());
+        uint256 amount = 50e18;
+        deal(address(baseAsset), address(rewardsSweeper), amount);
+
+        // Rescue the stuck tokens
+        vm.prank(RESCUER);
+        rewardsSweeper.rescueERC20(address(baseAsset), RECIPIENT, amount);
+
+        assertEq(baseAsset.balanceOf(address(rewardsSweeper)), 0, "Sweeper should have no base asset left");
+        assertEq(baseAsset.balanceOf(RECIPIENT), amount, "Recipient should have received tokens");
+    }
+
+    function test_rescueERC20_withNonBaseAssetToken() public {
+        address RESCUER = address(0xabc123);
+        address RECIPIENT = address(0xdef456);
+
+        _grantRescuerRole(RESCUER);
+
+        // Deploy an unrelated ERC20 token and send it to the sweeper
+        MockERC20 strayToken = new MockERC20("Stray Token", "STRAY", 18);
+        uint256 amount = 1000e18;
+        strayToken.mint(address(rewardsSweeper), amount);
+
+        assertEq(strayToken.balanceOf(address(rewardsSweeper)), amount);
+
+        // Rescue the stray token
+        vm.prank(RESCUER);
+        rewardsSweeper.rescueERC20(address(strayToken), RECIPIENT, amount);
+
+        assertEq(strayToken.balanceOf(address(rewardsSweeper)), 0, "Sweeper should have no stray tokens left");
+        assertEq(strayToken.balanceOf(RECIPIENT), amount, "Recipient should have received stray tokens");
+    }
+
+    function test_rescueERC20_revertIfNotRescuer_integration() public {
+        bytes32 rescuerRole = rewardsSweeper.ASSET_RESCUER_ROLE();
+        IERC20 baseAsset = IERC20(strategy.asset());
+        uint256 amount = 50e18;
+        deal(address(baseAsset), address(rewardsSweeper), amount);
+
+        // BOB does not have ASSET_RESCUER_ROLE
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, rescuerRole)
+        );
+        vm.prank(BOB);
+        rewardsSweeper.rescueERC20(address(baseAsset), BOB, amount);
+    }
+
+    function test_rescueERC20_sweeperRoleCannotRescue() public {
+        bytes32 rescuerRole = rewardsSweeper.ASSET_RESCUER_ROLE();
+        IERC20 baseAsset = IERC20(strategy.asset());
+        uint256 amount = 50e18;
+        deal(address(baseAsset), address(rewardsSweeper), amount);
+
+        // REWARDS_SWEEPER has REWARDS_SWEEPER_ROLE but not ASSET_RESCUER_ROLE
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, REWARDS_SWEEPER, rescuerRole
+            )
+        );
+        vm.prank(REWARDS_SWEEPER);
+        rewardsSweeper.rescueERC20(address(baseAsset), REWARDS_SWEEPER, amount);
+    }
+
+    function test_rescueERC20_afterSweepingRewards() public {
+        address RESCUER = address(0xabc123);
+        address RECIPIENT = address(0xdef456);
+        uint256 depositAmount = 100e18;
+
+        _grantRescuerRole(RESCUER);
+
+        IERC20 baseAsset = IERC20(strategy.asset());
+
+        // Give BOB tokens and deposit
+        deal(address(baseAsset), BOB, depositAmount);
+        vm.startPrank(BOB);
+        baseAsset.approve(address(strategy), depositAmount);
+        strategy.deposit(depositAmount, BOB);
+        vm.stopPrank();
+
+        skip(30 days);
+
+        // Deal rewards to sweeper (more than will be swept)
+        uint256 totalRewards = 100e18;
+        deal(address(baseAsset), address(rewardsSweeper), totalRewards);
+
+        // Sweep rewards (will only sweep up to APR max)
+        vm.prank(REWARDS_SWEEPER);
+        uint256 swept = rewardsSweeper.sweepRewardsUpToAPRMax();
+
+        // There should be remaining tokens in the sweeper
+        uint256 remaining = baseAsset.balanceOf(address(rewardsSweeper));
+        assertGt(remaining, 0, "Should have remaining tokens after APR-capped sweep");
+        assertEq(remaining, totalRewards - swept, "Remaining should equal total minus swept");
+
+        // Now rescue the remaining tokens
+        vm.prank(RESCUER);
+        rewardsSweeper.rescueERC20(address(baseAsset), RECIPIENT, remaining);
+
+        assertEq(baseAsset.balanceOf(address(rewardsSweeper)), 0, "Sweeper should be empty after rescue");
+        assertEq(baseAsset.balanceOf(RECIPIENT), remaining, "Recipient should have remaining tokens");
+    }
+
+    // =====================
+    // Rescue ERC721 integration tests
+    // =====================
+
+    function test_rescueERC721_success_integration() public {
+        address RESCUER = address(0xabc123);
+        address RECIPIENT = address(0xdef456);
+
+        _grantRescuerRole(RESCUER);
+
+        // Deploy an NFT and mint to the sweeper
+        MockERC721 nft = new MockERC721("Test NFT", "TNFT");
+        uint256 tokenId = nft.mint(address(rewardsSweeper));
+
+        assertEq(nft.ownerOf(tokenId), address(rewardsSweeper));
+
+        // Rescue the NFT
+        vm.prank(RESCUER);
+        rewardsSweeper.rescueERC721(address(nft), RECIPIENT, tokenId);
+
+        assertEq(nft.ownerOf(tokenId), RECIPIENT, "NFT should be transferred to recipient");
+    }
+
+    function test_rescueERC721_multipleNFTs_integration() public {
+        address RESCUER = address(0xabc123);
+        address RECIPIENT1 = address(0xdef456);
+        address RECIPIENT2 = address(0xdef789);
+
+        _grantRescuerRole(RESCUER);
+
+        // Deploy NFT and mint multiple to the sweeper
+        MockERC721 nft = new MockERC721("Test NFT", "TNFT");
+        uint256 tokenId1 = nft.mint(address(rewardsSweeper));
+        uint256 tokenId2 = nft.mint(address(rewardsSweeper));
+
+        // Rescue to different recipients
+        vm.startPrank(RESCUER);
+        rewardsSweeper.rescueERC721(address(nft), RECIPIENT1, tokenId1);
+        rewardsSweeper.rescueERC721(address(nft), RECIPIENT2, tokenId2);
+        vm.stopPrank();
+
+        assertEq(nft.ownerOf(tokenId1), RECIPIENT1, "First NFT should go to recipient 1");
+        assertEq(nft.ownerOf(tokenId2), RECIPIENT2, "Second NFT should go to recipient 2");
+    }
+
+    function test_rescueERC721_revertIfNotRescuer_integration() public {
+        bytes32 rescuerRole = rewardsSweeper.ASSET_RESCUER_ROLE();
+        MockERC721 nft = new MockERC721("Test NFT", "TNFT");
+        uint256 tokenId = nft.mint(address(rewardsSweeper));
+
+        // BOB does not have ASSET_RESCUER_ROLE
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, rescuerRole)
+        );
+        vm.prank(BOB);
+        rewardsSweeper.rescueERC721(address(nft), BOB, tokenId);
+    }
+
+    function test_rescueERC721_sweeperRoleCannotRescue() public {
+        bytes32 rescuerRole = rewardsSweeper.ASSET_RESCUER_ROLE();
+        MockERC721 nft = new MockERC721("Test NFT", "TNFT");
+        uint256 tokenId = nft.mint(address(rewardsSweeper));
+
+        // REWARDS_SWEEPER has REWARDS_SWEEPER_ROLE but not ASSET_RESCUER_ROLE
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, REWARDS_SWEEPER, rescuerRole
+            )
+        );
+        vm.prank(REWARDS_SWEEPER);
+        rewardsSweeper.rescueERC721(address(nft), REWARDS_SWEEPER, tokenId);
+    }
+
+    function test_rescueERC721_emitsEvent_integration() public {
+        address RESCUER = address(0xabc123);
+        address RECIPIENT = address(0xdef456);
+
+        _grantRescuerRole(RESCUER);
+
+        MockERC721 nft = new MockERC721("Test NFT", "TNFT");
+        uint256 tokenId = nft.mint(address(rewardsSweeper));
+
+        vm.expectEmit(true, true, false, true);
+        emit RewardsSweeper.ERC721Rescued(address(nft), RECIPIENT, tokenId);
+
+        vm.prank(RESCUER);
+        rewardsSweeper.rescueERC721(address(nft), RECIPIENT, tokenId);
+    }
+
+    function test_rescueERC20_emitsEvent_integration() public {
+        address RESCUER = address(0xabc123);
+        address RECIPIENT = address(0xdef456);
+
+        _grantRescuerRole(RESCUER);
+
+        IERC20 baseAsset = IERC20(strategy.asset());
+        uint256 amount = 50e18;
+        deal(address(baseAsset), address(rewardsSweeper), amount);
+
+        vm.expectEmit(true, true, false, true);
+        emit RewardsSweeper.ERC20Rescued(address(baseAsset), RECIPIENT, amount);
+
+        vm.prank(RESCUER);
+        rewardsSweeper.rescueERC20(address(baseAsset), RECIPIENT, amount);
     }
 }
