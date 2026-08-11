@@ -92,12 +92,7 @@ contract AccountingModuleHookTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IHooks.CallerNotVault.selector));
         accountingModuleHook.beforeWithdraw(
             IHooks.WithdrawParams({
-                asset: address(mockErc20),
-                assets: 100 ether,
-                caller: BOB,
-                receiver: BOB,
-                owner: BOB,
-                shares: 100 ether
+                asset: address(mockErc20), assets: 100 ether, caller: BOB, receiver: BOB, owner: BOB, shares: 100 ether
             })
         );
         vm.stopPrank();
@@ -108,12 +103,7 @@ contract AccountingModuleHookTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IHooks.CallerNotVault.selector));
         accountingModuleHook.beforeRedeem(
             IHooks.RedeemParams({
-                asset: address(mockErc20),
-                shares: 100 ether,
-                caller: BOB,
-                receiver: BOB,
-                owner: BOB,
-                assets: 100 ether
+                asset: address(mockErc20), shares: 100 ether, caller: BOB, receiver: BOB, owner: BOB, assets: 100 ether
             })
         );
         vm.stopPrank();
@@ -140,12 +130,7 @@ contract AccountingModuleHookTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IHooks.CallerNotVault.selector));
         accountingModuleHook.afterWithdraw(
             IHooks.WithdrawParams({
-                asset: address(mockErc20),
-                assets: 100 ether,
-                caller: BOB,
-                receiver: BOB,
-                owner: BOB,
-                shares: 100 ether
+                asset: address(mockErc20), assets: 100 ether, caller: BOB, receiver: BOB, owner: BOB, shares: 100 ether
             })
         );
         vm.stopPrank();
@@ -156,12 +141,7 @@ contract AccountingModuleHookTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IHooks.CallerNotVault.selector));
         accountingModuleHook.afterRedeem(
             IHooks.RedeemParams({
-                asset: address(mockErc20),
-                shares: 100 ether,
-                caller: BOB,
-                receiver: BOB,
-                owner: BOB,
-                assets: 100 ether
+                asset: address(mockErc20), shares: 100 ether, caller: BOB, receiver: BOB, owner: BOB, assets: 100 ether
             })
         );
         vm.stopPrank();

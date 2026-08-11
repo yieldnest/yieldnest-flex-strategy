@@ -282,9 +282,7 @@ contract RewardsSweeperRescueTest is Test {
 
     function test_nonAdminCannotGrantRescuerRole() public {
         vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, DEFAULT_ADMIN_ROLE
-            )
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, DEFAULT_ADMIN_ROLE)
         );
         vm.prank(BOB);
         rewardsSweeper.grantRole(ASSET_RESCUER_ROLE, BOB);

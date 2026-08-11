@@ -116,8 +116,7 @@ contract FlexStrategyDeployer {
         AccountingToken accountingTokenImplementation = implementations.accountingTokenImplementation;
 
         accountingToken = AccountingToken(
-            payable(
-                address(
+            payable(address(
                     new TransparentUpgradeableProxy(
                         address(accountingTokenImplementation),
                         address(timelock),
@@ -125,15 +124,13 @@ contract FlexStrategyDeployer {
                             AccountingToken.initialize.selector, admin, accountTokenName, accountTokenSymbol
                         )
                     )
-                )
-            )
+                ))
         );
 
         deployRateProvider();
 
         strategy = FlexStrategy(
-            payable(
-                address(
+            payable(address(
                     new TransparentUpgradeableProxy(
                         address(strategyImplementation),
                         address(timelock),
@@ -150,15 +147,13 @@ contract FlexStrategyDeployer {
                             alwaysComputeTotalAssets
                         )
                     )
-                )
-            )
+                ))
         );
 
         AccountingModule accountingModuleImplementation =
             AccountingModule(address(implementations.accountingModuleImplementation));
         accountingModule = AccountingModule(
-            payable(
-                address(
+            payable(address(
                     new TransparentUpgradeableProxy(
                         address(accountingModuleImplementation),
                         address(timelock),
@@ -174,23 +169,20 @@ contract FlexStrategyDeployer {
                             1 hours
                         )
                     )
-                )
-            )
+                ))
         );
 
         RewardsSweeper rewardsSweeperImplementation = implementations.rewardsSweeperImplementation;
 
         if (useRewardsSweeper) {
             rewardsSweeper = RewardsSweeper(
-                payable(
-                    address(
+                payable(address(
                         new TransparentUpgradeableProxy(
                             address(rewardsSweeperImplementation),
                             address(timelock),
                             abi.encodeWithSelector(RewardsSweeper.initialize.selector, admin, address(accountingModule))
                         )
-                    )
-                )
+                    ))
             );
         }
 
@@ -220,9 +212,8 @@ contract FlexStrategyDeployer {
         accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), safe);
 
         {
-            AccountingModuleHook accountingModuleHook = implementations.hooksDeployer.deployAccountingModuleHook(
-                address(strategy), address(accountingModule), address(strategy)
-            );
+            AccountingModuleHook accountingModuleHook = implementations.hooksDeployer
+                .deployAccountingModuleHook(address(strategy), address(accountingModule), address(strategy));
             // set hooks
             IVault(address(strategy)).setHooks(address(accountingModuleHook));
 

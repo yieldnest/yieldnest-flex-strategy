@@ -164,11 +164,9 @@ abstract contract BaseScript is Script {
             payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModule-proxy"))))
         );
         accountingModuleImplementation = AccountingModule(
-            payable(
-                address(
+            payable(address(
                     vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModule-implementation"))
-                )
-            )
+                ))
         );
         accountingModuleProxyAdmin =
             address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModule-proxyAdmin")));
@@ -177,9 +175,9 @@ abstract contract BaseScript is Script {
             payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxy"))))
         );
         accountingTokenImplementation = AccountingToken(
-            payable(
-                address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-implementation")))
-            )
+            payable(address(
+                    vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-implementation"))
+                ))
         );
         accountingTokenProxyAdmin =
             address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxyAdmin")));
@@ -200,9 +198,10 @@ abstract contract BaseScript is Script {
 
     function _deploymentFilePath(Env env) internal view virtual returns (string memory) {
         if (env == Env.PROD) {
-            return string.concat(
-                vm.projectRoot(), "/deployments/", symbol(), "-", Strings.toString(block.chainid), ".json"
-            );
+            return
+                string.concat(
+                    vm.projectRoot(), "/deployments/", symbol(), "-", Strings.toString(block.chainid), ".json"
+                );
         }
 
         return string.concat(
