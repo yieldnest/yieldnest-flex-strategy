@@ -58,6 +58,7 @@ library RolesVerification {
         verifyRole(
             strategy, address(timelock), strategy.ALLOCATOR_MANAGER_ROLE(), true, "Timelock has ALLOCATOR_MANAGER_ROLE"
         );
+        verifyRole(strategy, address(timelock), strategy.HOOKS_MANAGER_ROLE(), true, "Timelock has HOOKS_MANAGER_ROLE");
         verifyRole(
             accountingModule,
             address(timelock),

@@ -69,6 +69,9 @@ contract AccountingModuleHook is IHooks {
 
     /**
      * @notice Get the current accounting module from the strategy.
+     * @dev Accounting module rotation is not fully handled by this lookup alone.
+     *      When the strategy accounting module changes, processor rules and the
+     *      accounting token's accounting module pointer must be updated as well.
      */
     function accountingModule() public view returns (IAccountingModule) {
         return IFlexStrategy(address(flexStrategy)).accountingModule();
