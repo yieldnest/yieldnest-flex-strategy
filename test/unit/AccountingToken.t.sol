@@ -26,7 +26,7 @@ contract AccountingTokenTest is Test {
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
             address(accountingToken_impl),
             ADMIN,
-            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, ADMIN, "NAME", "SYMBOL")
         );
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
@@ -46,7 +46,7 @@ contract AccountingTokenTest is Test {
         TransparentUpgradeableProxy tu2 = new TransparentUpgradeableProxy(
             address(implementation2),
             ADMIN,
-            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME6", "SYMBOL6")
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, ADMIN, "NAME6", "SYMBOL6")
         );
         accountingToken = AccountingToken(payable(address(tu2)));
         assertEq(accountingToken.name(), "NAME6");
@@ -128,7 +128,17 @@ contract AccountingTokenTest is Test {
         new TransparentUpgradeableProxy(
             address(implementation),
             ADMIN,
-            abi.encodeWithSelector(AccountingToken.initialize.selector, address(0), "NAME", "SYMBOL")
+            abi.encodeWithSelector(AccountingToken.initialize.selector, address(0), ADMIN, "NAME", "SYMBOL")
+        );
+    }
+
+    function test_initialize_revertIfZeroAccountingModuleManager() public {
+        AccountingToken implementation = new AccountingToken(address(mockErc20));
+        vm.expectRevert(AccountingToken.ZeroAddress.selector);
+        new TransparentUpgradeableProxy(
+            address(implementation),
+            ADMIN,
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, address(0), "NAME", "SYMBOL")
         );
     }
 }

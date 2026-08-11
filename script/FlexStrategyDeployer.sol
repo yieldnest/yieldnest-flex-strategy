@@ -121,7 +121,7 @@ contract FlexStrategyDeployer {
                         address(accountingTokenImplementation),
                         address(timelock),
                         abi.encodeWithSelector(
-                            AccountingToken.initialize.selector, admin, accountTokenName, accountTokenSymbol
+                            AccountingToken.initialize.selector, admin, admin, accountTokenName, accountTokenSymbol
                         )
                     )
                 ))
@@ -136,6 +136,7 @@ contract FlexStrategyDeployer {
                         address(timelock),
                         abi.encodeWithSelector(
                             FlexStrategy.initialize.selector,
+                            admin,
                             admin,
                             name,
                             symbol_,
@@ -180,7 +181,9 @@ contract FlexStrategyDeployer {
                         new TransparentUpgradeableProxy(
                             address(rewardsSweeperImplementation),
                             address(timelock),
-                            abi.encodeWithSelector(RewardsSweeper.initialize.selector, admin, address(accountingModule))
+                            abi.encodeWithSelector(
+                                RewardsSweeper.initialize.selector, admin, admin, address(accountingModule)
+                            )
                         )
                     ))
             );

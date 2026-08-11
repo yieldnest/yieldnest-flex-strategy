@@ -56,6 +56,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     /**
      * @notice Initializes the vault.
      * @param admin The address of the admin.
+     * @param accountingModuleManager The address that can update the accounting module.
      * @param name The name of the vault.
      * @param symbol The symbol of the vault.
      * @param decimals_ The number of decimals for the vault token.
@@ -64,6 +65,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      */
     function initialize(
         address admin,
+        address accountingModuleManager,
         string memory name,
         string memory symbol,
         uint8 decimals_,
@@ -78,6 +80,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         initializer
     {
         if (admin == address(0)) revert ZeroAddress();
+        if (accountingModuleManager == address(0)) revert ZeroAddress();
 
         _initialize(
             admin,
@@ -90,7 +93,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
             0 // defaultAssetIndex. MUST be 0. baseAsset is default
         );
 
-        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, admin);
+        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, accountingModuleManager);
 
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
         _addAsset(accountingToken, IERC20Metadata(accountingToken).decimals(), false);

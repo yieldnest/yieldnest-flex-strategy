@@ -27,6 +27,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     error CannotSweepRewards();
     error SnapshotIndexOutOfBounds(uint256 index);
     error PreviousTimestampGreaterThanCurrentTimestamp(uint256 currentTimestamp, uint256 previousTimestamp);
+    error ZeroAddress();
 
     event RewardsSwept(uint256 amount, uint256 snapshotIndex);
     event AccountingModuleUpdated(address newModule, address oldModule);
@@ -41,12 +42,24 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     /**
      * @notice Initializes the contract
      * @param admin The address of the admin
+     * @param accountingModuleManager The address that can update the accounting module
      * @param accountingModule_ The address of the accounting module
      */
-    function initialize(address admin, address accountingModule_) external initializer {
+    function initialize(
+        address admin,
+        address accountingModuleManager,
+        address accountingModule_
+    )
+        external
+        initializer
+    {
+        if (admin == address(0)) revert ZeroAddress();
+        if (accountingModuleManager == address(0)) revert ZeroAddress();
+        if (accountingModule_ == address(0)) revert ZeroAddress();
+
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, admin);
+        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, accountingModuleManager);
 
         accountingModule = IAccountingModule(accountingModule_);
     }

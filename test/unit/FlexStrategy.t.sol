@@ -45,7 +45,7 @@ contract FlexStrategyTest is Test {
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
             address(accountingToken_impl),
             ADMIN,
-            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, ADMIN, "NAME", "SYMBOL")
         );
 
         FixedRateProvider provider = new FixedRateProvider(address(accountingToken_tu));
@@ -57,6 +57,7 @@ contract FlexStrategyTest is Test {
             ADMIN,
             abi.encodeWithSelector(
                 FlexStrategy.initialize.selector,
+                ADMIN,
                 ADMIN,
                 "FlexStrategy",
                 "FLEX",
@@ -165,7 +166,7 @@ contract FlexStrategyTest is Test {
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
             address(accountingToken_impl),
             ADMIN,
-            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, ADMIN, "NAME", "SYMBOL")
         );
 
         FixedRateProvider provider = new FixedRateProvider(address(accountingToken_tu));
@@ -180,6 +181,7 @@ contract FlexStrategyTest is Test {
             abi.encodeWithSelector(
                 FlexStrategy.initialize.selector,
                 address(0),
+                ADMIN,
                 "FlexStrategy",
                 "FLEX",
                 18,
@@ -192,6 +194,37 @@ contract FlexStrategyTest is Test {
         );
     }
 
+    function test_initialize_revertIfZeroAccountingModuleManager() public {
+        AccountingToken accountingToken_impl = new AccountingToken(address(mockErc20));
+        TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
+            address(accountingToken_impl),
+            ADMIN,
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, ADMIN, "NAME", "SYMBOL")
+        );
+
+        FixedRateProvider provider = new FixedRateProvider(address(accountingToken_tu));
+
+        FlexStrategy implementation = new FlexStrategy();
+        vm.expectRevert(IVault.ZeroAddress.selector);
+        new TransparentUpgradeableProxy(
+            address(implementation),
+            ADMIN,
+            abi.encodeWithSelector(
+                FlexStrategy.initialize.selector,
+                ADMIN,
+                address(0),
+                "FlexStrategy",
+                "FLEX",
+                18,
+                address(mockErc20),
+                address(accountingToken),
+                true,
+                address(provider),
+                true
+            )
+        );
+    }
+
     function test_initialize_revertIfZeroBaseAsset() public {
         FlexStrategy implementation = new FlexStrategy();
         vm.expectRevert();
@@ -199,7 +232,17 @@ contract FlexStrategyTest is Test {
             address(implementation),
             ADMIN,
             abi.encodeWithSelector(
-                FlexStrategy.initialize.selector, ADMIN, "FlexStrategy", "FLEX", 18, address(0), true
+                FlexStrategy.initialize.selector,
+                ADMIN,
+                ADMIN,
+                "FlexStrategy",
+                "FLEX",
+                18,
+                address(0),
+                address(accountingToken),
+                true,
+                address(0),
+                true
             )
         );
     }

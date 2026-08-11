@@ -35,7 +35,7 @@ contract AccountingModuleTest is Test {
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
             address(accountingToken_impl),
             ADMIN,
-            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, ADMIN, "NAME", "SYMBOL")
         );
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 

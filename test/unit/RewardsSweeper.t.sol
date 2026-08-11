@@ -38,7 +38,7 @@ contract RewardsSweeperRescueTest is Test {
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(impl),
             PROXY_ADMIN,
-            abi.encodeWithSelector(RewardsSweeper.initialize.selector, ADMIN, address(mockAccountingModule))
+            abi.encodeWithSelector(RewardsSweeper.initialize.selector, ADMIN, ADMIN, address(mockAccountingModule))
         );
         rewardsSweeper = RewardsSweeper(address(proxy));
 
@@ -55,6 +55,16 @@ contract RewardsSweeperRescueTest is Test {
     // =====================
     // rescueERC20 tests
     // =====================
+
+    function test_initialize_revertIfZeroAccountingModuleManager() public {
+        RewardsSweeper impl = new RewardsSweeper();
+        vm.expectRevert(RewardsSweeper.ZeroAddress.selector);
+        new TransparentUpgradeableProxy(
+            address(impl),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(RewardsSweeper.initialize.selector, ADMIN, address(0), address(mockAccountingModule))
+        );
+    }
 
     function test_rescueERC20_success() public {
         uint256 amount = 100e18;
