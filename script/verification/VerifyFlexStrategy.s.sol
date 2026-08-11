@@ -228,6 +228,13 @@ contract VerifyFlexStrategy is BaseScript, Test {
                 true,
                 "deployer should not have REWARDS_SWEEPER_ROLE on rewardsSweeper"
             );
+            RolesVerification.verifyRole(
+                rewardsSweeper,
+                MainnetActors(address(actors)).PROCESSOR(),
+                rewardsSweeper.SNAPSHOT_REWARDS_SWEEPER_ROLE(),
+                true,
+                "processor has SNAPSHOT_REWARDS_SWEEPER_ROLE on rewardsSweeper"
+            );
 
             RolesVerification.verifyRole(
                 accountingModule,

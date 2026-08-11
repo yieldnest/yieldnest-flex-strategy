@@ -254,6 +254,7 @@ contract FlexStrategyDeployer {
             rewardsSweeper.grantRole(rewardsSweeper.DEFAULT_ADMIN_ROLE(), actors.ADMIN());
             rewardsSweeper.grantRole(rewardsSweeper.ACCOUNTING_MODULE_MANAGER_ROLE(), actors.ADMIN());
             rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), actors.PROCESSOR());
+            rewardsSweeper.grantRole(rewardsSweeper.SNAPSHOT_REWARDS_SWEEPER_ROLE(), actors.PROCESSOR());
 
             accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), address(rewardsSweeper));
 

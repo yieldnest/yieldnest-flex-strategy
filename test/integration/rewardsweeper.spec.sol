@@ -27,6 +27,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         // Grant rewards sweeper role
         vm.startPrank(deployment.actors().ADMIN());
         rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), REWARDS_SWEEPER);
+        rewardsSweeper.grantRole(rewardsSweeper.SNAPSHOT_REWARDS_SWEEPER_ROLE(), REWARDS_SWEEPER);
         vm.stopPrank();
 
         // Grant BOB allocator role using ADMIN
@@ -334,6 +335,19 @@ contract RewardsSweeperTest is BaseIntegrationTest {
             )
         );
         rewardsSweeper.sweepRewards(100, 0);
+        vm.stopPrank();
+    }
+
+    function test_sweepRewardsUpToAPRMaxWithSnapshot_revertIfNotAuthorized() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                BOB,
+                rewardsSweeper.SNAPSHOT_REWARDS_SWEEPER_ROLE()
+            )
+        );
+        rewardsSweeper.sweepRewardsUpToAPRMax(0);
         vm.stopPrank();
     }
 

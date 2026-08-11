@@ -18,6 +18,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant REWARDS_SWEEPER_ROLE = keccak256("REWARDS_SWEEPER_ROLE");
+    bytes32 public constant SNAPSHOT_REWARDS_SWEEPER_ROLE = keccak256("SNAPSHOT_REWARDS_SWEEPER_ROLE");
     bytes32 public constant ASSET_RESCUER_ROLE = keccak256("ASSET_RESCUER_ROLE");
     bytes32 public constant ACCOUNTING_MODULE_MANAGER_ROLE = keccak256("ACCOUNTING_MODULE_MANAGER_ROLE");
 
@@ -56,7 +57,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @return The amount of rewards swept.
      */
     function sweepRewardsUpToAPRMax() public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
-        return sweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
+        return _sweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
     }
 
     /**
@@ -64,7 +65,15 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @param snapshotIndex The index of the snapshot to consider for sweeping rewards.
      * @return The amount of rewards swept.
      */
-    function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
+    function sweepRewardsUpToAPRMax(uint256 snapshotIndex)
+        public
+        onlyRole(SNAPSHOT_REWARDS_SWEEPER_ROLE)
+        returns (uint256)
+    {
+        return _sweepRewardsUpToAPRMax(snapshotIndex);
+    }
+
+    function _sweepRewardsUpToAPRMax(uint256 snapshotIndex) internal returns (uint256) {
         uint256 amountToSweep = previewSweepRewardsUpToAPRMax(snapshotIndex);
 
         if (amountToSweep > 0) {
