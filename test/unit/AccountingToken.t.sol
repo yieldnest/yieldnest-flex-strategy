@@ -94,11 +94,13 @@ contract AccountingTokenTest is Test {
         accountingToken.transfer(BOB, 1e18);
     }
 
-    function test_setAccountingModule_revertIfNoDefaultAdminRole() public {
+    function test_setAccountingModule_revertIfNoAccountingModuleManagerRole() public {
         vm.startPrank(BOB);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, accountingToken.DEFAULT_ADMIN_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                BOB,
+                accountingToken.ACCOUNTING_MODULE_MANAGER_ROLE()
             )
         );
         accountingToken.setAccountingModule(BOB);

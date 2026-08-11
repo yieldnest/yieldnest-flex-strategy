@@ -204,11 +204,13 @@ contract FlexStrategyTest is Test {
         );
     }
 
-    function test_setAccountingModule_revertIfNoDefaultAdminRole() public {
+    function test_setAccountingModule_revertIfNoAccountingModuleManagerRole() public {
         vm.startPrank(ALLOCATOR);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, ALLOCATOR, flexStrategy.DEFAULT_ADMIN_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                ALLOCATOR,
+                flexStrategy.ACCOUNTING_MODULE_MANAGER_ROLE()
             )
         );
         flexStrategy.setAccountingModule(address(accountingModule));

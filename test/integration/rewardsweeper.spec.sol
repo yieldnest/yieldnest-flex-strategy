@@ -32,9 +32,8 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         // Grant BOB allocator role using ADMIN
         vm.startPrank(deployment.actors().ADMIN());
         strategy.grantRole(strategy.ALLOCATOR_ROLE(), BOB);
-        IAccessControl(address(accountingModule)).grantRole(
-            accountingModule.SAFE_MANAGER_ROLE(), deployment.actors().ADMIN()
-        );
+        IAccessControl(address(accountingModule))
+            .grantRole(accountingModule.SAFE_MANAGER_ROLE(), deployment.actors().ADMIN());
         vm.stopPrank();
     }
 
@@ -44,11 +43,13 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         vm.stopPrank();
     }
 
-    function test_setAccountingModule_revertIfNotAdmin() public {
+    function test_setAccountingModule_revertIfNotAccountingModuleManager() public {
         vm.startPrank(BOB);
         vm.expectRevert(
             abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, rewardsSweeper.DEFAULT_ADMIN_ROLE()
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                BOB,
+                rewardsSweeper.ACCOUNTING_MODULE_MANAGER_ROLE()
             )
         );
         rewardsSweeper.setAccountingModule(address(accountingModule));
@@ -178,12 +179,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         assertEq(remainingInSweeper, expectedRemaining, "Sweeper should have remaining tokens if rewards exceeded max");
     }
 
-    function testfuzz_sweepRewardsUpToAPRMax_excessRewards_multiple(
-        uint256 depositAmount,
-        uint256 timeElapsed
-    )
-        public
-    {
+    function testfuzz_sweepRewardsUpToAPRMax_excessRewards_multiple(uint256 depositAmount, uint256 timeElapsed) public {
         // Fuzz depositAmount to a reasonable range (1e18 to 1000e18)
         depositAmount = bound(depositAmount, 1e18, 1_000_000e18);
 

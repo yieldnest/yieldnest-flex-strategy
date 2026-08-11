@@ -33,6 +33,8 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
 
     event AccountingModuleUpdated(address newValue, address oldValue);
 
+    bytes32 public constant ACCOUNTING_MODULE_MANAGER_ROLE = keccak256("ACCOUNTING_MODULE_MANAGER_ROLE");
+
     address public immutable TRACKED_ASSET;
 
     /// @notice Storage slot for AccountingToken data
@@ -65,6 +67,7 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
         __ERC20_init(name_, symbol_);
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, admin);
     }
 
     modifier onlyAccounting() {
@@ -115,7 +118,7 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
      * Update accounting module address
      * @param accountingModule_ new accounting module address
      */
-    function setAccountingModule(address accountingModule_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setAccountingModule(address accountingModule_) external onlyRole(ACCOUNTING_MODULE_MANAGER_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
         AccountingTokenStorage storage s = _getAccountingTokenStorage();
         emit AccountingModuleUpdated(accountingModule_, s.accountingModule);

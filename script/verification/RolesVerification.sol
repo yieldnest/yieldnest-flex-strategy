@@ -44,6 +44,13 @@ library RolesVerification {
         verifyRole(strategy, actors.PROCESSOR(), strategy.PROCESSOR_ROLE(), true, "Processor has PROCESSOR_ROLE");
         verifyRole(strategy, actors.PAUSER(), strategy.PAUSER_ROLE(), true, "Pauser has PAUSER_ROLE");
         verifyRole(strategy, actors.UNPAUSER(), strategy.UNPAUSER_ROLE(), true, "Unpauser has UNPAUSER_ROLE");
+        verifyRole(
+            strategy,
+            actors.ADMIN(),
+            strategy.ACCOUNTING_MODULE_MANAGER_ROLE(),
+            true,
+            "Admin has ACCOUNTING_MODULE_MANAGER_ROLE"
+        );
 
         verifyRole(
             strategy, address(timelock), strategy.PROVIDER_MANAGER_ROLE(), true, "Timelock has PROVIDER_MANAGER_ROLE"
@@ -80,6 +87,13 @@ library RolesVerification {
             true,
             "Timelock has accountingToken.DEFAULT_ADMIN_ROLE"
         );
+        verifyRole(
+            accountingToken,
+            actors.ADMIN(),
+            accountingToken.ACCOUNTING_MODULE_MANAGER_ROLE(),
+            true,
+            "Admin has accountingToken.ACCOUNTING_MODULE_MANAGER_ROLE"
+        );
     }
 
     function verifyTemporaryRoles(
@@ -98,6 +112,13 @@ library RolesVerification {
         verifyRole(strategy, deployer, strategy.ASSET_MANAGER_ROLE(), false, "Deployer has ASSET_MANAGER_ROLE");
         verifyRole(strategy, deployer, strategy.UNPAUSER_ROLE(), false, "Deployer has UNPAUSER_ROLE");
         verifyRole(
+            strategy,
+            deployer,
+            strategy.ACCOUNTING_MODULE_MANAGER_ROLE(),
+            false,
+            "Deployer has ACCOUNTING_MODULE_MANAGER_ROLE"
+        );
+        verifyRole(
             accountingModule,
             deployer,
             accountingModule.DEFAULT_ADMIN_ROLE(),
@@ -110,6 +131,13 @@ library RolesVerification {
             accountingToken.DEFAULT_ADMIN_ROLE(),
             false,
             "Deployer has accountingToken.DEFAULT_ADMIN_ROLE"
+        );
+        verifyRole(
+            accountingToken,
+            deployer,
+            accountingToken.ACCOUNTING_MODULE_MANAGER_ROLE(),
+            false,
+            "Deployer has accountingToken.ACCOUNTING_MODULE_MANAGER_ROLE"
         );
     }
 

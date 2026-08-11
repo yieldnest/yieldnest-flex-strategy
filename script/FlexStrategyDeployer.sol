@@ -252,11 +252,13 @@ contract FlexStrategyDeployer {
         if (useRewardsSweeper) {
             // RewardsSweeper
             rewardsSweeper.grantRole(rewardsSweeper.DEFAULT_ADMIN_ROLE(), actors.ADMIN());
+            rewardsSweeper.grantRole(rewardsSweeper.ACCOUNTING_MODULE_MANAGER_ROLE(), actors.ADMIN());
             rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), actors.PROCESSOR());
 
             accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), address(rewardsSweeper));
 
-            rewardsSweeper.renounceRole(strategy.DEFAULT_ADMIN_ROLE(), deployer);
+            rewardsSweeper.renounceRole(rewardsSweeper.DEFAULT_ADMIN_ROLE(), deployer);
+            rewardsSweeper.renounceRole(rewardsSweeper.ACCOUNTING_MODULE_MANAGER_ROLE(), deployer);
         }
 
         strategy.unpause();

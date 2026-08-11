@@ -19,6 +19,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
 
     bytes32 public constant REWARDS_SWEEPER_ROLE = keccak256("REWARDS_SWEEPER_ROLE");
     bytes32 public constant ASSET_RESCUER_ROLE = keccak256("ASSET_RESCUER_ROLE");
+    bytes32 public constant ACCOUNTING_MODULE_MANAGER_ROLE = keccak256("ACCOUNTING_MODULE_MANAGER_ROLE");
 
     IAccountingModule public accountingModule;
 
@@ -44,6 +45,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     function initialize(address admin, address accountingModule_) external initializer {
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, admin);
 
         accountingModule = IAccountingModule(accountingModule_);
     }
@@ -180,7 +182,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @param accountingModule_ New accounting module address
      */
 
-    function setAccountingModule(address accountingModule_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setAccountingModule(address accountingModule_) external onlyRole(ACCOUNTING_MODULE_MANAGER_ROLE) {
         emit AccountingModuleUpdated(accountingModule_, address(accountingModule));
         accountingModule = IAccountingModule(accountingModule_);
     }

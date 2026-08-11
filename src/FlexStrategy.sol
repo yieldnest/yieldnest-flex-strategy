@@ -31,6 +31,8 @@ struct FlexStrategyStorage {
 contract FlexStrategy is IFlexStrategy, BaseStrategy {
     using SafeERC20 for IERC20;
 
+    bytes32 public constant ACCOUNTING_MODULE_MANAGER_ROLE = keccak256("ACCOUNTING_MODULE_MANAGER_ROLE");
+
     /// @notice The version of the flex strategy contract.
     string public constant FLEX_STRATEGY_VERSION = "0.2.0";
 
@@ -88,6 +90,8 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
             0 // defaultAssetIndex. MUST be 0. baseAsset is default
         );
 
+        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, admin);
+
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
         _addAsset(accountingToken, IERC20Metadata(accountingToken).decimals(), false);
         _setAssetWithdrawable(baseAsset, true);
@@ -107,7 +111,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @param accountingModule_ address to check.
      * @dev Will revoke approvals for outgoing accounting module, and approve max for incoming accounting module.
      */
-    function setAccountingModule(address accountingModule_) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setAccountingModule(address accountingModule_) external virtual onlyRole(ACCOUNTING_MODULE_MANAGER_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
 
         FlexStrategyStorage storage flexStorage = _getFlexStrategyStorage();

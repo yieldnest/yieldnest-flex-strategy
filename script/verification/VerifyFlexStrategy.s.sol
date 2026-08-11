@@ -206,6 +206,20 @@ contract VerifyFlexStrategy is BaseScript, Test {
                 false,
                 "deployer should not have DEFAULT_ADMIN_ROLE on rewardsSweeper"
             );
+            RolesVerification.verifyRole(
+                rewardsSweeper,
+                deployer,
+                rewardsSweeper.ACCOUNTING_MODULE_MANAGER_ROLE(),
+                false,
+                "deployer should not have ACCOUNTING_MODULE_MANAGER_ROLE on rewardsSweeper"
+            );
+            RolesVerification.verifyRole(
+                rewardsSweeper,
+                MainnetActors(address(actors)).ADMIN(),
+                rewardsSweeper.ACCOUNTING_MODULE_MANAGER_ROLE(),
+                true,
+                "admin has ACCOUNTING_MODULE_MANAGER_ROLE on rewardsSweeper"
+            );
 
             RolesVerification.verifyRole(
                 rewardsSweeper,
