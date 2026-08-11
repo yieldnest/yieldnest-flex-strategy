@@ -440,12 +440,12 @@ contract FlexStrategyTest is Test {
         flexStrategy.deposit(deposit, ALLOCATOR);
     }
 
-    function test_deposit_does_not_revert_When_NoAccountingModule() public {
+    function test_deposit_reverts_When_NoAccountingModule() public {
         // write zero address to accountingModule
         stdstore.target(address(flexStrategy)).sig("accountingModule()").checked_write(address(0));
 
-        // still succeeds because strategy does not itself directly deposit to accounting module
         vm.startPrank(ALLOCATOR);
+        vm.expectRevert();
         flexStrategy.deposit(1e18, ALLOCATOR);
         vm.stopPrank();
     }

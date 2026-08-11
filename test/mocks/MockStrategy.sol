@@ -26,6 +26,10 @@ contract MockStrategy is IFlexStrategy, ERC20 {
         IERC20(am.accountingToken()).approve(address(am), type(uint256).max);
     }
 
+    function accountingModule() external view returns (IAccountingModule) {
+        return am;
+    }
+
     function deposit(uint256 amount) public {
         baseAsset.transferFrom(msg.sender, address(this), amount);
         am.deposit(amount);

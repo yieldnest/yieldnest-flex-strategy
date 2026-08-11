@@ -13,6 +13,8 @@ interface IFlexStrategy {
     error AccountingTokenMismatch();
 
     event AccountingModuleUpdated(address newValue, address oldValue);
+
+    function accountingModule() external view returns (IAccountingModule);
 }
 
 /**

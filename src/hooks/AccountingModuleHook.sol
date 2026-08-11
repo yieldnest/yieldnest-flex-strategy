@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { IVault } from "lib/yieldnest-vault/src/interface/IVault.sol";
 import { IHooks } from "lib/yieldnest-vault/src/interface/IHooks.sol";
 import { IAccountingModule } from "../AccountingModule.sol";
+import { IFlexStrategy } from "../FlexStrategy.sol";
 
 /**
  * @title FeeHooks
@@ -16,18 +17,14 @@ contract AccountingModuleHook is IHooks {
     /// @notice The vault contract that this hooks contract is attached to
     IVault public immutable VAULT;
 
-    /// @notice The accounting module contract that this hooks contract is attached to
-    IAccountingModule public immutable accountingModule;
-
     IVault public immutable flexStrategy;
 
     /**
      * @notice Constructor
      * @param vault_ The address of the Vault to which this hooks contract is attached
      */
-    constructor(address vault_, IAccountingModule accountingModule_, address flexStrategy_) {
+    constructor(address vault_, IAccountingModule, address flexStrategy_) {
         VAULT = IVault(payable(vault_));
-        accountingModule = accountingModule_;
         flexStrategy = IVault(payable(flexStrategy_));
     }
 
@@ -71,17 +68,26 @@ contract AccountingModuleHook is IHooks {
     }
 
     /**
+     * @notice Get the current accounting module from the strategy.
+     */
+    function accountingModule() public view returns (IAccountingModule) {
+        return IFlexStrategy(address(flexStrategy)).accountingModule();
+    }
+
+    /**
      * @notice Deposit to the accounting module
      * @param asset The asset to deposit
      * @param amount The amount to deposit
      */
     function depositToAccountingModule(address asset, uint256 amount) internal {
-        if (asset == accountingModule.baseAsset()) {
+        IAccountingModule currentAccountingModule = accountingModule();
+
+        if (asset == currentAccountingModule.baseAsset()) {
             address[] memory targets = new address[](1);
             uint256[] memory values = new uint256[](1);
             bytes[] memory calldata_ = new bytes[](1);
 
-            targets[0] = address(accountingModule);
+            targets[0] = address(currentAccountingModule);
             values[0] = 0;
             calldata_[0] = abi.encodeWithSignature("deposit(uint256)", amount);
 
@@ -95,12 +101,14 @@ contract AccountingModuleHook is IHooks {
      * @param assets The amount to withdraw
      */
     function withdrawFromAccountingModule(address asset, uint256 assets) internal {
-        if (asset == accountingModule.baseAsset()) {
+        IAccountingModule currentAccountingModule = accountingModule();
+
+        if (asset == currentAccountingModule.baseAsset()) {
             address[] memory targets = new address[](1);
             uint256[] memory values = new uint256[](1);
             bytes[] memory calldata_ = new bytes[](1);
 
-            targets[0] = address(accountingModule);
+            targets[0] = address(currentAccountingModule);
             values[0] = 0;
             calldata_[0] = abi.encodeWithSignature("withdraw(uint256,address)", assets, address(flexStrategy));
 
