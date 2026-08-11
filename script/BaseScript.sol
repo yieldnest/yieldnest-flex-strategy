@@ -111,18 +111,13 @@ abstract contract BaseScript is Script {
     }
 
     function _setup() public virtual {
-        if (block.chainid == 1) {
-            minDelay = 1 days;
-            MainnetActors _actors = new MainnetActors();
-            actors = IActors(_actors);
-            contracts = IContracts(new L1Contracts());
-        }
+        minDelay = 1 days;
+        MainnetActors _actors = new MainnetActors();
+        actors = IActors(_actors);
+        contracts = IContracts(new L1Contracts());
     }
 
     function _verifySetup() public view virtual {
-        if (block.chainid != 1) {
-            revert UnsupportedChain();
-        }
         if (address(actors) == address(0)) {
             revert InvalidSetup("actors not set");
         }
