@@ -16,6 +16,7 @@ import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.
 import { AccountingModuleHook } from "../../src/hooks/AccountingModuleHook.sol";
 import { SafeRules } from "@yieldnest-vault-script/rules/SafeRules.sol";
 import { FlexStrategyRules } from "script/rules/FlexStrategyRules.sol";
+import { MockAccountingModule } from "../mocks/MockAccountingModule.sol";
 
 contract FlexStrategyTest is Test {
     using stdStorage for StdStorage;
@@ -263,6 +264,25 @@ contract FlexStrategyTest is Test {
         vm.startPrank(ADMIN);
         vm.expectRevert(IVault.ZeroAddress.selector);
         flexStrategy.setAccountingModule(address(0));
+    }
+
+    function test_setAccountingModule_revertIfStrategyMismatch() public {
+        MockAccountingModule mockAccountingModule = new MockAccountingModule(address(mockErc20));
+        mockAccountingModule.setStrategy(address(0x1234));
+        mockAccountingModule.setSafe(SAFE);
+
+        vm.startPrank(ADMIN);
+        vm.expectRevert(IFlexStrategy.AccountingModuleMismatch.selector);
+        flexStrategy.setAccountingModule(address(mockAccountingModule));
+    }
+
+    function test_setAccountingModule_revertIfSafeZeroAddress() public {
+        MockAccountingModule mockAccountingModule = new MockAccountingModule(address(mockErc20));
+        mockAccountingModule.setStrategy(address(flexStrategy));
+
+        vm.startPrank(ADMIN);
+        vm.expectRevert(IVault.ZeroAddress.selector);
+        flexStrategy.setAccountingModule(address(mockAccountingModule));
     }
 
     function test_setAccountingModule_revokeRelevantApprovals() public {

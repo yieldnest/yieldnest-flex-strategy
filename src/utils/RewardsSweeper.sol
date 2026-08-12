@@ -8,7 +8,6 @@ import { IAccountingModule } from "../AccountingModule.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import { console } from "forge-std/console.sol";
 
 /**
  * @title RewardsSweeper
