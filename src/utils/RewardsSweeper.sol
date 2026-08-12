@@ -90,7 +90,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         uint256 amountToSweep = previewSweepRewardsUpToAPRMax(snapshotIndex);
 
         if (amountToSweep > 0) {
-            sweepRewards(amountToSweep, snapshotIndex);
+            _sweepRewards(amountToSweep, snapshotIndex);
         }
 
         return amountToSweep;
@@ -168,7 +168,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @param amount Amount of rewards to sweep
      */
     function sweepRewards(uint256 amount) public onlyRole(REWARDS_SWEEPER_ROLE) {
-        sweepRewards(amount, accountingModule.snapshotsLength() - 1);
+        _sweepRewards(amount, accountingModule.snapshotsLength() - 1);
     }
 
     /**
@@ -177,7 +177,11 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @param amount Amount of rewards to sweep
      * @param snapshotIndex Index of the snapshot to compare against
      */
-    function sweepRewards(uint256 amount, uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) {
+    function sweepRewards(uint256 amount, uint256 snapshotIndex) public onlyRole(SNAPSHOT_REWARDS_SWEEPER_ROLE) {
+        _sweepRewards(amount, snapshotIndex);
+    }
+
+    function _sweepRewards(uint256 amount, uint256 snapshotIndex) internal {
         if (!canSweepRewards()) revert CannotSweepRewards();
 
         if (snapshotIndex >= accountingModule.snapshotsLength()) revert SnapshotIndexOutOfBounds(snapshotIndex);

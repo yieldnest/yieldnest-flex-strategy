@@ -17,6 +17,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
     RewardsSweeper public rewardsSweeper;
 
     address public constant REWARDS_SWEEPER = address(0x1234567890123456789012345678901234567890);
+    address public constant SNAPSHOT_REWARDS_SWEEPER = address(0x2345678901234567890123456789012345678901);
     address public constant BOB = address(0x4567890123456789012345678901234567890123);
 
     function setUp() public override {
@@ -28,6 +29,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         vm.startPrank(deployment.actors().ADMIN());
         rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), REWARDS_SWEEPER);
         rewardsSweeper.grantRole(rewardsSweeper.SNAPSHOT_REWARDS_SWEEPER_ROLE(), REWARDS_SWEEPER);
+        rewardsSweeper.grantRole(rewardsSweeper.SNAPSHOT_REWARDS_SWEEPER_ROLE(), SNAPSHOT_REWARDS_SWEEPER);
         vm.stopPrank();
 
         // Grant BOB allocator role using ADMIN
@@ -317,7 +319,7 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         rewardsSweeper.sweepRewardsUpToAPRMax(snapshotIndex);
     }
 
-    function test_sweepRewards_revertIfNotAuthorized() public {
+    function test_sweepRewardsWithoutSnapshot_revertIfNotAuthorized() public {
         // Attempt to sweep rewards without the proper role
         vm.startPrank(BOB); // BOB does not have the REWARDS_SWEEPER_ROLE
         vm.expectRevert(
@@ -332,6 +334,19 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, BOB, rewardsSweeper.REWARDS_SWEEPER_ROLE()
+            )
+        );
+        rewardsSweeper.sweepRewards(100);
+        vm.stopPrank();
+    }
+
+    function test_sweepRewardsWithSnapshot_revertIfNotAuthorized() public {
+        vm.startPrank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector,
+                BOB,
+                rewardsSweeper.SNAPSHOT_REWARDS_SWEEPER_ROLE()
             )
         );
         rewardsSweeper.sweepRewards(100, 0);
@@ -349,6 +364,50 @@ contract RewardsSweeperTest is BaseIntegrationTest {
         );
         rewardsSweeper.sweepRewardsUpToAPRMax(0);
         vm.stopPrank();
+    }
+
+    function test_sweepRewardsUpToAPRMaxWithSnapshot_onlyRequiresSnapshotRole() public {
+        uint256 depositAmount = 1000e18;
+        uint256 rewardsAmount = 1e18;
+
+        IERC20 baseAsset = IERC20(strategy.asset());
+        deal(address(baseAsset), BOB, depositAmount);
+
+        vm.startPrank(BOB);
+        baseAsset.approve(address(strategy), depositAmount);
+        strategy.deposit(depositAmount, BOB);
+        vm.stopPrank();
+
+        skip(30 days);
+        deal(address(baseAsset), address(rewardsSweeper), rewardsAmount);
+
+        vm.prank(SNAPSHOT_REWARDS_SWEEPER);
+        uint256 sweptAmount = rewardsSweeper.sweepRewardsUpToAPRMax(0);
+
+        assertGt(sweptAmount, 0, "snapshot sweeper should process rewards");
+        assertEq(baseAsset.balanceOf(address(rewardsSweeper)), rewardsAmount - sweptAmount);
+    }
+
+    function test_sweepRewardsWithSnapshot_onlyRequiresSnapshotRole() public {
+        uint256 depositAmount = 1000e18;
+        uint256 rewardsAmount = 1e6;
+
+        IERC20 baseAsset = IERC20(strategy.asset());
+        deal(address(baseAsset), BOB, depositAmount);
+
+        vm.startPrank(BOB);
+        baseAsset.approve(address(strategy), depositAmount);
+        strategy.deposit(depositAmount, BOB);
+        vm.stopPrank();
+
+        skip(30 days);
+        deal(address(baseAsset), address(rewardsSweeper), rewardsAmount);
+
+        vm.prank(SNAPSHOT_REWARDS_SWEEPER);
+        rewardsSweeper.sweepRewards(rewardsAmount, 0);
+
+        assertEq(baseAsset.balanceOf(address(rewardsSweeper)), 0);
+        assertEq(baseAsset.balanceOf(accountingModule.safe()), depositAmount + rewardsAmount);
     }
 
     function test_sweepRewards_revertIfCannotSweepRewards() public {
