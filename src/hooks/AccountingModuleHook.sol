@@ -23,7 +23,7 @@ contract AccountingModuleHook is IHooks {
      * @notice Constructor
      * @param vault_ The address of the Vault to which this hooks contract is attached
      */
-    constructor(address vault_, IAccountingModule, address flexStrategy_) {
+    constructor(address vault_, address flexStrategy_) {
         VAULT = IVault(payable(vault_));
         flexStrategy = IVault(payable(flexStrategy_));
     }

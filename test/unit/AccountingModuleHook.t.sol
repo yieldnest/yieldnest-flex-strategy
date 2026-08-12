@@ -68,11 +68,7 @@ contract AccountingModuleHookTest is Test {
         accountingToken.setAccountingModule(address(accountingModule));
 
         // Deploy the AccountingModuleHook
-        accountingModuleHook = new AccountingModuleHook(
-            address(mockStrategy), // vault_ (mocked as this contract)
-            IAccountingModule(address(accountingModule)),
-            address(mockStrategy)
-        );
+        accountingModuleHook = new AccountingModuleHook(address(mockStrategy), address(mockStrategy));
 
         mockStrategy.setAccountingModule(accountingModule);
 

@@ -215,8 +215,8 @@ contract FlexStrategyDeployer {
         accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), safe);
 
         {
-            AccountingModuleHook accountingModuleHook = implementations.hooksDeployer
-                .deployAccountingModuleHook(address(strategy), address(accountingModule), address(strategy));
+            AccountingModuleHook accountingModuleHook =
+                implementations.hooksDeployer.deployAccountingModuleHook(address(strategy), address(strategy));
             // set hooks
             IVault(address(strategy)).setHooks(address(accountingModuleHook));
 

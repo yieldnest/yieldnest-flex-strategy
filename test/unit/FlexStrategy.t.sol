@@ -113,7 +113,7 @@ contract FlexStrategyTest is Test {
 
         {
             AccountingModuleHook accountingModuleHook =
-                new AccountingModuleHook(address(flexStrategy), accountingModule, address(flexStrategy));
+                new AccountingModuleHook(address(flexStrategy), address(flexStrategy));
             // set hooks
             vm.startPrank(ADMIN);
             IVault(address(flexStrategy)).setHooks(address(accountingModuleHook));
