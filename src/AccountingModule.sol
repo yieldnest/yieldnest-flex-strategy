@@ -37,6 +37,7 @@ interface IAccountingModule {
     error TvlTooLow();
     error CurrentTimestampBeforePreviousTimestamp();
     error SnapshotIndexOutOfBounds(uint256 index);
+    error PricePerShareBelowSnapshot(uint256 currentPricePerShare, uint256 snapshotPricePerShare);
 
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount, address recipient) external;
@@ -350,6 +351,10 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
 
         // Prevent division by zero
         if (previousPricePerShare == 0) revert InvariantViolation();
+
+        if (currentPricePerShare < previousPricePerShare) {
+            revert PricePerShareBelowSnapshot(currentPricePerShare, previousPricePerShare);
+        }
 
         return (currentPricePerShare - previousPricePerShare) * YEAR * DIVISOR / previousPricePerShare
             / (currentTimestamp - previousTimestamp);
