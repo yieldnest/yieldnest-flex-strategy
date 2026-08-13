@@ -145,6 +145,9 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @return availableAssets The available amount of assets.
      * @dev Overriden. This function is used to calculate the available assets for a given asset,
      *      It returns the balance of the asset in the associated SAFE.
+     *      This assumes the strategy only accepts the base asset and the non-depositable accounting token.
+     *      If additional depositable assets are enabled, base-asset availability may exceed the strategy's
+     *      accounting token balance and overstate what the accounting module can withdraw.
      */
     function _availableAssets(address asset_) internal view virtual override returns (uint256 availableAssets) {
         address baseAsset = asset();
