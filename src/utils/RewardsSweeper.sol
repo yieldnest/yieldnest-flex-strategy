@@ -3,11 +3,11 @@ pragma solidity ^0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IAccountingModule } from "../AccountingModule.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import { console } from "forge-std/console.sol";
 
 /**
  * @title RewardsSweeper
@@ -17,15 +17,21 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant REWARDS_SWEEPER_ROLE = keccak256("REWARDS_SWEEPER_ROLE");
+    bytes32 public constant SNAPSHOT_REWARDS_SWEEPER_ROLE = keccak256("SNAPSHOT_REWARDS_SWEEPER_ROLE");
+    bytes32 public constant ASSET_RESCUER_ROLE = keccak256("ASSET_RESCUER_ROLE");
+    bytes32 public constant ACCOUNTING_MODULE_MANAGER_ROLE = keccak256("ACCOUNTING_MODULE_MANAGER_ROLE");
 
     IAccountingModule public accountingModule;
 
     error CannotSweepRewards();
     error SnapshotIndexOutOfBounds(uint256 index);
     error PreviousTimestampGreaterThanCurrentTimestamp(uint256 currentTimestamp, uint256 previousTimestamp);
+    error ZeroAddress();
 
-    event RewardsSwept(uint256 amount);
+    event RewardsSwept(uint256 amount, uint256 snapshotIndex);
     event AccountingModuleUpdated(address newModule, address oldModule);
+    event ERC20Rescued(address indexed token, address indexed to, uint256 amount);
+    event ERC721Rescued(address indexed token, address indexed to, uint256 tokenId);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -35,11 +41,24 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     /**
      * @notice Initializes the contract
      * @param admin The address of the admin
+     * @param accountingModuleManager The address that can update the accounting module
      * @param accountingModule_ The address of the accounting module
      */
-    function initialize(address admin, address accountingModule_) external initializer {
+    function initialize(
+        address admin,
+        address accountingModuleManager,
+        address accountingModule_
+    )
+        external
+        initializer
+    {
+        if (admin == address(0)) revert ZeroAddress();
+        if (accountingModuleManager == address(0)) revert ZeroAddress();
+        if (accountingModule_ == address(0)) revert ZeroAddress();
+
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, accountingModuleManager);
 
         accountingModule = IAccountingModule(accountingModule_);
     }
@@ -50,7 +69,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @return The amount of rewards swept.
      */
     function sweepRewardsUpToAPRMax() public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
-        return sweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
+        return _sweepRewardsUpToAPRMax(accountingModule.snapshotsLength() - 1);
     }
 
     /**
@@ -58,11 +77,19 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @param snapshotIndex The index of the snapshot to consider for sweeping rewards.
      * @return The amount of rewards swept.
      */
-    function sweepRewardsUpToAPRMax(uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) returns (uint256) {
+    function sweepRewardsUpToAPRMax(uint256 snapshotIndex)
+        public
+        onlyRole(SNAPSHOT_REWARDS_SWEEPER_ROLE)
+        returns (uint256)
+    {
+        return _sweepRewardsUpToAPRMax(snapshotIndex);
+    }
+
+    function _sweepRewardsUpToAPRMax(uint256 snapshotIndex) internal returns (uint256) {
         uint256 amountToSweep = previewSweepRewardsUpToAPRMax(snapshotIndex);
 
         if (amountToSweep > 0) {
-            sweepRewards(amountToSweep, snapshotIndex);
+            _sweepRewards(amountToSweep, snapshotIndex);
         }
 
         return amountToSweep;
@@ -140,7 +167,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @param amount Amount of rewards to sweep
      */
     function sweepRewards(uint256 amount) public onlyRole(REWARDS_SWEEPER_ROLE) {
-        sweepRewards(amount, accountingModule.snapshotsLength() - 1);
+        _sweepRewards(amount, accountingModule.snapshotsLength() - 1);
     }
 
     /**
@@ -149,7 +176,11 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @param amount Amount of rewards to sweep
      * @param snapshotIndex Index of the snapshot to compare against
      */
-    function sweepRewards(uint256 amount, uint256 snapshotIndex) public onlyRole(REWARDS_SWEEPER_ROLE) {
+    function sweepRewards(uint256 amount, uint256 snapshotIndex) public onlyRole(SNAPSHOT_REWARDS_SWEEPER_ROLE) {
+        _sweepRewards(amount, snapshotIndex);
+    }
+
+    function _sweepRewards(uint256 amount, uint256 snapshotIndex) internal {
         if (!canSweepRewards()) revert CannotSweepRewards();
 
         if (snapshotIndex >= accountingModule.snapshotsLength()) revert SnapshotIndexOutOfBounds(snapshotIndex);
@@ -160,7 +191,7 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
         // Process rewards through accounting module with specific snapshot index
         accountingModule.processRewards(amount, snapshotIndex);
 
-        emit RewardsSwept(amount);
+        emit RewardsSwept(amount, snapshotIndex);
     }
     /**
      * @notice Checks if rewards can be swept based on cooldown period and base asset balance
@@ -176,8 +207,30 @@ contract RewardsSweeper is Initializable, AccessControlUpgradeable {
      * @param accountingModule_ New accounting module address
      */
 
-    function setAccountingModule(address accountingModule_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setAccountingModule(address accountingModule_) external onlyRole(ACCOUNTING_MODULE_MANAGER_ROLE) {
         emit AccountingModuleUpdated(accountingModule_, address(accountingModule));
         accountingModule = IAccountingModule(accountingModule_);
+    }
+
+    /**
+     * @notice Transfers ERC20 tokens held by this contract to a specified address
+     * @param token The ERC20 token address
+     * @param to The recipient address
+     * @param amount The amount of tokens to transfer
+     */
+    function rescueERC20(address token, address to, uint256 amount) external onlyRole(ASSET_RESCUER_ROLE) {
+        IERC20(token).safeTransfer(to, amount);
+        emit ERC20Rescued(token, to, amount);
+    }
+
+    /**
+     * @notice Transfers an ERC721 NFT held by this contract to a specified address
+     * @param token The ERC721 token address
+     * @param to The recipient address
+     * @param tokenId The ID of the NFT to transfer
+     */
+    function rescueERC721(address token, address to, uint256 tokenId) external onlyRole(ASSET_RESCUER_ROLE) {
+        IERC721(token).safeTransferFrom(address(this), to, tokenId);
+        emit ERC721Rescued(token, to, tokenId);
     }
 }

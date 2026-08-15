@@ -12,14 +12,10 @@ import { MainnetActors } from "lib/yieldnest-vault/script/Actors.sol";
 
 contract DeployYnFlexEthStrategy is DeployFlexStrategy {
     function _setup() public virtual override {
-        if (block.chainid == 1) {
-            minDelay = 1 days;
-            MainnetActors _actors = new MainnetActors();
-            actors = IActors(_actors);
-            contracts = IContracts(new L1Contracts());
-        } else {
-            revert UnsupportedChain();
-        }
+        minDelay = 1 days;
+        MainnetActors _actors = new MainnetActors();
+        actors = IActors(_actors);
+        contracts = IContracts(new L1Contracts());
 
         address[] memory allocators = new address[](1);
         allocators[0] = contracts.YNETHX();

@@ -22,6 +22,12 @@ interface IAccountingModule {
     event CooldownSecondsUpdated(uint16 newValue, uint16 oldValue);
     event SafeUpdated(address newValue, address oldValue);
 
+    event RewardsProcessed(
+        uint256 amount, uint256 snapshotIndex, uint256 currentPricePerShare, uint256 aprSinceLastSnapshot
+    );
+    event StrategySnapshotCreated(uint256 snapshotIndex, StrategySnapshot snapshot);
+    event LossesProcessed(uint256 amount, uint256 snapshotIndex);
+
     error ZeroAddress();
     error TooEarly();
     error NotStrategy();
@@ -31,6 +37,7 @@ interface IAccountingModule {
     error TvlTooLow();
     error CurrentTimestampBeforePreviousTimestamp();
     error SnapshotIndexOutOfBounds(uint256 index);
+    error PricePerShareBelowSnapshot(uint256 currentPricePerShare, uint256 snapshotPricePerShare);
 
     function deposit(uint256 amount) external;
     function withdraw(uint256 amount, address recipient) external;
@@ -289,6 +296,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         );
 
         if (aprSinceLastSnapshot > s.targetApy) revert AccountingLimitsExceeded(aprSinceLastSnapshot, s.targetApy);
+
+        emit RewardsProcessed(amount, snapshotIndex, currentPricePerShare, aprSinceLastSnapshot);
     }
 
     function createStrategySnapshot() internal returns (StrategySnapshot memory) {
@@ -306,6 +315,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         });
 
         s._snapshots.push(snapshot);
+
+        emit StrategySnapshotCreated(snapshotsLength() - 1, snapshot);
 
         return snapshot;
     }
@@ -341,6 +352,10 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         // Prevent division by zero
         if (previousPricePerShare == 0) revert InvariantViolation();
 
+        if (currentPricePerShare < previousPricePerShare) {
+            revert PricePerShareBelowSnapshot(currentPricePerShare, previousPricePerShare);
+        }
+
         return (currentPricePerShare - previousPricePerShare) * YEAR * DIVISOR / previousPricePerShare
             / (currentTimestamp - previousTimestamp);
     }
@@ -365,6 +380,8 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         IVault(s.strategy).processAccounting();
 
         createStrategySnapshot();
+
+        emit LossesProcessed(amount, snapshotsLength() - 1);
     }
 
     /// ADMIN ///
@@ -468,7 +485,7 @@ contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgr
         return _getAccountingModuleStorage().targetApy;
     }
 
-    function snapshotsLength() external view returns (uint256) {
+    function snapshotsLength() public view returns (uint256) {
         return _getAccountingModuleStorage()._snapshots.length;
     }
 

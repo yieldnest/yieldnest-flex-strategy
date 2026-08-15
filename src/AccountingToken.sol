@@ -33,6 +33,8 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
 
     event AccountingModuleUpdated(address newValue, address oldValue);
 
+    bytes32 public constant ACCOUNTING_MODULE_MANAGER_ROLE = keccak256("ACCOUNTING_MODULE_MANAGER_ROLE");
+
     address public immutable TRACKED_ASSET;
 
     /// @notice Storage slot for AccountingToken data
@@ -56,15 +58,27 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
 
     /**
      * @param admin The address of the admin.
+     * @param accountingModuleManager The address that can update the accounting module.
      * @param name_ The name of the accountingToken.
      * @param symbol_ The symbol of accountingToken.
      */
-    function initialize(address admin, string memory name_, string memory symbol_) external virtual initializer {
+    function initialize(
+        address admin,
+        address accountingModuleManager,
+        string memory name_,
+        string memory symbol_
+    )
+        external
+        virtual
+        initializer
+    {
         if (admin == address(0)) revert ZeroAddress();
+        if (accountingModuleManager == address(0)) revert ZeroAddress();
 
         __ERC20_init(name_, symbol_);
         __AccessControl_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, accountingModuleManager);
     }
 
     modifier onlyAccounting() {
@@ -115,7 +129,7 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
      * Update accounting module address
      * @param accountingModule_ new accounting module address
      */
-    function setAccountingModule(address accountingModule_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setAccountingModule(address accountingModule_) external onlyRole(ACCOUNTING_MODULE_MANAGER_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
         AccountingTokenStorage storage s = _getAccountingTokenStorage();
         emit AccountingModuleUpdated(accountingModule_, s.accountingModule);

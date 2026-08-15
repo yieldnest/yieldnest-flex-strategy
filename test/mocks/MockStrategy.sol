@@ -26,6 +26,10 @@ contract MockStrategy is IFlexStrategy, ERC20 {
         IERC20(am.accountingToken()).approve(address(am), type(uint256).max);
     }
 
+    function accountingModule() external view returns (IAccountingModule) {
+        return am;
+    }
+
     function deposit(uint256 amount) public {
         baseAsset.transferFrom(msg.sender, address(this), amount);
         am.deposit(amount);
@@ -39,6 +43,27 @@ contract MockStrategy is IFlexStrategy, ERC20 {
         uint256 shares = amount.mulDiv(1e18, rate, Math.Rounding.Floor);
         _burn(msg.sender, shares);
         _totalAssets -= amount;
+    }
+
+    function processor(
+        address[] memory targets,
+        uint256[] memory, /* values */
+        bytes[] memory calldata_
+    )
+        public
+        returns (bytes[] memory returnData)
+    {
+        if (targets.length != 1) {
+            revert("MockStrategy: invalid number of targets");
+        }
+
+        if (targets[0] == address(am)) {
+            (bool success,) = address(am).call(calldata_[0]);
+            require(success, "MockStrategy: call to accounting module failed");
+        } else {
+            revert("MockStrategy: invalid target");
+        }
+        returnData = new bytes[](1);
     }
 
     function processAccounting() public { }

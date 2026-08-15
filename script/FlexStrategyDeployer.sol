@@ -3,11 +3,13 @@ pragma solidity ^0.8.28;
 import { TransparentUpgradeableProxy, FlexStrategy, AccountingToken, IProvider, IActors } from "script/BaseScript.sol";
 import { FixedRateProvider } from "src/FixedRateProvider.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
-import { AccountingModule } from "src/AccountingModule.sol";
+import { AccountingModule, IAccountingModule } from "src/AccountingModule.sol";
 import { BaseRoles } from "script/roles/BaseRoles.sol";
 import { FlexStrategyRules } from "script/rules/FlexStrategyRules.sol";
 import { SafeRules, IVault } from "@yieldnest-vault-script/rules/SafeRules.sol";
 import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
+import { AccountingModuleHook } from "src/hooks/AccountingModuleHook.sol";
+import { HooksDeployer } from "script/HooksDeployer.sol";
 
 contract FlexStrategyDeployer {
     error InvalidDeploymentParams(string);
@@ -93,6 +95,7 @@ contract FlexStrategyDeployer {
         AccountingModule accountingModuleImplementation;
         TimelockController timelockController;
         RewardsSweeper rewardsSweeperImplementation;
+        HooksDeployer hooksDeployer;
     }
 
     function deploy() public virtual {
@@ -113,29 +116,27 @@ contract FlexStrategyDeployer {
         AccountingToken accountingTokenImplementation = implementations.accountingTokenImplementation;
 
         accountingToken = AccountingToken(
-            payable(
-                address(
+            payable(address(
                     new TransparentUpgradeableProxy(
                         address(accountingTokenImplementation),
                         address(timelock),
                         abi.encodeWithSelector(
-                            AccountingToken.initialize.selector, admin, accountTokenName, accountTokenSymbol
+                            AccountingToken.initialize.selector, admin, admin, accountTokenName, accountTokenSymbol
                         )
                     )
-                )
-            )
+                ))
         );
 
         deployRateProvider();
 
         strategy = FlexStrategy(
-            payable(
-                address(
+            payable(address(
                     new TransparentUpgradeableProxy(
                         address(strategyImplementation),
                         address(timelock),
                         abi.encodeWithSelector(
                             FlexStrategy.initialize.selector,
+                            admin,
                             admin,
                             name,
                             symbol_,
@@ -147,15 +148,13 @@ contract FlexStrategyDeployer {
                             alwaysComputeTotalAssets
                         )
                     )
-                )
-            )
+                ))
         );
 
         AccountingModule accountingModuleImplementation =
             AccountingModule(address(implementations.accountingModuleImplementation));
         accountingModule = AccountingModule(
-            payable(
-                address(
+            payable(address(
                     new TransparentUpgradeableProxy(
                         address(accountingModuleImplementation),
                         address(timelock),
@@ -171,23 +170,22 @@ contract FlexStrategyDeployer {
                             1 hours
                         )
                     )
-                )
-            )
+                ))
         );
 
         RewardsSweeper rewardsSweeperImplementation = implementations.rewardsSweeperImplementation;
 
         if (useRewardsSweeper) {
             rewardsSweeper = RewardsSweeper(
-                payable(
-                    address(
+                payable(address(
                         new TransparentUpgradeableProxy(
                             address(rewardsSweeperImplementation),
                             address(timelock),
-                            abi.encodeWithSelector(RewardsSweeper.initialize.selector, admin, address(accountingModule))
+                            abi.encodeWithSelector(
+                                RewardsSweeper.initialize.selector, admin, admin, address(accountingModule)
+                            )
                         )
-                    )
-                )
+                    ))
             );
         }
 
@@ -217,6 +215,28 @@ contract FlexStrategyDeployer {
         accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), safe);
 
         {
+            AccountingModuleHook accountingModuleHook =
+                implementations.hooksDeployer.deployAccountingModuleHook(address(strategy), address(strategy));
+            // set hooks
+            IVault(address(strategy)).setHooks(address(accountingModuleHook));
+
+            // Grant PROCESSOR_ROLE to the accounting module hook
+            strategy.grantRole(strategy.PROCESSOR_ROLE(), address(accountingModuleHook));
+
+            // Create an array to hold the rules for the strategy
+            SafeRules.RuleParams[] memory strategyRules = new SafeRules.RuleParams[](2);
+
+            // Set deposit rule for accounting module on strategy
+            strategyRules[0] = FlexStrategyRules.getDepositRule(address(accountingModule));
+
+            // Set withdrawal rule for accounting module on strategy
+            strategyRules[1] = FlexStrategyRules.getWithdrawRule(address(accountingModule), address(strategy));
+
+            // Set processor rules for strategy using SafeRules
+            SafeRules.setProcessorRules(IVault(address(strategy)), strategyRules, true);
+        }
+
+        {
             // Safe Rules
 
             // Create an array to hold the rules
@@ -235,11 +255,14 @@ contract FlexStrategyDeployer {
         if (useRewardsSweeper) {
             // RewardsSweeper
             rewardsSweeper.grantRole(rewardsSweeper.DEFAULT_ADMIN_ROLE(), actors.ADMIN());
+            rewardsSweeper.grantRole(rewardsSweeper.ACCOUNTING_MODULE_MANAGER_ROLE(), actors.ADMIN());
             rewardsSweeper.grantRole(rewardsSweeper.REWARDS_SWEEPER_ROLE(), actors.PROCESSOR());
+            rewardsSweeper.grantRole(rewardsSweeper.SNAPSHOT_REWARDS_SWEEPER_ROLE(), actors.PROCESSOR());
 
             accountingModule.grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), address(rewardsSweeper));
 
-            rewardsSweeper.renounceRole(strategy.DEFAULT_ADMIN_ROLE(), deployer);
+            rewardsSweeper.renounceRole(rewardsSweeper.DEFAULT_ADMIN_ROLE(), deployer);
+            rewardsSweeper.renounceRole(rewardsSweeper.ACCOUNTING_MODULE_MANAGER_ROLE(), deployer);
         }
 
         strategy.unpause();
