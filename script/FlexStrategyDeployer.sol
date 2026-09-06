@@ -52,6 +52,7 @@ contract FlexStrategyDeployer {
     bool public paused;
     AccountingToken public accountingToken;
     AccountingModule public accountingModule;
+    AccountingModuleHook public accountingModuleHook;
     FlexStrategy public strategy;
     IProvider public rateProvider;
     TimelockController public timelock;
@@ -215,7 +216,7 @@ contract FlexStrategyDeployer {
         accountingModule.grantRole(accountingModule.LOSS_PROCESSOR_ROLE(), safe);
 
         {
-            AccountingModuleHook accountingModuleHook =
+            accountingModuleHook =
                 implementations.hooksDeployer.deployAccountingModuleHook(address(strategy), address(strategy));
             // set hooks
             IVault(address(strategy)).setHooks(address(accountingModuleHook));

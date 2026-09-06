@@ -11,6 +11,7 @@ import { IContracts, L1Contracts } from "@yieldnest-vault-script/Contracts.sol";
 import { FlexStrategy } from "src/FlexStrategy.sol";
 import { AccountingModule } from "src/AccountingModule.sol";
 import { AccountingToken } from "src/AccountingToken.sol";
+import { AccountingModuleHook } from "src/hooks/AccountingModuleHook.sol";
 import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
 import { console } from "forge-std/console.sol";
 
@@ -94,6 +95,8 @@ abstract contract BaseScript is Script {
     AccountingToken public accountingToken;
     AccountingToken public accountingTokenImplementation;
     address public accountingTokenProxyAdmin;
+
+    AccountingModuleHook public accountingModuleHook;
 
     bool public useRewardsSweeper;
     RewardsSweeper public rewardsSweeper;
@@ -182,6 +185,9 @@ abstract contract BaseScript is Script {
         accountingTokenProxyAdmin =
             address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxyAdmin")));
 
+        accountingModuleHook =
+            AccountingModuleHook(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModuleHook")));
+
         useRewardsSweeper = vm.parseJsonBool(jsonInput, string.concat(".useRewardsSweeper"));
 
         if (useRewardsSweeper) {
@@ -259,6 +265,9 @@ abstract contract BaseScript is Script {
         );
         string memory jsonOutput = vm.serializeAddress(
             symbol(), string.concat(symbol(), "-accountingToken-implementation"), address(accountingTokenImplementation)
+        );
+        jsonOutput = vm.serializeAddress(
+            symbol(), string.concat(symbol(), "-accountingModuleHook"), address(accountingModuleHook)
         );
 
         vm.writeJson(jsonOutput, _deploymentFilePath(env));
