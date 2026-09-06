@@ -19,6 +19,7 @@ import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
 import { ProxyUtils } from "lib/yieldnest-vault/script/ProxyUtils.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 import { RewardsSweeper } from "src/utils/RewardsSweeper.sol";
+import { HooksDeployer } from "script/HooksDeployer.sol";
 
 // forge script DeployFlexStrategy --rpc-url <MAINNET_RPC_URL>  --slow --broadcast --account
 // <CAST_WALLET_ACCOUNT>  --sender <SENDER_ADDRESS>  --verify --etherscan-api-key <ETHERSCAN_API_KEY>  -vvv
@@ -80,6 +81,7 @@ contract DeployFlexStrategy is BaseScript {
         implementations.flexStrategyImplementation = new FlexStrategy();
         implementations.accountingTokenImplementation = new AccountingToken(baseAsset);
         implementations.accountingModuleImplementation = new AccountingModule();
+        implementations.hooksDeployer = new HooksDeployer();
         if (useRewardsSweeper) {
             implementations.rewardsSweeperImplementation = new RewardsSweeper();
         }

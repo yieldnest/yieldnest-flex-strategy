@@ -35,7 +35,7 @@ contract AccountingModuleTest is Test {
         TransparentUpgradeableProxy accountingToken_tu = new TransparentUpgradeableProxy(
             address(accountingToken_impl),
             ADMIN,
-            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, "NAME", "SYMBOL")
+            abi.encodeWithSelector(AccountingToken.initialize.selector, ADMIN, ADMIN, "NAME", "SYMBOL")
         );
         accountingToken = AccountingToken(payable(address(accountingToken_tu)));
 
@@ -382,6 +382,48 @@ contract AccountingModuleTest is Test {
         accountingModule.processRewards(deposit);
     }
 
+    function test_processRewards_revertIfPricePerShareBelowSnapshot() public {
+        skip(1 days);
+
+        vm.startPrank(BOB);
+        uint256 deposit = 20e18;
+        mockErc20.approve(address(mockStrategy), type(uint256).max);
+        mockStrategy.deposit(deposit);
+        vm.stopPrank();
+
+        mockStrategy.setRate(9e17);
+
+        vm.startPrank(ACCOUNTING_PROCESSOR);
+        vm.expectRevert(abi.encodeWithSelector(IAccountingModule.PricePerShareBelowSnapshot.selector, 9e17, 1e18));
+        accountingModule.processRewards(1, 0);
+    }
+
+    function test_processRewards_revertIfPreLossSnapshotStillAboveCurrentPricePerShare() public {
+        vm.startPrank(BOB);
+        uint256 deposit = 20e18;
+        mockErc20.approve(address(mockStrategy), type(uint256).max);
+        mockStrategy.deposit(deposit);
+        vm.stopPrank();
+
+        uint256 preLossSnapshotIndex = accountingModule.snapshotsLength() - 1;
+
+        skip(1 days);
+
+        uint256 postLossPricePerShare = 9e17;
+        mockStrategy.setRate(postLossPricePerShare);
+
+        vm.prank(ACCOUNTING_PROCESSOR);
+        accountingModule.processLosses(1e18);
+
+        skip(accountingModule.cooldownSeconds() + 1);
+
+        vm.startPrank(ACCOUNTING_PROCESSOR);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccountingModule.PricePerShareBelowSnapshot.selector, postLossPricePerShare, 1e18)
+        );
+        accountingModule.processRewards(1, preLossSnapshotIndex);
+    }
+
     function test_processRewards_revertIfTooEarly() public {
         vm.startPrank(BOB);
         uint256 deposit = 20e18;
@@ -458,10 +500,8 @@ contract AccountingModuleTest is Test {
         uint256 supply = 10_000_000e18;
         vm.assume(
             processedAmount
-                <= (
-                    accountingModule.targetApy() * supply * timePassed / accountingModule.DIVISOR()
-                        / accountingModule.YEAR()
-                )
+                <= (accountingModule.targetApy() * supply * timePassed / accountingModule.DIVISOR()
+                        / accountingModule.YEAR())
         );
 
         vm.startPrank(BOB);

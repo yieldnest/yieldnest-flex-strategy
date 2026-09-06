@@ -21,6 +21,7 @@ library BaseRoles {
         strategy.grantRole(strategy.PROCESSOR_ROLE(), actors.PROCESSOR());
         strategy.grantRole(strategy.PAUSER_ROLE(), actors.PAUSER());
         strategy.grantRole(strategy.UNPAUSER_ROLE(), actors.UNPAUSER());
+        strategy.grantRole(strategy.ACCOUNTING_MODULE_MANAGER_ROLE(), actors.ADMIN());
 
         // set timelock roles
         strategy.grantRole(strategy.PROVIDER_MANAGER_ROLE(), timelock);
@@ -28,9 +29,11 @@ library BaseRoles {
         strategy.grantRole(strategy.BUFFER_MANAGER_ROLE(), timelock);
         strategy.grantRole(strategy.PROCESSOR_MANAGER_ROLE(), timelock);
         strategy.grantRole(strategy.ALLOCATOR_MANAGER_ROLE(), timelock);
+        strategy.grantRole(strategy.HOOKS_MANAGER_ROLE(), timelock);
         accountingModule.grantRole(accountingModule.SAFE_MANAGER_ROLE(), timelock);
         accountingModule.grantRole(accountingModule.DEFAULT_ADMIN_ROLE(), actors.ADMIN());
         accountingToken.grantRole(accountingToken.DEFAULT_ADMIN_ROLE(), actors.ADMIN());
+        accountingToken.grantRole(accountingToken.ACCOUNTING_MODULE_MANAGER_ROLE(), actors.ADMIN());
     }
 
     function configureDefaultRolesStrategy(
@@ -60,7 +63,10 @@ library BaseRoles {
         strategy.grantRole(strategy.ASSET_MANAGER_ROLE(), deployer);
         strategy.grantRole(strategy.UNPAUSER_ROLE(), deployer);
         strategy.grantRole(strategy.ALLOCATOR_MANAGER_ROLE(), deployer);
+        strategy.grantRole(strategy.HOOKS_MANAGER_ROLE(), deployer);
+        strategy.grantRole(strategy.ACCOUNTING_MODULE_MANAGER_ROLE(), deployer);
         accountingToken.grantRole(accountingToken.DEFAULT_ADMIN_ROLE(), deployer);
+        accountingToken.grantRole(accountingToken.ACCOUNTING_MODULE_MANAGER_ROLE(), deployer);
         accountingModule.grantRole(accountingModule.DEFAULT_ADMIN_ROLE(), deployer);
     }
 
@@ -90,7 +96,10 @@ library BaseRoles {
         strategy.renounceRole(strategy.ASSET_MANAGER_ROLE(), deployer);
         strategy.renounceRole(strategy.UNPAUSER_ROLE(), deployer);
         strategy.renounceRole(strategy.ALLOCATOR_MANAGER_ROLE(), deployer);
+        strategy.renounceRole(strategy.HOOKS_MANAGER_ROLE(), deployer);
+        strategy.renounceRole(strategy.ACCOUNTING_MODULE_MANAGER_ROLE(), deployer);
         accountingToken.renounceRole(accountingToken.DEFAULT_ADMIN_ROLE(), deployer);
+        accountingToken.renounceRole(accountingToken.ACCOUNTING_MODULE_MANAGER_ROLE(), deployer);
         accountingModule.renounceRole(accountingModule.DEFAULT_ADMIN_ROLE(), deployer);
     }
 

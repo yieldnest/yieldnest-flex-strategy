@@ -111,18 +111,13 @@ abstract contract BaseScript is Script {
     }
 
     function _setup() public virtual {
-        if (block.chainid == 1) {
-            minDelay = 1 days;
-            MainnetActors _actors = new MainnetActors();
-            actors = IActors(_actors);
-            contracts = IContracts(new L1Contracts());
-        }
+        minDelay = 1 days;
+        MainnetActors _actors = new MainnetActors();
+        actors = IActors(_actors);
+        contracts = IContracts(new L1Contracts());
     }
 
     function _verifySetup() public view virtual {
-        if (block.chainid != 1) {
-            revert UnsupportedChain();
-        }
         if (address(actors) == address(0)) {
             revert InvalidSetup("actors not set");
         }
@@ -169,11 +164,9 @@ abstract contract BaseScript is Script {
             payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModule-proxy"))))
         );
         accountingModuleImplementation = AccountingModule(
-            payable(
-                address(
+            payable(address(
                     vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModule-implementation"))
-                )
-            )
+                ))
         );
         accountingModuleProxyAdmin =
             address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingModule-proxyAdmin")));
@@ -182,9 +175,9 @@ abstract contract BaseScript is Script {
             payable(address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxy"))))
         );
         accountingTokenImplementation = AccountingToken(
-            payable(
-                address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-implementation")))
-            )
+            payable(address(
+                    vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-implementation"))
+                ))
         );
         accountingTokenProxyAdmin =
             address(vm.parseJsonAddress(jsonInput, string.concat(".", symbol(), "-accountingToken-proxyAdmin")));
@@ -205,9 +198,10 @@ abstract contract BaseScript is Script {
 
     function _deploymentFilePath(Env env) internal view virtual returns (string memory) {
         if (env == Env.PROD) {
-            return string.concat(
-                vm.projectRoot(), "/deployments/", symbol(), "-", Strings.toString(block.chainid), ".json"
-            );
+            return
+                string.concat(
+                    vm.projectRoot(), "/deployments/", symbol(), "-", Strings.toString(block.chainid), ".json"
+                );
         }
 
         return string.concat(

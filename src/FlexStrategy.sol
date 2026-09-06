@@ -11,8 +11,11 @@ interface IFlexStrategy {
     error NoAccountingModule();
     error InvariantViolation();
     error AccountingTokenMismatch();
+    error AccountingModuleMismatch();
 
     event AccountingModuleUpdated(address newValue, address oldValue);
+
+    function accountingModule() external view returns (IAccountingModule);
 }
 
 /**
@@ -29,8 +32,10 @@ struct FlexStrategyStorage {
 contract FlexStrategy is IFlexStrategy, BaseStrategy {
     using SafeERC20 for IERC20;
 
+    bytes32 public constant ACCOUNTING_MODULE_MANAGER_ROLE = keccak256("ACCOUNTING_MODULE_MANAGER_ROLE");
+
     /// @notice The version of the flex strategy contract.
-    string public constant FLEX_STRATEGY_VERSION = "0.1.0";
+    string public constant FLEX_STRATEGY_VERSION = "0.2.0";
 
     /// @notice Storage slot for FlexStrategy data
     bytes32 private constant FLEX_STRATEGY_STORAGE_SLOT = keccak256("yieldnest.storage.flexStrategy");
@@ -52,6 +57,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     /**
      * @notice Initializes the vault.
      * @param admin The address of the admin.
+     * @param accountingModuleManager The address that can update the accounting module.
      * @param name The name of the vault.
      * @param symbol The symbol of the vault.
      * @param decimals_ The number of decimals for the vault token.
@@ -60,6 +66,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      */
     function initialize(
         address admin,
+        address accountingModuleManager,
         string memory name,
         string memory symbol,
         uint8 decimals_,
@@ -74,6 +81,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         initializer
     {
         if (admin == address(0)) revert ZeroAddress();
+        if (accountingModuleManager == address(0)) revert ZeroAddress();
 
         _initialize(
             admin,
@@ -86,9 +94,13 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
             0 // defaultAssetIndex. MUST be 0. baseAsset is default
         );
 
+        _grantRole(ACCOUNTING_MODULE_MANAGER_ROLE, accountingModuleManager);
+
         _addAsset(baseAsset, IERC20Metadata(baseAsset).decimals(), true);
         _addAsset(accountingToken, IERC20Metadata(accountingToken).decimals(), false);
         _setAssetWithdrawable(baseAsset, true);
+        // Permissioned by default
+        _setHasAllocator(true);
 
         VaultLib.setProvider(provider);
     }
@@ -99,83 +111,16 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
     }
 
     /**
-     * @notice Internal function to handle deposits.
-     * @param asset_ The address of the asset.
-     * @param caller The address of the caller.
-     * @param receiver The address of the receiver.
-     * @param assets The amount of assets to deposit.
-     * @param shares The amount of shares to mint.
-     * @param baseAssets The base asset conversion of shares.
-     */
-    function _deposit(
-        address asset_,
-        address caller,
-        address receiver,
-        uint256 assets,
-        uint256 shares,
-        uint256 baseAssets
-    )
-        internal
-        virtual
-        override
-        hasAccountingModule
-    {
-        // call the base strategy deposit function for accounting
-        super._deposit(asset_, caller, receiver, assets, shares, baseAssets);
-
-        // virtual accounting
-        _getFlexStrategyStorage().accountingModule.deposit(assets);
-    }
-
-    /**
-     * @notice Internal function to handle withdrawals for base asset
-     * @param asset_ The address of the asset.
-     * @param caller The address of the caller.
-     * @param receiver The address of the receiver.
-     * @param owner The address of the owner.
-     * @param assets The amount of assets to withdraw.
-     * @param shares The equivalent amount of shares.
-     */
-    function _withdrawAsset(
-        address asset_,
-        address caller,
-        address receiver,
-        address owner,
-        uint256 assets,
-        uint256 shares
-    )
-        internal
-        virtual
-        override
-        hasAccountingModule
-        onlyAllocator
-    {
-        if (asset_ != asset()) {
-            revert InvalidAsset(asset_);
-        }
-
-        // call the base strategy withdraw function for accounting
-        _subTotalAssets(_convertAssetToBase(asset_, assets));
-
-        if (caller != owner) {
-            _spendAllowance(owner, caller, shares);
-        }
-
-        // NOTE: burn shares before withdrawing the assets
-        _burn(owner, shares);
-
-        // burn virtual tokens
-        _getFlexStrategyStorage().accountingModule.withdraw(assets, receiver);
-        emit WithdrawAsset(caller, receiver, owner, asset_, assets, shares);
-    }
-
-    /**
      * @notice Sets the accounting module.
      * @param accountingModule_ address to check.
      * @dev Will revoke approvals for outgoing accounting module, and approve max for incoming accounting module.
      */
-    function setAccountingModule(address accountingModule_) external virtual onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setAccountingModule(address accountingModule_) external virtual onlyRole(ACCOUNTING_MODULE_MANAGER_ROLE) {
         if (accountingModule_ == address(0)) revert ZeroAddress();
+
+        IAccountingModule newAccounting = IAccountingModule(accountingModule_);
+        if (newAccounting.strategy() != address(this)) revert AccountingModuleMismatch();
+        if (newAccounting.safe() == address(0)) revert ZeroAddress();
 
         FlexStrategyStorage storage flexStorage = _getFlexStrategyStorage();
         emit AccountingModuleUpdated(accountingModule_, address(flexStorage.accountingModule));
@@ -183,15 +128,15 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
         IAccountingModule oldAccounting = flexStorage.accountingModule;
 
         if (address(oldAccounting) != address(0)) {
-            IERC20(asset()).approve(address(oldAccounting), 0);
+            IERC20(asset()).forceApprove(address(oldAccounting), 0);
 
-            if (IAccountingModule(accountingModule_).accountingToken() != oldAccounting.accountingToken()) {
+            if (newAccounting.accountingToken() != oldAccounting.accountingToken()) {
                 revert AccountingTokenMismatch();
             }
         }
 
-        flexStorage.accountingModule = IAccountingModule(accountingModule_);
-        IERC20(asset()).approve(accountingModule_, type(uint256).max);
+        flexStorage.accountingModule = newAccounting;
+        IERC20(asset()).forceApprove(accountingModule_, type(uint256).max);
     }
 
     /**
@@ -200,6 +145,9 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @return availableAssets The available amount of assets.
      * @dev Overriden. This function is used to calculate the available assets for a given asset,
      *      It returns the balance of the asset in the associated SAFE.
+     *      This assumes the strategy only accepts the base asset and the non-depositable accounting token.
+     *      If additional depositable assets are enabled, base-asset availability may exceed the strategy's
+     *      accounting token balance and overstate what the accounting module can withdraw.
      */
     function _availableAssets(address asset_) internal view virtual override returns (uint256 availableAssets) {
         address baseAsset = asset();
@@ -214,7 +162,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @notice Returns the fee on total amount.
      * @return 0 as this strategy does not charge any fee on total amount.
      */
-    function _feeOnTotal(uint256) public view virtual override returns (uint256) {
+    function _feeOnTotal(uint256, address) public view virtual override returns (uint256) {
         return 0;
     }
 
@@ -222,7 +170,7 @@ contract FlexStrategy is IFlexStrategy, BaseStrategy {
      * @notice Returns the fee on total amount.
      * @return 0 as this strategy does not charge any fee on total amount.
      */
-    function _feeOnRaw(uint256) public view virtual override returns (uint256) {
+    function _feeOnRaw(uint256, address) public view virtual override returns (uint256) {
         return 0;
     }
 
