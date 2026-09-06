@@ -109,6 +109,7 @@ contract DeployFlexStrategy is BaseScript {
             AccountingModule(payable(ProxyUtils.getImplementation(address(accountingModule))));
         accountingToken = strategyDeployer.accountingToken();
         accountingTokenImplementation = AccountingToken(payable(ProxyUtils.getImplementation(address(accountingToken))));
+        accountingModuleHook = strategyDeployer.accountingModuleHook();
 
         if (useRewardsSweeper) {
             rewardsSweeper = strategyDeployer.rewardsSweeper();

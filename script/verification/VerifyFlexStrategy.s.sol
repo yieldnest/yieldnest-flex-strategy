@@ -8,6 +8,8 @@ import { BaseScript } from "script/BaseScript.sol";
 import { MainnetActors } from "@yieldnest-vault-script/Actors.sol";
 import { RolesVerification } from "./RolesVerification.sol";
 import { FlexStrategyDeployer } from "script/FlexStrategyDeployer.sol";
+import { FlexStrategyRules } from "script/rules/FlexStrategyRules.sol";
+import { SafeRules } from "@yieldnest-vault-script/rules/SafeRules.sol";
 import { console } from "forge-std/console.sol";
 
 // forge script VerifyFlexStrategy --rpc-url <MAINNET_RPC_URL>
@@ -119,6 +121,11 @@ contract VerifyFlexStrategy is BaseScript, Test {
         );
         assertEq(deployerContract.paused(), paused, "deployer paused does not match");
         assertEq(deployerContract.useRewardsSweeper(), useRewardsSweeper, "deployer useRewardsSweeper does not match");
+        assertEq(
+            address(deployerContract.accountingModuleHook()),
+            address(accountingModuleHook),
+            "deployer accountingModuleHook does not match"
+        );
     }
 
     function _verifyProxies() internal view virtual {
@@ -173,6 +180,8 @@ contract VerifyFlexStrategy is BaseScript, Test {
         assertEq(assets[0], baseAsset, "assets[0] is invalid");
         assertEq(assets[1], address(accountingToken), "assets[1] is invalid");
         assertFalse(strategy.paused(), "paused is invalid");
+
+        _verifyAccountingModuleHook();
 
         RolesVerification.verifyDefaultRoles(strategy, accountingModule, accountingToken, timelock, actors);
         RolesVerification.verifyTemporaryRoles(strategy, accountingModule, accountingToken, deployer);
@@ -253,5 +262,56 @@ contract VerifyFlexStrategy is BaseScript, Test {
 
         assertGe(timelock.getMinDelay(), minDelay, "min delay is invalid");
         assertEq(Ownable(strategyProxyAdmin).owner(), address(timelock), "proxy admin owner is invalid");
+    }
+
+    function _verifyAccountingModuleHook() internal view {
+        assertNotEq(address(accountingModuleHook), address(0), "accountingModuleHook is not set");
+        assertEq(address(strategy.hooks()), address(accountingModuleHook), "strategy hooks do not match hook");
+        assertEq(address(accountingModuleHook.VAULT()), address(strategy), "hook VAULT does not match strategy");
+        assertEq(
+            address(accountingModuleHook.flexStrategy()), address(strategy), "hook flexStrategy does not match strategy"
+        );
+        RolesVerification.verifyRole(
+            strategy,
+            address(accountingModuleHook),
+            strategy.PROCESSOR_ROLE(),
+            true,
+            "accountingModuleHook has PROCESSOR_ROLE"
+        );
+
+        _verifyProcessorRule(FlexStrategyRules.getDepositRule(address(accountingModule)));
+        _verifyProcessorRule(FlexStrategyRules.getWithdrawRule(address(accountingModule), address(strategy)));
+    }
+
+    function _verifyProcessorRule(SafeRules.RuleParams memory expectedRule) internal view {
+        IVault.FunctionRule memory rule = strategy.getProcessorRule(expectedRule.contractAddress, expectedRule.funcSig);
+
+        assertEq(rule.isActive, expectedRule.rule.isActive, "processor rule active flag does not match");
+        assertEq(rule.paramRules.length, expectedRule.rule.paramRules.length, "processor rule param length mismatch");
+        assertEq(address(rule.validator), address(expectedRule.rule.validator), "processor rule validator mismatch");
+
+        for (uint256 i = 0; i < rule.paramRules.length; i++) {
+            assertEq(
+                uint256(rule.paramRules[i].paramType),
+                uint256(expectedRule.rule.paramRules[i].paramType),
+                "processor rule param type mismatch"
+            );
+            assertEq(
+                rule.paramRules[i].isArray, expectedRule.rule.paramRules[i].isArray, "processor rule array mismatch"
+            );
+            assertEq(
+                rule.paramRules[i].allowList.length,
+                expectedRule.rule.paramRules[i].allowList.length,
+                "processor rule allowlist length mismatch"
+            );
+
+            for (uint256 j = 0; j < rule.paramRules[i].allowList.length; j++) {
+                assertEq(
+                    rule.paramRules[i].allowList[j],
+                    expectedRule.rule.paramRules[i].allowList[j],
+                    "processor rule allowlist element mismatch"
+                );
+            }
+        }
     }
 }
