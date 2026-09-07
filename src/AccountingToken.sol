@@ -98,7 +98,7 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
      * @param burnAddress address to burn from
      * @param burnAmount amount to burn
      */
-    function burnFrom(address burnAddress, uint256 burnAmount) external onlyAccounting {
+    function burnFrom(address burnAddress, uint256 burnAmount) external virtual onlyAccounting {
         _burn(burnAddress, burnAmount);
     }
 
@@ -107,7 +107,7 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
      * @param mintAddress address to mint to
      * @param mintAmount amount to mint
      */
-    function mintTo(address mintAddress, uint256 mintAmount) external onlyAccounting {
+    function mintTo(address mintAddress, uint256 mintAmount) external virtual onlyAccounting {
         _mint(mintAddress, mintAmount);
     }
 
