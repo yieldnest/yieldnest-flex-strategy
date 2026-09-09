@@ -393,6 +393,8 @@ contract AccountingModuleHookTest is Test {
     }
 
     function test_getConfig_returns_expected_config() public {
+        assertEq(accountingModuleHook.VERSION(), "0.2.0");
+
         IHooks.Config memory config = accountingModuleHook.getConfig();
         assertFalse(config.beforeDeposit, "beforeDeposit should be false");
         assertTrue(config.afterDeposit, "afterDeposit should be true");
