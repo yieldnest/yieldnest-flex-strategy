@@ -16,6 +16,9 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 contract RewardsSweeper is Initializable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
+    /// @notice The version of the rewards sweeper contract.
+    string public constant VERSION = "0.2.0";
+
     bytes32 public constant REWARDS_SWEEPER_ROLE = keccak256("REWARDS_SWEEPER_ROLE");
     bytes32 public constant SNAPSHOT_REWARDS_SWEEPER_ROLE = keccak256("SNAPSHOT_REWARDS_SWEEPER_ROLE");
     bytes32 public constant ASSET_RESCUER_ROLE = keccak256("ASSET_RESCUER_ROLE");

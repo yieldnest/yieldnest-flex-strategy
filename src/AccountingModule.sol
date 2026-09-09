@@ -98,6 +98,9 @@ struct AccountingModuleStorage {
 contract AccountingModule is IAccountingModule, Initializable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
+    /// @notice The version of the accounting module contract.
+    string public constant VERSION = "0.2.0";
+
     /// @notice Role for safe manager permissions
     bytes32 public constant SAFE_MANAGER_ROLE = keccak256("SAFE_MANAGER_ROLE");
 
