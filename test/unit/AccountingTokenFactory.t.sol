@@ -16,6 +16,8 @@ contract AccountingTokenFactoryTest is Test {
     }
 
     function test_deployAccountingTokenImplementation_success() public {
+        assertEq(factory.VERSION(), "0.2.0");
+
         AccountingToken implementation = factory.deployAccountingTokenImplementation(address(asset));
 
         assertEq(implementation.TRACKED_ASSET(), address(asset));

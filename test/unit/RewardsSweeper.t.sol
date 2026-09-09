@@ -56,6 +56,10 @@ contract RewardsSweeperRescueTest is Test {
     // rescueERC20 tests
     // =====================
 
+    function test_version_success() public view {
+        assertEq(rewardsSweeper.VERSION(), "0.2.0");
+    }
+
     function test_initialize_revertIfZeroAccountingModuleManager() public {
         RewardsSweeper impl = new RewardsSweeper();
         vm.expectRevert(RewardsSweeper.ZeroAddress.selector);

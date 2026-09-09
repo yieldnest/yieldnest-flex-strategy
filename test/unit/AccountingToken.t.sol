@@ -36,6 +36,7 @@ contract AccountingTokenTest is Test {
     }
 
     function test_setup_success() public view {
+        assertEq(accountingToken.VERSION(), "0.2.0");
         assertEq(accountingToken.name(), "NAME");
         assertEq(accountingToken.symbol(), "SYMBOL");
         assertEq(accountingToken.decimals(), 18);
