@@ -14,6 +14,9 @@ import { IFlexStrategy } from "../FlexStrategy.sol";
 contract AccountingModuleHook is IHooks {
     error NotSupported();
 
+    /// @notice The version of the accounting module hook contract.
+    string public constant VERSION = "0.2.0";
+
     /// @notice The vault contract that this hooks contract is attached to
     IVault public immutable VAULT;
 

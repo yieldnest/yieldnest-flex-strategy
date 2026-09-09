@@ -33,6 +33,9 @@ contract AccountingToken is Initializable, ERC20Upgradeable, AccessControlUpgrad
 
     event AccountingModuleUpdated(address newValue, address oldValue);
 
+    /// @notice The version of the accounting token contract.
+    string public constant VERSION = "0.2.0";
+
     bytes32 public constant ACCOUNTING_MODULE_MANAGER_ROLE = keccak256("ACCOUNTING_MODULE_MANAGER_ROLE");
 
     address public immutable TRACKED_ASSET;
