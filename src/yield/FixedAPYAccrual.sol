@@ -88,7 +88,7 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         FixedAPYAccrualStorage storage s = _getFixedAPYAccrualStorage();
         if (block.timestamp <= s.lastAccrual || s.apy == 0) return 0;
         uint256 balance = s.accountingModule.accountingToken().balanceOf(s.accountingModule.strategy());
-        return _calculateRewards(balance, block.timestamp - s.lastAccrual);
+        return calculateRewards(balance, block.timestamp - s.lastAccrual, s.apy, s.year);
     }
 
     /// @notice Anyone can settle yield through now. Repeated calls at the same timestamp are no-ops.
@@ -111,7 +111,7 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         if (block.timestamp <= previousAccrual) return 0;
 
         uint256 balance = s.accountingModule.accountingToken().balanceOf(s.accountingModule.strategy());
-        rewards = _calculateRewards(balance, block.timestamp - previousAccrual);
+        rewards = calculateRewards(balance, block.timestamp - previousAccrual, s.apy, s.year);
 
         // Checkpoint even when empty, at zero APY, or when rewards round to zero. Otherwise later
         // deposits could earn retroactive interest. A failed reward report rolls this write back.
@@ -122,16 +122,31 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /**
+     * @notice Calculates compounded rewards without reading contract state.
+     * @param balance Eligible accounting-token balance in token units.
+     * @param elapsed Elapsed time in seconds.
+     * @param apy_ Effective annual yield scaled by 1e18.
+     * @param year Seconds per accounting year; must be nonzero.
      * @dev B * ((1 + APY) ** (elapsed / YEAR) - 1), using WAD fixed-point exponentiation.
      *      Fractional token units are discarded per settlement; no remainder is stored. Thus very
      *      frequent accrual can under-recognize yield, especially for small six-decimal balances.
      */
-    function _calculateRewards(uint256 balance, uint256 elapsed) internal view returns (uint256) {
-        FixedAPYAccrualStorage storage s = _getFixedAPYAccrualStorage();
-        if (balance == 0 || s.apy == 0 || elapsed == 0) return 0;
+    function calculateRewards(
+        uint256 balance,
+        uint256 elapsed,
+        uint256 apy_,
+        uint256 year
+    )
+        public
+        pure
+        returns (uint256)
+    {
+        if (year == 0) revert InvalidYear();
+        if (apy_ > MAX_APY) revert InvalidAPY(apy_);
+        if (balance == 0 || apy_ == 0 || elapsed == 0) return 0;
 
-        uint256 exponent = Math.mulDiv(elapsed, WAD, s.year);
-        int256 growthFactor = FixedPointMathLib.powWad(SafeCast.toInt256(WAD + s.apy), SafeCast.toInt256(exponent));
+        uint256 exponent = Math.mulDiv(elapsed, WAD, year);
+        int256 growthFactor = FixedPointMathLib.powWad(SafeCast.toInt256(WAD + apy_), SafeCast.toInt256(exponent));
         if (growthFactor <= SafeCast.toInt256(WAD)) return 0;
 
         return Math.mulDiv(balance, SafeCast.toUint256(growthFactor) - WAD, WAD);
