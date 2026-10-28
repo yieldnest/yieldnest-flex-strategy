@@ -20,6 +20,46 @@ contract CalculateRewardsTest is Test {
         accrual = new FixedAPYAccrual();
     }
 
+    // Concrete examples use 1,000 tokens with 18 decimals. Expected values are rewards only.
+    // Half-year expectations were independently calculated as 1,000 * (sqrt(1 + APY) - 1)
+    // with 70-digit decimal precision, then floored to wei. Allow 100,000 wei (1e-13 tokens)
+    // for the fixed-point log/exp approximation, including at the two-year horizon.
+    function test_calculateRewards_tenPercentAPY() public view {
+        assertApproxEqAbs(
+            accrual.calculateRewards(1000e18, YEAR / 2, 0.1e18, YEAR), 48_808_848_170_151_546_991, 100_000
+        );
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, YEAR, 0.1e18, YEAR), 100e18, 100_000);
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, 2 * YEAR, 0.1e18, YEAR), 210e18, 100_000);
+    }
+
+    function test_calculateRewards_elevenPercentAPY() public view {
+        assertApproxEqAbs(
+            accrual.calculateRewards(1000e18, YEAR / 2, 0.11e18, YEAR), 53_565_375_285_273_884_840, 100_000
+        );
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, YEAR, 0.11e18, YEAR), 110e18, 100_000);
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, 2 * YEAR, 0.11e18, YEAR), 232.1e18, 100_000);
+    }
+
+    function test_calculateRewards_fivePercentAPY() public view {
+        assertApproxEqAbs(
+            accrual.calculateRewards(1000e18, YEAR / 2, 0.05e18, YEAR), 24_695_076_595_959_838_322, 100_000
+        );
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, YEAR, 0.05e18, YEAR), 50e18, 100_000);
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, 2 * YEAR, 0.05e18, YEAR), 102.5e18, 100_000);
+    }
+
+    function test_calculateRewards_oneHundredPercentAPY() public view {
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, YEAR / 2, 1e18, YEAR), 414_213_562_373_095_048_801, 100_000);
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, YEAR, 1e18, YEAR), 1000e18, 100_000);
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, 2 * YEAR, 1e18, YEAR), 3000e18, 100_000);
+    }
+
+    function test_calculateRewards_pointOnePercentAPY() public view {
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, YEAR / 2, 0.001e18, YEAR), 499_875_062_460_964_823, 100_000);
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, YEAR, 0.001e18, YEAR), 1e18, 100_000);
+        assertApproxEqAbs(accrual.calculateRewards(1000e18, 2 * YEAR, 0.001e18, YEAR), 2.001e18, 100_000);
+    }
+
     function testFuzz_calculateRewards_zeroBalance(uint256 elapsed, uint256 apy, uint256 year) public view {
         assertEq(accrual.calculateRewards(0, elapsed, bound(apy, 0, MAX_APY), bound(year, 1, type(uint256).max)), 0);
     }
