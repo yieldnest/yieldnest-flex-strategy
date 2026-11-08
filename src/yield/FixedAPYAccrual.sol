@@ -145,10 +145,15 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         if (apy_ > MAX_APY) revert InvalidAPY(apy_);
         if (balance == 0 || apy_ == 0 || elapsed == 0) return 0;
 
+        // exponent = (elapsed / year) * 1e18 (exponent is scaled by 1e18 to be used in the powWad function)
         uint256 exponent = Math.mulDiv(elapsed, WAD, year);
+        // growthFactor = (1 + apy_) ** exponent (growth factor is scaled by 1e18)
         int256 growthFactor = FixedPointMathLib.powWad(SafeCast.toInt256(WAD + apy_), SafeCast.toInt256(exponent));
+        // growthFactory should always be GE to 1e18 since apy_ is always positive
+        // if growthFactor is LE to 1e18, then the rewards are 0
         if (growthFactor <= SafeCast.toInt256(WAD)) return 0;
 
+        // rewards = balance * (growthFactor - 1e18) / 1e18 (dividing by 1e18 since the growth factor is scaled)
         return Math.mulDiv(balance, SafeCast.toUint256(growthFactor) - WAD, WAD);
     }
 
