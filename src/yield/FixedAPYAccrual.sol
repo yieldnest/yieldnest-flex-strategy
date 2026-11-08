@@ -10,12 +10,28 @@ import { IAccountingModule } from "../AccountingModule.sol";
 
 /**
  * @notice Recognizes compounded fixed-APY yield on a strategy's accounting-token balance.
- * @dev Grant this contract REWARDS_PROCESSOR_ROLE on the accounting module. Integrations must
- *      accrue atomically before deposits/withdrawals are priced and before external rewards or losses
- *      change the accounting balance. This contract does not enforce that ordering on other contracts.
+ * @dev Integration requirements:
+ *      - Grant this contract REWARDS_PROCESSOR_ROLE on the accounting module.
+ *      - For deposits and withdrawals, atomically accrue and update vault accounting before pricing
+ *        shares, then change the eligible balance. For processLosses(), atomically accrue first and
+ *        apply the loss second. This contract does not enforce that ordering on other contracts.
+ *      - Route fixed-APY yield exclusively through accrue(). Raw processRewards() calls do not update
+ *        lastAccrual and can double count the same yield. Separate external rewards require an explicit
+ *        flow that accrues first, then reports only additional yield not already recognized here.
+ *      - Configure the accounting module with cooldownSeconds = 0 for accrual on every deposit and
+ *        withdrawal and for atomic accrue-then-loss flows. A nonzero shared cooldown allows a public
+ *        accrual to block subsequent reports and dependent user operations. Setting it to zero does
+ *        not clear an already active nextUpdateWindow; that window must expire first.
+ *      - With zero cooldown, repeated accrue() calls at the same timestamp return zero after a
+ *        successful settlement, while later timestamps can settle again. Other reporting paths can
+ *        still create a same-timestamp snapshot and make a subsequent reward report revert. The
+ *        minimum-TVL and snapshot APR checks, including the targetApy cap, remain enforced.
+ *      - NOTE: Zero-reward accrual preserves lastAccrual. Calling accrue() before a balance or rate
+ *        change is therefore insufficient when rewards round to zero, the balance is empty, or APY
+ *        is zero: the preserved interval can be repriced using the new balance or rate. Integrations
+ *        still need explicit handling of this unsettled interval to prevent retroactive yield.
  *      Reporting yield recognizes a claim; it does not transfer underlying assets into the Safe.
- *      The accounting module's cooldown, minimum TVL, and snapshot APR checks still apply and may revert
- *      accrual. Configure those separately for the intended calling frequency and maximum accrual gap.
+ *      Configure accounting limits for the intended calling frequency and maximum accrual gap.
  */
 contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     bytes32 public constant APY_MANAGER_ROLE = keccak256("APY_MANAGER_ROLE");
