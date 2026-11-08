@@ -91,12 +91,19 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         return calculateRewards(balance, block.timestamp - s.lastAccrual, s.apy, s.year);
     }
 
-    /// @notice Anyone can settle yield through now. Repeated calls at the same timestamp are no-ops.
+    /// @notice Anyone can settle yield through now. Zero rewards leave the accrual timestamp unchanged.
+    /// @dev An unsettled interval remains open across zero-balance or zero-APY calls. Integrations must
+    ///      account for this before changing balances or rates to avoid retroactive yield.
     function accrue() external nonReentrant returns (uint256 rewards) {
         return _accrue();
     }
 
     /// @notice Settles the old APY before changing it. Before the scheduled start, preserves that start.
+    /// @dev NOTE: If settlement reverts, the APY remains unchanged, even when newAPY is zero.
+    ///      The accounting module compares simple annualized return against its targetApy cap;
+    ///      compounded yield over a long accrual gap can exceed that cap even when both APY settings
+    ///      are equal. Cooldown and minimum-TVL checks can also reject settlement. This function
+    ///      cannot bypass those checks to lower or stop the rate; settlement must succeed first.
     function setAPY(uint256 newAPY) external onlyRole(APY_MANAGER_ROLE) nonReentrant {
         if (newAPY > MAX_APY) revert InvalidAPY(newAPY);
         _accrue();
@@ -113,10 +120,12 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         uint256 balance = s.accountingModule.accountingToken().balanceOf(s.accountingModule.strategy());
         rewards = calculateRewards(balance, block.timestamp - previousAccrual, s.apy, s.year);
 
-        // Checkpoint even when empty, at zero APY, or when rewards round to zero. Otherwise later
-        // deposits could earn retroactive interest. A failed reward report rolls this write back.
+        // Preserve the interval until rewards reach at least one token unit.
+        if (rewards == 0) return 0;
+
+        // A failed reward report rolls this checkpoint back.
         s.lastAccrual = block.timestamp;
-        if (rewards != 0) s.accountingModule.processRewards(rewards);
+        s.accountingModule.processRewards(rewards);
 
         emit YieldAccrued(previousAccrual, block.timestamp, balance, rewards);
     }
@@ -128,6 +137,12 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
      * @param apy_ Effective annual yield scaled by 1e18.
      * @param year Seconds per accounting year; must be nonzero.
      * @dev B * ((1 + APY) ** (elapsed / YEAR) - 1), using WAD fixed-point exponentiation.
+     *      NOTE: Assumes `balance` was eligible for yield throughout the entire `elapsed` period,
+     *      with no intervening deposits, withdrawals, external rewards, or losses. Integrations must
+     *      atomically settle outstanding yield and update vault accounting before pricing deposit or
+     *      withdrawal shares and before changing the eligible balance. Otherwise, newly added funds
+     *      earn retroactive yield, while removed funds lose yield earned before their removal.
+     *      This function does not track historical balances or enforce that settlement order.
      *      Fractional token units are discarded per settlement; no remainder is stored. Thus very
      *      frequent accrual can under-recognize yield, especially for small six-decimal balances.
      */

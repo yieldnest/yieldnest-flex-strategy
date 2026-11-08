@@ -198,47 +198,45 @@ contract FixedAPYAccrualTest is Test {
         assertEq(accounting.reports(), 2);
     }
 
-    function test_accrue_emptyBalanceCheckpointsWithoutRetroactiveRewards() public {
+    function test_accrue_emptyBalancePreservesTimestamp() public {
         vm.prank(accounting.strategy());
         token.transfer(CALLER, BALANCE);
         vm.warp(START + YEAR);
-        vm.expectEmit(false, false, false, true, address(accrual));
-        emit YieldAccrued(START, START + YEAR, 0, 0);
-        assertEq(accrual.previewAccrual(), 0);
+        vm.recordLogs();
         assertEq(accrual.accrue(), 0);
-        assertEq(accrual.lastAccrual(), START + YEAR);
+        assertEq(vm.getRecordedLogs().length, 0);
+        assertEq(accrual.lastAccrual(), START);
         assertEq(accounting.reports(), 0);
-        token.mint(accounting.strategy(), BALANCE);
-        vm.warp(START + 2 * YEAR);
-        assertApproxEqAbs(accrual.accrue(), 100e18, 100_000);
     }
 
-    function test_accrue_zeroAPYCheckpointsWithoutReporting() public {
+    function test_accrue_zeroAPYPreservesTimestamp() public {
         vm.prank(ADMIN);
         accrual.setAPY(0);
         vm.warp(START + YEAR);
-        assertEq(accrual.previewAccrual(), 0);
-        vm.expectEmit(false, false, false, true, address(accrual));
-        emit YieldAccrued(START, START + YEAR, BALANCE, 0);
+        vm.recordLogs();
         assertEq(accrual.accrue(), 0);
-        assertEq(accrual.lastAccrual(), START + YEAR);
+        assertEq(vm.getRecordedLogs().length, 0);
+        assertEq(accrual.lastAccrual(), START);
         assertEq(accounting.reports(), 0);
-        vm.prank(ADMIN);
-        accrual.setAPY(0.1e18);
-        vm.warp(START + 2 * YEAR);
-        assertApproxEqAbs(accrual.accrue(), 100e18, 100_000);
     }
 
-    function test_accrue_dustCheckpointsWithoutReporting() public {
+    function test_accrue_dustPreservesIntervalUntilRewardsAccumulate() public {
         vm.prank(accounting.strategy());
-        token.transfer(CALLER, BALANCE - 1);
-        vm.warp(START + 1);
-        vm.expectEmit(false, false, false, true, address(accrual));
-        emit YieldAccrued(START, START + 1, 1, 0);
-        assertEq(accrual.previewAccrual(), 0);
-        assertEq(accrual.accrue(), 0);
-        assertEq(accrual.lastAccrual(), START + 1);
+        token.transfer(CALLER, BALANCE - 1e6);
+        vm.recordLogs();
+        for (uint256 i = 1; i <= 10; ++i) {
+            vm.warp(START + i * 12);
+            assertEq(accrual.accrue(), 0);
+            assertEq(accrual.lastAccrual(), START);
+        }
+        assertEq(vm.getRecordedLogs().length, 0);
         assertEq(accounting.reports(), 0);
+        vm.warp(START + 1 days);
+        uint256 expected = accrual.calculateRewards(1e6, 1 days, 0.1e18, YEAR);
+        assertGt(expected, 0);
+        assertEq(accrual.accrue(), expected);
+        assertEq(accounting.totalRewards(), expected);
+        assertEq(accrual.lastAccrual(), block.timestamp);
     }
 
     function test_accrue_rejectedReportRollsBackAndCanBeRetried() public {
