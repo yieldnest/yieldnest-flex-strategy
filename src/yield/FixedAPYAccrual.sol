@@ -21,8 +21,8 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
     bytes32 public constant APY_MANAGER_ROLE = keccak256("APY_MANAGER_ROLE");
 
     uint256 public constant WAD = 1e18;
-    /// @notice Maximum configurable effective annual yield: 1,000%.
-    uint256 public constant MAX_APY = 10 * WAD;
+    /// @notice Maximum configurable effective annual yield: 10,000%.
+    uint256 public constant MAX_APY = 100 * WAD;
 
     struct FixedAPYAccrualStorage {
         IAccountingModule accountingModule;

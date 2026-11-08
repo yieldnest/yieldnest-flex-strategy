@@ -9,7 +9,7 @@ import { FixedAPYAccrual } from "src/yield/FixedAPYAccrual.sol";
 
 contract CalculateRewardsTest is Test {
     uint256 internal constant WAD = 1e18;
-    uint256 internal constant MAX_APY = 10e18;
+    uint256 internal constant MAX_APY = 100e18;
     uint256 internal constant YEAR = 365.25 days;
     uint256 internal constant MAX_BALANCE = 1e36;
 
@@ -122,8 +122,8 @@ contract CalculateRewardsTest is Test {
 
     function testFuzz_calculateRewards_maxAPY(uint256 balance) public view {
         balance = bound(balance, 1, MAX_BALANCE);
-        _assertRewardsClose(accrual.calculateRewards(balance, YEAR, MAX_APY, YEAR), 10 * balance, balance);
-        _assertRewardsClose(accrual.calculateRewards(balance, 2 * YEAR, MAX_APY, YEAR), 120 * balance, balance);
+        _assertRewardsClose(accrual.calculateRewards(balance, YEAR, MAX_APY, YEAR), 100 * balance, balance);
+        _assertRewardsClose(accrual.calculateRewards(balance, 2 * YEAR, MAX_APY, YEAR), 10_200 * balance, balance);
     }
 
     function testFuzz_calculateRewards_monotonicBalance(
@@ -249,8 +249,8 @@ contract CalculateRewardsTest is Test {
         uint256 firstReward = accrual.calculateRewards(balance, first, apy, YEAR);
         uint256 split = firstReward + accrual.calculateRewards(balance + firstReward, second, apy, YEAR);
         uint256 single = accrual.calculateRewards(balance, first + second, apy, YEAR);
-        // A discarded token unit in the first settlement can grow by up to 11x in the second.
-        assertApproxEqAbs(split, single, _tolerance(single, balance) + 12);
+        // A discarded token unit in the first settlement can grow by up to 101x in the second.
+        assertApproxEqAbs(split, single, _tolerance(single, balance) + 102);
     }
 
     function testFuzz_calculateRewards_sixDecimalDust(uint256 balance, uint256 apy, uint256 elapsed) public view {
@@ -287,14 +287,14 @@ contract CalculateRewardsTest is Test {
 
     function testFuzz_calculateRewards_growthOverflow(uint256 balance, uint256 yearsElapsed) public {
         balance = bound(balance, 1, type(uint256).max);
-        // ln(11) * 60 exceeds expWad's supported exponent; keep well below signed multiplication overflow.
+        // ln(101) * 60 exceeds expWad's supported exponent; keep well below signed multiplication overflow.
         yearsElapsed = bound(yearsElapsed, 60, 1_000_000);
         vm.expectRevert(FixedPointMathLib.ExpOverflow.selector);
         accrual.calculateRewards(balance, yearsElapsed * YEAR, MAX_APY, YEAR);
     }
 
     function testFuzz_calculateRewards_logExponentProductOverflow(uint256 exponent) public {
-        // The exponent fits int256, but multiplying it by ln(11) in powWad does not.
+        // The exponent fits int256, but multiplying it by ln(101) in powWad does not.
         exponent = bound(exponent, uint256(type(int256).max) / WAD + 1, uint256(type(int256).max));
         vm.expectRevert(stdError.arithmeticError);
         accrual.calculateRewards(1, exponent, MAX_APY, WAD);

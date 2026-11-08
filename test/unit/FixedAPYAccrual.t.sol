@@ -106,7 +106,7 @@ contract FixedAPYAccrualTest is Test {
         zero.initialize(ADMIN, address(accounting), 0, START);
         assertEq(zero.apy(), 0);
         FixedAPYAccrual maximum = _newProxy();
-        maximum.initialize(ADMIN, address(accounting), 10e18, START);
+        maximum.initialize(ADMIN, address(accounting), 100e18, START);
         assertEq(maximum.apy(), maximum.MAX_APY());
     }
 
@@ -124,8 +124,8 @@ contract FixedAPYAccrualTest is Test {
 
     function test_initialize_rejectsExcessiveAPY() public {
         FixedAPYAccrual fresh = _newProxy();
-        vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.InvalidAPY.selector, 10e18 + 1));
-        fresh.initialize(ADMIN, address(accounting), 10e18 + 1, START);
+        vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.InvalidAPY.selector, 100e18 + 1));
+        fresh.initialize(ADMIN, address(accounting), 100e18 + 1, START);
     }
 
     function test_initialize_rejectsPastStart() public {
@@ -282,15 +282,15 @@ contract FixedAPYAccrualTest is Test {
 
     function test_setAPY_acceptsMaximum() public {
         vm.prank(ADMIN);
-        accrual.setAPY(10e18);
-        assertEq(accrual.apy(), 10e18);
+        accrual.setAPY(100e18);
+        assertEq(accrual.apy(), 100e18);
     }
 
     function test_setAPY_rejectsExcessiveRateBeforeSettlement() public {
         vm.warp(START + YEAR);
         vm.prank(ADMIN);
-        vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.InvalidAPY.selector, 10e18 + 1));
-        accrual.setAPY(10e18 + 1);
+        vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.InvalidAPY.selector, 100e18 + 1));
+        accrual.setAPY(100e18 + 1);
         _assertUnsettled();
     }
 
