@@ -253,6 +253,37 @@ contract CalculateRewardsTest is Test {
         assertApproxEqAbs(split, single, _tolerance(single, balance) + 102);
     }
 
+    function test_calculateRewards_frequentNonZeroSettlementsEarnLessThanSingleSettlement() public view {
+        uint256 initialBalance = 500e6; // 500 tokens with six decimals.
+        uint256 apy = 0.1e18; // 10% APY.
+        uint256 balance = initialBalance;
+
+        // Settle each second for one hour, adding minted rewards back to the eligible balance.
+        // Each interval earns approximately 1.51 smallest units, but only one unit is minted.
+        for (uint256 i; i < 3600; ++i) {
+            uint256 reward = accrual.calculateRewards(balance, 1, apy, YEAR);
+            assertEq(reward, 1); // Every settlement is nonzero and advances the checkpoint.
+            balance += reward;
+        }
+
+        uint256 frequentRewards = balance - initialBalance;
+        uint256 singleReward = accrual.calculateRewards(initialBalance, 1 hours, apy, YEAR);
+        assertEq(frequentRewards, 3600);
+        assertEq(singleReward, 5436);
+        assertGt(singleReward, frequentRewards);
+    }
+
+    function test_calculateRewards_oneSecondNonZeroInputsRoundToZero() public view {
+        uint256 balance = 1e6; // One token with six decimals.
+        uint256 elapsed = 1; // One second.
+        uint256 apy = 0.1e18; // 10% APY.
+
+        // Earns approximately 0.00302 smallest token units in one second, which floors to zero.
+        assertEq(accrual.calculateRewards(balance, elapsed, apy, YEAR), 0);
+        // The same balance and rate produce a whole token unit once enough time has elapsed.
+        assertEq(accrual.calculateRewards(balance, 1 hours, apy, YEAR), 10);
+    }
+
     function testFuzz_calculateRewards_sixDecimalDust(uint256 balance, uint256 apy, uint256 elapsed) public view {
         balance = bound(balance, 1, 1e6);
         apy = bound(apy, 1, WAD);
