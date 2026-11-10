@@ -273,6 +273,26 @@ contract CalculateRewardsTest is Test {
         assertGt(singleReward, frequentRewards);
     }
 
+    function test_calculateRewards_frequentNonZeroSettlementsWith18Decimals() public {
+        uint256 initialBalance = 500e18; // Same 500 tokens, now with 18 decimals.
+        uint256 apy = 0.1e18; // 10% APY.
+        uint256 balance = initialBalance;
+
+        // Same one-hour period and one-second settlements, including compounding of minted rewards.
+        for (uint256 i; i < 3600; ++i) {
+            uint256 reward = accrual.calculateRewards(balance, 1, apy, YEAR);
+            assertGt(reward, 0);
+            balance += reward;
+        }
+
+        uint256 frequentRewards = balance - initialBalance;
+        uint256 singleReward = accrual.calculateRewards(initialBalance, 1 hours, apy, YEAR);
+        assertGt(singleReward, frequentRewards);
+        emit log_named_uint("Frequent rewards (18-decimal units)", frequentRewards);
+        emit log_named_uint("Single reward (18-decimal units)", singleReward);
+        emit log_named_uint("Difference (18-decimal units)", singleReward - frequentRewards);
+    }
+
     function test_calculateRewards_oneSecondNonZeroInputsRoundToZero() public view {
         uint256 balance = 1e6; // One token with six decimals.
         uint256 elapsed = 1; // One second.
