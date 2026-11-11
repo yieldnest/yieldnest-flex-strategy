@@ -198,45 +198,105 @@ contract FixedAPYAccrualTest is Test {
         assertEq(accounting.reports(), 2);
     }
 
-    function test_accrue_emptyBalancePreservesTimestamp() public {
+    function test_accrue_emptyBalanceCheckpoints() public {
         vm.prank(accounting.strategy());
         token.transfer(CALLER, BALANCE);
         vm.warp(START + YEAR);
-        vm.recordLogs();
         assertEq(accrual.accrue(), 0);
-        assertEq(vm.getRecordedLogs().length, 0);
-        assertEq(accrual.lastAccrual(), START);
-        assertEq(accounting.reports(), 0);
+        assertEq(accrual.lastAccrual(), block.timestamp);
+        token.mint(accounting.strategy(), BALANCE);
+        assertEq(accrual.previewAccrual(), 0);
     }
 
-    function test_accrue_zeroAPYPreservesTimestamp() public {
+    function test_accrue_zeroAPYCheckpoints() public {
         vm.prank(ADMIN);
         accrual.setAPY(0);
         vm.warp(START + YEAR);
-        vm.recordLogs();
-        assertEq(accrual.accrue(), 0);
-        assertEq(vm.getRecordedLogs().length, 0);
-        assertEq(accrual.lastAccrual(), START);
-        assertEq(accounting.reports(), 0);
+        vm.prank(ADMIN);
+        accrual.setAPY(0.1e18);
+        assertEq(accrual.lastAccrual(), block.timestamp);
+        assertEq(accrual.previewAccrual(), 0);
     }
 
-    function test_accrue_dustPreservesIntervalUntilRewardsAccumulate() public {
-        vm.prank(accounting.strategy());
-        token.transfer(CALLER, BALANCE - 1e6);
-        vm.recordLogs();
-        for (uint256 i = 1; i <= 10; ++i) {
-            vm.warp(START + i * 12);
-            assertEq(accrual.accrue(), 0);
-            assertEq(accrual.lastAccrual(), START);
+    function _useSixDecimals(uint256 balance) internal {
+        token = new MockERC20("Accounting", "ACC", 6);
+        accounting = new AccrualAccountingMock(token);
+        token.mint(accounting.strategy(), balance);
+        accrual = _newProxy();
+        accrual.initialize(ADMIN, address(accounting), 0.1e18, START);
+    }
+
+    function test_accrue_fractionCompoundsAcrossFrequentSettlements() public {
+        _useSixDecimals(500e6);
+        uint256 referenceBalance = 500e18;
+        for (uint256 i = 1; i <= 3600; ++i) {
+            referenceBalance += accrual.calculateRewards(referenceBalance, 1, 0.1e18, YEAR);
+            vm.warp(START + i);
+            uint256 preview = accrual.previewAccrual();
+            assertGt(preview, 0);
+            assertEq(accrual.accrue(), preview);
+            assertLt(accrual.remainder(), 1e12);
+            assertEq(token.balanceOf(accounting.strategy()) * 1e12 + accrual.remainder(), referenceBalance);
         }
-        assertEq(vm.getRecordedLogs().length, 0);
+        assertEq(accounting.totalRewards(), 5436);
+        uint256 single = accrual.calculateRewards(500e18, 1 hours, 0.1e18, YEAR);
+        assertApproxEqAbs(referenceBalance - 500e18, single, 2_000_000);
+    }
+
+    function test_accrue_zeroMintCarriesFractionBeforeDeposit() public {
+        _useSixDecimals(1e6);
+        vm.warp(START + 1);
+        assertEq(accrual.accrue(), 0);
+        uint256 fraction = accrual.remainder();
+        assertGt(fraction, 0);
+        assertEq(accrual.lastAccrual(), START + 1);
         assertEq(accounting.reports(), 0);
+        token.mint(accounting.strategy(), 1000e6);
+        assertEq(accrual.accrue(), 0);
+        assertEq(accrual.remainder(), fraction);
+        vm.warp(START + 2);
+        uint256 pending = fraction + accrual.calculateRewards(1001e18 + fraction, 1, 0.1e18, YEAR);
+        assertEq(accrual.accrue(), pending / 1e12);
+        assertEq(accrual.remainder(), pending % 1e12);
+    }
+
+    function test_accrue_rejectedReportPreservesFraction() public {
+        _useSixDecimals(1e6);
+        vm.warp(START + 1);
+        accrual.accrue();
+        uint256 fraction = accrual.remainder();
+        accounting.setRejectReports(true);
         vm.warp(START + 1 days);
-        uint256 expected = accrual.calculateRewards(1e6, 1 days, 0.1e18, YEAR);
-        assertGt(expected, 0);
-        assertEq(accrual.accrue(), expected);
-        assertEq(accounting.totalRewards(), expected);
-        assertEq(accrual.lastAccrual(), block.timestamp);
+        vm.expectRevert(AccrualAccountingMock.ReportRejected.selector);
+        accrual.accrue();
+        assertEq(accrual.remainder(), fraction);
+        assertEq(accrual.lastAccrual(), START + 1);
+    }
+
+    function test_setAPY_preservesFractionAcrossZeroRatePeriod() public {
+        _useSixDecimals(1e6);
+        vm.warp(START + 1);
+        vm.prank(ADMIN);
+        accrual.setAPY(0);
+        uint256 fraction = accrual.remainder();
+        assertGt(fraction, 0);
+        vm.warp(START + YEAR);
+        vm.prank(ADMIN);
+        accrual.setAPY(0.2e18);
+        assertEq(accrual.remainder(), fraction);
+        assertEq(accrual.lastAccrual(), START + YEAR);
+        vm.warp(START + YEAR + 1);
+        uint256 pending = fraction + accrual.calculateRewards(1e18 + fraction, 1, 0.2e18, YEAR);
+        assertEq(accrual.accrue(), pending / 1e12);
+        assertEq(accrual.remainder(), pending % 1e12);
+    }
+
+    function test_initialize_rejectsMoreThan18Decimals() public {
+        token = new MockERC20("Accounting", "ACC", 19);
+        accounting = new AccrualAccountingMock(token);
+        FixedAPYAccrual fresh = _newProxy();
+        vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.UnsupportedDecimals.selector, uint8(19)));
+        fresh.initialize(ADMIN, address(accounting), 0.1e18, START);
     }
 
     function test_accrue_rejectedReportRollsBackAndCanBeRetried() public {

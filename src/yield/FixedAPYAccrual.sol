@@ -26,10 +26,10 @@ import { IAccountingModule } from "../AccountingModule.sol";
  *        successful settlement, while later timestamps can settle again. Other reporting paths can
  *        still create a same-timestamp snapshot and make a subsequent reward report revert. The
  *        minimum-TVL and snapshot APR checks, including the targetApy cap, remain enforced.
- *      - NOTE: Zero-reward accrual preserves lastAccrual. Calling accrue() before a balance or rate
- *        change is therefore insufficient when rewards round to zero, the balance is empty, or APY
- *        is zero: the preserved interval can be repriced using the new balance or rate. Integrations
- *        still need explicit handling of this unsettled interval to prevent retroactive yield.
+ *      - Accounting uses 18-decimal token amounts. Unmintable rewards are retained and compound
+ *        with the eligible balance. Every elapsed interval is checkpointed, including zero rewards.
+ *        Accounting tokens with more than 18 decimals are unsupported. Pending fractions belong to
+ *        the strategy collectively and are not individually redeemable; they remain after a full exit.
  *      Reporting yield recognizes a claim; it does not transfer underlying assets into the Safe.
  *      Configure accounting limits for the intended calling frequency and maximum accrual gap.
  */
@@ -45,10 +45,12 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         uint256 year;
         uint256 apy;
         uint256 lastAccrual;
+        uint256 remainder; // Unminted rewards in 18-decimal token units; appended for storage compatibility.
     }
 
     bytes32 private constant STORAGE_SLOT = keccak256("yieldnest.storage.fixedAPYAccrualModule");
 
+    error UnsupportedDecimals(uint8 decimals);
     error ZeroAddress();
     error InvalidYear();
     error InvalidAPY(uint256 apy);
@@ -93,6 +95,7 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         s.year = year;
         s.apy = apy_;
         s.lastAccrual = startTimestamp;
+        _scale(s); // Validate accounting-token precision.
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(APY_MANAGER_ROLE, admin);
@@ -104,12 +107,11 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         FixedAPYAccrualStorage storage s = _getFixedAPYAccrualStorage();
         if (block.timestamp <= s.lastAccrual || s.apy == 0) return 0;
         uint256 balance = s.accountingModule.accountingToken().balanceOf(s.accountingModule.strategy());
-        return calculateRewards(balance, block.timestamp - s.lastAccrual, s.apy, s.year);
+        (rewards,) = _pendingRewards(s, balance, block.timestamp - s.lastAccrual);
     }
 
-    /// @notice Anyone can settle yield through now. Zero rewards leave the accrual timestamp unchanged.
-    /// @dev An unsettled interval remains open across zero-balance or zero-APY calls. Integrations must
-    ///      account for this before changing balances or rates to avoid retroactive yield.
+    /// @notice Anyone can settle yield through now, retaining unmintable fractions at 18 decimals.
+    /// @dev Checkpoints even zero rewards so subsequent balance/rate changes are not retroactive.
     function accrue() external nonReentrant returns (uint256 rewards) {
         return _accrue();
     }
@@ -134,16 +136,39 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         if (block.timestamp <= previousAccrual) return 0;
 
         uint256 balance = s.accountingModule.accountingToken().balanceOf(s.accountingModule.strategy());
-        rewards = calculateRewards(balance, block.timestamp - previousAccrual, s.apy, s.year);
+        (rewards, s.remainder) = _pendingRewards(s, balance, block.timestamp - previousAccrual);
 
-        // Preserve the interval until rewards reach at least one token unit.
-        if (rewards == 0) return 0;
-
-        // A failed reward report rolls this checkpoint back.
+        // A failed report rolls back both the checkpoint and the retained fraction.
         s.lastAccrual = block.timestamp;
-        s.accountingModule.processRewards(rewards);
+        if (rewards != 0) s.accountingModule.processRewards(rewards);
 
         emit YieldAccrued(previousAccrual, block.timestamp, balance, rewards);
+    }
+
+    function _scale(FixedAPYAccrualStorage storage s) internal view returns (uint256) {
+        uint8 decimals = s.accountingModule.accountingToken().decimals();
+        if (decimals > 18) revert UnsupportedDecimals(decimals);
+        return 10 ** (18 - decimals);
+    }
+
+    function _pendingRewards(
+        FixedAPYAccrualStorage storage s,
+        uint256 balance,
+        uint256 elapsed
+    )
+        internal
+        view
+        returns (uint256 rewards, uint256 remainder_)
+    {
+        uint256 scale = _scale(s);
+        uint256 principal = balance * scale + s.remainder;
+        uint256 pending = s.remainder + calculateRewards(principal, elapsed, s.apy, s.year);
+        return (pending / scale, pending % scale);
+    }
+
+    /// @notice Unminted rewards in 18-decimal token units, included in subsequent compounding.
+    function remainder() public view returns (uint256) {
+        return _getFixedAPYAccrualStorage().remainder;
     }
 
     /**
@@ -159,8 +184,9 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
      *      withdrawal shares and before changing the eligible balance. Otherwise, newly added funds
      *      earn retroactive yield, while removed funds lose yield earned before their removal.
      *      This function does not track historical balances or enforce that settlement order.
-     *      Fractional token units are discarded per settlement; no remainder is stored. Thus very
-     *      frequent accrual can under-recognize yield, especially for small six-decimal balances.
+     *      This pure helper floors to the supplied balance units. Settlement calls it with an
+     *      18-decimal principal and retains the fraction that cannot be minted in asset units.
+     *      Sub-18-decimal-unit rounding and fixed-point exponentiation error still apply.
      */
     function calculateRewards(
         uint256 balance,
