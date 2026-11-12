@@ -138,7 +138,6 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         uint256 balance = s.accountingModule.accountingToken().balanceOf(s.accountingModule.strategy());
         (rewards, s.remainder) = _pendingRewards(s, balance, block.timestamp - previousAccrual);
 
-        // A failed report rolls back both the checkpoint and the retained fraction.
         s.lastAccrual = block.timestamp;
         if (rewards != 0) s.accountingModule.processRewards(rewards);
 
