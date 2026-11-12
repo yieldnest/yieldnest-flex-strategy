@@ -12,26 +12,18 @@ import { IAccountingModule } from "../AccountingModule.sol";
  * @notice Recognizes compounded fixed-APY yield on a strategy's accounting-token balance.
  * @dev Integration requirements:
  *      - Grant this contract REWARDS_PROCESSOR_ROLE on the accounting module.
- *      - For deposits and withdrawals, atomically accrue and update vault accounting before pricing
- *        shares, then change the eligible balance. For processLosses(), atomically accrue first and
- *        apply the loss second. This contract does not enforce that ordering on other contracts.
- *      - Route fixed-APY yield exclusively through accrue(). Raw processRewards() calls do not update
- *        lastAccrual and can double count the same yield. Separate external rewards require an explicit
- *        flow that accrues first, then reports only additional yield not already recognized here.
- *      - Configure the accounting module with cooldownSeconds = 0 for accrual on every deposit and
- *        withdrawal and for atomic accrue-then-loss flows. A nonzero shared cooldown allows a public
- *        accrual to block subsequent reports and dependent user operations. Setting it to zero does
- *        not clear an already active nextUpdateWindow; that window must expire first.
+ *      - Configure the accounting module with cooldownSeconds = 0
+ *      - For deposits and withdrawals into the strategy, atomically call accrue()
+ *        before depositing/withdrawing
+ *      - For processLosses(), atomically call accrue() first and apply the loss second.
+ *      - This contract does not enforce that ordering on other contracts.
+ *      - Raw processRewards() calls do not update lastAccrual and count as yield on top.
  *      - With zero cooldown, repeated accrue() calls at the same timestamp return zero after a
  *        successful settlement, while later timestamps can settle again. Other reporting paths can
  *        still create a same-timestamp snapshot and make a subsequent reward report revert. The
  *        minimum-TVL and snapshot APR checks, including the targetApy cap, remain enforced.
- *      - Accounting uses 18-decimal token amounts. Unmintable rewards are retained and compound
- *        with the eligible balance. Every elapsed interval is checkpointed, including zero rewards.
- *        Accounting tokens with more than 18 decimals are unsupported. Pending fractions belong to
- *        the strategy collectively and are not individually redeemable; they remain after a full exit.
- *      Reporting yield recognizes a claim; it does not transfer underlying assets into the Safe.
- *      Configure accounting limits for the intended calling frequency and maximum accrual gap.
+ *      - Accounting uses 18-decimal token amounts regardless of the token's decimals.
+ *        Remainder carries over to the next accrual period.
  */
 contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable {
     bytes32 public constant APY_MANAGER_ROLE = keccak256("APY_MANAGER_ROLE");
@@ -118,10 +110,6 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
 
     /// @notice Settles the old APY before changing it. Before the scheduled start, preserves that start.
     /// @dev NOTE: If settlement reverts, the APY remains unchanged, even when newAPY is zero.
-    ///      The accounting module compares simple annualized return against its targetApy cap;
-    ///      compounded yield over a long accrual gap can exceed that cap even when both APY settings
-    ///      are equal. Cooldown and minimum-TVL checks can also reject settlement. This function
-    ///      cannot bypass those checks to lower or stop the rate; settlement must succeed first.
     function setAPY(uint256 newAPY) external onlyRole(APY_MANAGER_ROLE) nonReentrant {
         if (newAPY > MAX_APY) revert InvalidAPY(newAPY);
         _accrue();
@@ -178,14 +166,7 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
      * @param year Seconds per accounting year; must be nonzero.
      * @dev B * ((1 + APY) ** (elapsed / YEAR) - 1), using WAD fixed-point exponentiation.
      *      NOTE: Assumes `balance` was eligible for yield throughout the entire `elapsed` period,
-     *      with no intervening deposits, withdrawals, external rewards, or losses. Integrations must
-     *      atomically settle outstanding yield and update vault accounting before pricing deposit or
-     *      withdrawal shares and before changing the eligible balance. Otherwise, newly added funds
-     *      earn retroactive yield, while removed funds lose yield earned before their removal.
-     *      This function does not track historical balances or enforce that settlement order.
-     *      This pure helper floors to the supplied balance units. Settlement calls it with an
-     *      18-decimal principal and retains the fraction that cannot be minted in asset units.
-     *      Sub-18-decimal-unit rounding and fixed-point exponentiation error still apply.
+     *      with no intervening deposits, withdrawals, external rewards, or losses.
      */
     function calculateRewards(
         uint256 balance,
