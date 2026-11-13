@@ -11,6 +11,14 @@ import { MockERC20 } from "../mocks/MockERC20.sol";
 
 /// @dev Implements only the accounting calls used by the accrual module. Reports mint to the
 /// strategy, while configurable rejection/callbacks exercise atomicity and reentrancy.
+contract AccrualStrategyReferenceMock {
+    AccrualAccountingMock public accountingModule;
+
+    function setAccountingModule(AccrualAccountingMock module) external {
+        accountingModule = module;
+    }
+}
+
 contract AccrualAccountingMock {
     uint256 public YEAR = 365.25 days;
     MockERC20 public accountingToken;
@@ -24,6 +32,10 @@ contract AccrualAccountingMock {
 
     constructor(MockERC20 token) {
         accountingToken = token;
+    }
+
+    function setStrategy(address strategy_) external {
+        strategy = strategy_;
     }
 
     function setYear(uint256 year) external {
@@ -65,6 +77,7 @@ contract FixedAPYAccrualTest is Test {
     FixedAPYAccrual internal accrual;
     AccrualAccountingMock internal accounting;
     MockERC20 internal token;
+    AccrualStrategyReferenceMock internal strategyReference;
 
     event APYUpdated(uint256 oldAPY, uint256 newAPY);
     event YieldAccrued(uint256 fromTimestamp, uint256 toTimestamp, uint256 balance, uint256 rewards);
@@ -73,10 +86,13 @@ contract FixedAPYAccrualTest is Test {
         vm.warp(START);
         token = new MockERC20("Accounting", "ACC", 18);
         accounting = new AccrualAccountingMock(token);
+        strategyReference = new AccrualStrategyReferenceMock();
+        strategyReference.setAccountingModule(accounting);
+        accounting.setStrategy(address(strategyReference));
         token.mint(accounting.strategy(), BALANCE);
         implementation = new FixedAPYAccrual();
         accrual = _newProxy();
-        accrual.initialize(ADMIN, address(accounting), 0.1e18, START);
+        accrual.initialize(ADMIN, address(strategyReference), 0.1e18, START);
     }
 
     function _newProxy() internal returns (FixedAPYAccrual) {
@@ -88,7 +104,7 @@ contract FixedAPYAccrualTest is Test {
         accounting.setYear(360 days);
         vm.expectEmit(false, false, false, true, address(fresh));
         emit APYUpdated(0, 0.11e18);
-        fresh.initialize(ADMIN, address(accounting), 0.11e18, START + 1 days);
+        fresh.initialize(ADMIN, address(strategyReference), 0.11e18, START + 1 days);
         assertEq(address(fresh.accountingModule()), address(accounting));
         assertEq(fresh.YEAR(), 360 days);
         assertEq(fresh.apy(), 0.11e18);
@@ -103,20 +119,20 @@ contract FixedAPYAccrualTest is Test {
 
     function test_initialize_acceptsZeroAndMaximumAPY() public {
         FixedAPYAccrual zero = _newProxy();
-        zero.initialize(ADMIN, address(accounting), 0, START);
+        zero.initialize(ADMIN, address(strategyReference), 0, START);
         assertEq(zero.apy(), 0);
         FixedAPYAccrual maximum = _newProxy();
-        maximum.initialize(ADMIN, address(accounting), 100e18, START);
+        maximum.initialize(ADMIN, address(strategyReference), 100e18, START);
         assertEq(maximum.apy(), maximum.MAX_APY());
     }
 
     function test_initialize_rejectsZeroAdmin() public {
         FixedAPYAccrual fresh = _newProxy();
         vm.expectRevert(FixedAPYAccrual.ZeroAddress.selector);
-        fresh.initialize(address(0), address(accounting), 0.1e18, START);
+        fresh.initialize(address(0), address(strategyReference), 0.1e18, START);
     }
 
-    function test_initialize_rejectsZeroAccountingModule() public {
+    function test_initialize_rejectsZeroStrategy() public {
         FixedAPYAccrual fresh = _newProxy();
         vm.expectRevert(FixedAPYAccrual.ZeroAddress.selector);
         fresh.initialize(ADMIN, address(0), 0.1e18, START);
@@ -125,32 +141,32 @@ contract FixedAPYAccrualTest is Test {
     function test_initialize_rejectsExcessiveAPY() public {
         FixedAPYAccrual fresh = _newProxy();
         vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.InvalidAPY.selector, 100e18 + 1));
-        fresh.initialize(ADMIN, address(accounting), 100e18 + 1, START);
+        fresh.initialize(ADMIN, address(strategyReference), 100e18 + 1, START);
     }
 
     function test_initialize_rejectsPastStart() public {
         FixedAPYAccrual fresh = _newProxy();
         vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.StartInPast.selector, START - 1));
-        fresh.initialize(ADMIN, address(accounting), 0.1e18, START - 1);
+        fresh.initialize(ADMIN, address(strategyReference), 0.1e18, START - 1);
     }
 
     function test_initialize_rejectsZeroYear() public {
         FixedAPYAccrual fresh = _newProxy();
         accounting.setYear(0);
         vm.expectRevert(FixedAPYAccrual.InvalidYear.selector);
-        fresh.initialize(ADMIN, address(accounting), 0.1e18, START);
+        fresh.initialize(ADMIN, address(strategyReference), 0.1e18, START);
     }
 
     function test_initialize_cannotReinitializeProxyOrImplementation() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        accrual.initialize(ADMIN, address(accounting), 0.1e18, START);
+        accrual.initialize(ADMIN, address(strategyReference), 0.1e18, START);
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        implementation.initialize(ADMIN, address(accounting), 0.1e18, START);
+        implementation.initialize(ADMIN, address(strategyReference), 0.1e18, START);
     }
 
     function test_accrue_beforeAndAtScheduledStartIsNoOp() public {
         FixedAPYAccrual future = _newProxy();
-        future.initialize(ADMIN, address(accounting), 0.1e18, START + 1 days);
+        future.initialize(ADMIN, address(strategyReference), 0.1e18, START + 1 days);
         vm.recordLogs();
         assertEq(future.previewAccrual(), 0);
         assertEq(future.accrue(), 0);
@@ -210,10 +226,10 @@ contract FixedAPYAccrualTest is Test {
 
     function test_accrue_zeroAPYCheckpoints() public {
         vm.prank(ADMIN);
-        accrual.setAPY(0);
+        accrual.setAPY(0, false);
         vm.warp(START + YEAR);
         vm.prank(ADMIN);
-        accrual.setAPY(0.1e18);
+        accrual.setAPY(0.1e18, false);
         assertEq(accrual.lastAccrual(), block.timestamp);
         assertEq(accrual.previewAccrual(), 0);
     }
@@ -221,9 +237,12 @@ contract FixedAPYAccrualTest is Test {
     function _useSixDecimals(uint256 balance) internal {
         token = new MockERC20("Accounting", "ACC", 6);
         accounting = new AccrualAccountingMock(token);
+        strategyReference = new AccrualStrategyReferenceMock();
+        strategyReference.setAccountingModule(accounting);
+        accounting.setStrategy(address(strategyReference));
         token.mint(accounting.strategy(), balance);
         accrual = _newProxy();
-        accrual.initialize(ADMIN, address(accounting), 0.1e18, START);
+        accrual.initialize(ADMIN, address(strategyReference), 0.1e18, START);
     }
 
     function test_accrue_fractionCompoundsAcrossFrequentSettlements() public {
@@ -277,12 +296,12 @@ contract FixedAPYAccrualTest is Test {
         _useSixDecimals(1e6);
         vm.warp(START + 1);
         vm.prank(ADMIN);
-        accrual.setAPY(0);
+        accrual.setAPY(0, false);
         uint256 fraction = accrual.remainder();
         assertGt(fraction, 0);
         vm.warp(START + YEAR);
         vm.prank(ADMIN);
-        accrual.setAPY(0.2e18);
+        accrual.setAPY(0.2e18, false);
         assertEq(accrual.remainder(), fraction);
         assertEq(accrual.lastAccrual(), START + YEAR);
         vm.warp(START + YEAR + 1);
@@ -294,9 +313,12 @@ contract FixedAPYAccrualTest is Test {
     function test_initialize_rejectsMoreThan18Decimals() public {
         token = new MockERC20("Accounting", "ACC", 19);
         accounting = new AccrualAccountingMock(token);
+        strategyReference = new AccrualStrategyReferenceMock();
+        strategyReference.setAccountingModule(accounting);
+        accounting.setStrategy(address(strategyReference));
         FixedAPYAccrual fresh = _newProxy();
         vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.UnsupportedDecimals.selector, uint8(19)));
-        fresh.initialize(ADMIN, address(accounting), 0.1e18, START);
+        fresh.initialize(ADMIN, address(strategyReference), 0.1e18, START);
     }
 
     function test_accrue_rejectedReportRollsBackAndCanBeRetried() public {
@@ -320,7 +342,7 @@ contract FixedAPYAccrualTest is Test {
         vm.expectEmit(false, false, false, true, address(accrual));
         emit APYUpdated(0.1e18, 0.05e18);
         vm.prank(ADMIN);
-        accrual.setAPY(0.05e18);
+        accrual.setAPY(0.05e18, false);
         assertEq(accrual.apy(), 0.05e18);
         assertEq(accounting.totalRewards(), preview);
         assertEq(accrual.lastAccrual(), START + YEAR);
@@ -328,11 +350,53 @@ contract FixedAPYAccrualTest is Test {
         assertApproxEqAbs(accrual.accrue(), 55e18, 100_000);
     }
 
+    function test_setAPY_skipAccrueAllowsChangeWhenReportsFailAndRepricesInterval() public {
+        vm.warp(START + YEAR);
+        accounting.setRejectReports(true);
+        vm.expectEmit(false, false, false, true, address(accrual));
+        emit APYUpdated(0.1e18, 0.05e18);
+        vm.prank(ADMIN);
+        accrual.setAPY(0.05e18, true);
+        assertEq(accrual.apy(), 0.05e18);
+        assertEq(accrual.lastAccrual(), START);
+        assertEq(accounting.reports(), 0);
+        assertEq(token.balanceOf(accounting.strategy()), BALANCE);
+        assertApproxEqAbs(accrual.previewAccrual(), 50e18, 100_000);
+        accounting.setRejectReports(false);
+        assertApproxEqAbs(accrual.accrue(), 50e18, 100_000);
+    }
+
+    function test_setAPY_skipAccruePreservesFractionAndCheckpoint() public {
+        _useSixDecimals(1e6);
+        vm.warp(START + 1);
+        accrual.accrue();
+        uint256 fraction = accrual.remainder();
+        assertGt(fraction, 0);
+        vm.warp(START + 1 days);
+        vm.prank(ADMIN);
+        accrual.setAPY(0, true);
+        assertEq(accrual.remainder(), fraction);
+        assertEq(accrual.lastAccrual(), START + 1);
+        assertEq(accrual.previewAccrual(), 0);
+        assertEq(accounting.reports(), 0);
+    }
+
+    function test_setAPY_skipAccrueStillRequiresRoleAndValidRate() public {
+        bytes32 role = accrual.APY_MANAGER_ROLE();
+        vm.prank(CALLER);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, CALLER, role));
+        accrual.setAPY(0, true);
+        vm.prank(ADMIN);
+        vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.InvalidAPY.selector, 100e18 + 1));
+        accrual.setAPY(100e18 + 1, true);
+        _assertUnsettled();
+    }
+
     function test_setAPY_beforeScheduledStartPreservesStart() public {
         FixedAPYAccrual future = _newProxy();
-        future.initialize(ADMIN, address(accounting), 0.1e18, START + YEAR);
+        future.initialize(ADMIN, address(strategyReference), 0.1e18, START + YEAR);
         vm.prank(ADMIN);
-        future.setAPY(0.05e18);
+        future.setAPY(0.05e18, false);
         assertEq(future.lastAccrual(), START + YEAR);
         assertEq(future.apy(), 0.05e18);
         assertEq(accounting.reports(), 0);
@@ -342,7 +406,7 @@ contract FixedAPYAccrualTest is Test {
 
     function test_setAPY_acceptsMaximum() public {
         vm.prank(ADMIN);
-        accrual.setAPY(100e18);
+        accrual.setAPY(100e18, false);
         assertEq(accrual.apy(), 100e18);
     }
 
@@ -350,7 +414,7 @@ contract FixedAPYAccrualTest is Test {
         vm.warp(START + YEAR);
         vm.prank(ADMIN);
         vm.expectRevert(abi.encodeWithSelector(FixedAPYAccrual.InvalidAPY.selector, 100e18 + 1));
-        accrual.setAPY(100e18 + 1);
+        accrual.setAPY(100e18 + 1, false);
         _assertUnsettled();
     }
 
@@ -358,11 +422,11 @@ contract FixedAPYAccrualTest is Test {
         bytes32 role = accrual.APY_MANAGER_ROLE();
         vm.prank(CALLER);
         vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, CALLER, role));
-        accrual.setAPY(0.05e18);
+        accrual.setAPY(0.05e18, false);
         vm.prank(ADMIN);
         accrual.grantRole(role, CALLER);
         vm.prank(CALLER);
-        accrual.setAPY(0.05e18);
+        accrual.setAPY(0.05e18, false);
         assertEq(accrual.apy(), 0.05e18);
     }
 
@@ -371,7 +435,7 @@ contract FixedAPYAccrualTest is Test {
         vm.warp(START + YEAR);
         vm.prank(ADMIN);
         vm.expectRevert(AccrualAccountingMock.ReportRejected.selector);
-        accrual.setAPY(0.05e18);
+        accrual.setAPY(0.05e18, false);
         _assertUnsettled();
     }
 
@@ -387,7 +451,7 @@ contract FixedAPYAccrualTest is Test {
         bytes32 role = accrual.APY_MANAGER_ROLE();
         vm.prank(ADMIN);
         accrual.grantRole(role, address(accounting));
-        accounting.setCallback(abi.encodeCall(FixedAPYAccrual.setAPY, (0.05e18)));
+        accounting.setCallback(abi.encodeCall(FixedAPYAccrual.setAPY, (0.05e18, false)));
         vm.warp(START + YEAR);
         vm.expectRevert(ReentrancyGuardUpgradeable.ReentrancyGuardReentrantCall.selector);
         accrual.accrue();
@@ -399,7 +463,7 @@ contract FixedAPYAccrualTest is Test {
         vm.warp(START + YEAR);
         vm.prank(ADMIN);
         vm.expectRevert(ReentrancyGuardUpgradeable.ReentrancyGuardReentrantCall.selector);
-        accrual.setAPY(0.05e18);
+        accrual.setAPY(0.05e18, false);
         _assertUnsettled();
     }
 

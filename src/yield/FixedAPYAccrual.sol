@@ -7,6 +7,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { FixedPointMathLib } from "lib/solady/src/utils/FixedPointMathLib.sol";
 import { IAccountingModule } from "../AccountingModule.sol";
+import { IFlexStrategy } from "../FlexStrategy.sol";
 
 /**
  * @notice Recognizes compounded fixed-APY yield on a strategy's accounting-token balance.
@@ -17,6 +18,9 @@ import { IAccountingModule } from "../AccountingModule.sol";
  *        before depositing/withdrawing
  *      - For processLosses(), atomically call accrue() first and apply the loss second.
  *      - This contract does not enforce that ordering on other contracts.
+ *      - Accounting-module lookup follows strategy rotation. Rotation must preserve the accounting
+ *        token and year convention, configure reward permissions and token authority, and settle
+ *        before any eligible balance change. The cached year and retained remainder are preserved.
  *      - Raw processRewards() calls do not update lastAccrual and count as yield on top.
  *      - With zero cooldown, repeated accrue() calls at the same timestamp return zero after a
  *        successful settlement, while later timestamps can settle again. Other reporting paths can
@@ -33,7 +37,7 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
     uint256 public constant MAX_APY = 100 * WAD;
 
     struct FixedAPYAccrualStorage {
-        IAccountingModule accountingModule;
+        IFlexStrategy strategy;
         uint256 year;
         uint256 apy;
         uint256 lastAccrual;
@@ -59,21 +63,13 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
     /**
      * @notice Initializes a proxy instance. Upgrades are managed by the transparent proxy's admin.
      * @param admin Receives admin and APY-manager roles.
-     * @param accountingModule_ Accounting module whose strategy receives the accounting-token rewards.
+     * @param strategy_ Strategy whose current accounting module receives reward reports.
      * @param apy_ Effective APY scaled by 1e18.
      * @param startTimestamp Accrual start, at or after the initialization timestamp. Backdating is disallowed
      *        because the current balance does not establish historical eligible balances.
      */
-    function initialize(
-        address admin,
-        address accountingModule_,
-        uint256 apy_,
-        uint256 startTimestamp
-    )
-        external
-        initializer
-    {
-        if (admin == address(0) || accountingModule_ == address(0)) revert ZeroAddress();
+    function initialize(address admin, address strategy_, uint256 apy_, uint256 startTimestamp) external initializer {
+        if (admin == address(0) || strategy_ == address(0)) revert ZeroAddress();
         if (apy_ > MAX_APY) revert InvalidAPY(apy_);
         if (startTimestamp < block.timestamp) revert StartInPast(startTimestamp);
 
@@ -81,8 +77,8 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         __ReentrancyGuard_init();
 
         FixedAPYAccrualStorage storage s = _getFixedAPYAccrualStorage();
-        s.accountingModule = IAccountingModule(accountingModule_);
-        uint256 year = IAccountingModule(accountingModule_).YEAR();
+        s.strategy = IFlexStrategy(strategy_);
+        uint256 year = accountingModule().YEAR();
         if (year == 0) revert InvalidYear();
         s.year = year;
         s.apy = apy_;
@@ -98,7 +94,7 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
     function previewAccrual() public view returns (uint256 rewards) {
         FixedAPYAccrualStorage storage s = _getFixedAPYAccrualStorage();
         if (block.timestamp <= s.lastAccrual || s.apy == 0) return 0;
-        uint256 balance = s.accountingModule.accountingToken().balanceOf(s.accountingModule.strategy());
+        uint256 balance = accountingModule().accountingToken().balanceOf(address(s.strategy));
         (rewards,) = _pendingRewards(s, balance, block.timestamp - s.lastAccrual);
     }
 
@@ -108,11 +104,15 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         return _accrue();
     }
 
-    /// @notice Settles the old APY before changing it. Before the scheduled start, preserves that start.
-    /// @dev NOTE: If settlement reverts, the APY remains unchanged, even when newAPY is zero.
-    function setAPY(uint256 newAPY) external onlyRole(APY_MANAGER_ROLE) nonReentrant {
+    /// @notice Changes APY, optionally settling the old rate first.
+    /// @param newAPY Effective annual yield scaled by 1e18.
+    /// @param skipAccrue If true, changes the rate without settling or advancing lastAccrual.
+    /// @dev NOTE: Skipping accrual applies the new APY to the entire unsettled interval since
+    ///      lastAccrual, including time before this rate change. The retained remainder is unchanged.
+    ///      If skipAccrue is false, a failed settlement reverts the rate change, even to zero.
+    function setAPY(uint256 newAPY, bool skipAccrue) external onlyRole(APY_MANAGER_ROLE) nonReentrant {
         if (newAPY > MAX_APY) revert InvalidAPY(newAPY);
-        _accrue();
+        if (!skipAccrue) _accrue();
         FixedAPYAccrualStorage storage s = _getFixedAPYAccrualStorage();
         emit APYUpdated(s.apy, newAPY);
         s.apy = newAPY;
@@ -123,17 +123,17 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         uint256 previousAccrual = s.lastAccrual;
         if (block.timestamp <= previousAccrual) return 0;
 
-        uint256 balance = s.accountingModule.accountingToken().balanceOf(s.accountingModule.strategy());
+        uint256 balance = accountingModule().accountingToken().balanceOf(address(s.strategy));
         (rewards, s.remainder) = _pendingRewards(s, balance, block.timestamp - previousAccrual);
 
         s.lastAccrual = block.timestamp;
-        if (rewards != 0) s.accountingModule.processRewards(rewards);
+        if (rewards != 0) accountingModule().processRewards(rewards);
 
         emit YieldAccrued(previousAccrual, block.timestamp, balance, rewards);
     }
 
     function _scale(FixedAPYAccrualStorage storage s) internal view returns (uint256) {
-        uint8 decimals = s.accountingModule.accountingToken().decimals();
+        uint8 decimals = s.strategy.accountingModule().accountingToken().decimals();
         if (decimals > 18) revert UnsupportedDecimals(decimals);
         return 10 ** (18 - decimals);
     }
@@ -194,8 +194,13 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
         return Math.mulDiv(balance, SafeCast.toUint256(growthFactor) - WAD, WAD);
     }
 
+    /// @notice Strategy whose current accounting module is resolved for each accrual.
+    function strategy() public view returns (IFlexStrategy) {
+        return _getFixedAPYAccrualStorage().strategy;
+    }
+
     function accountingModule() public view returns (IAccountingModule) {
-        return _getFixedAPYAccrualStorage().accountingModule;
+        return strategy().accountingModule();
     }
 
     /// @notice Year length in seconds, taken from the accounting module during initialization.

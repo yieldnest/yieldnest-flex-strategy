@@ -6,6 +6,7 @@ import { TransparentUpgradeableProxy } from "@yieldnest-vault/Common.sol";
 import { AccountingModule, IAccountingModule } from "src/AccountingModule.sol";
 import { FixedAPYAccrual } from "src/yield/FixedAPYAccrual.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { AccountingToken } from "src/AccountingToken.sol";
 
 contract FixedAPYAccrualIntegrationTest is BaseIntegrationTest {
     FixedAPYAccrual internal accrual;
@@ -19,9 +20,7 @@ contract FixedAPYAccrualIntegrationTest is BaseIntegrationTest {
                 new TransparentUpgradeableProxy(
                     address(new FixedAPYAccrual()),
                     admin,
-                    abi.encodeCall(
-                        FixedAPYAccrual.initialize, (admin, address(accountingModule), 0.1e18, block.timestamp)
-                    )
+                    abi.encodeCall(FixedAPYAccrual.initialize, (admin, address(strategy), 0.1e18, block.timestamp))
                 )
             )
         );
@@ -39,6 +38,54 @@ contract FixedAPYAccrualIntegrationTest is BaseIntegrationTest {
         asset.approve(address(strategy), 1000e18);
         strategy.deposit(1000e18, ALICE);
         vm.stopPrank();
+    }
+
+    function test_accrue_followsAccountingModuleRotation() public {
+        vm.warp(block.timestamp + 1 days);
+        assertGt(accrual.accrue(), 0);
+        uint256 checkpoint = accrual.lastAccrual();
+        uint256 retained = accrual.remainder();
+        uint256 oldSnapshots = accountingModule.snapshotsLength();
+        address admin = deployment.actors().ADMIN();
+        AccountingModule replacement = AccountingModule(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(new AccountingModule()),
+                    admin,
+                    abi.encodeCall(
+                        AccountingModule.initialize,
+                        (
+                            address(strategy),
+                            admin,
+                            accountingModule.safe(),
+                            accountingToken,
+                            accountingModule.targetApy(),
+                            accountingModule.lowerBound(),
+                            1e18,
+                            0
+                        )
+                    )
+                )
+            )
+        );
+        vm.startPrank(admin);
+        replacement.grantRole(replacement.REWARDS_PROCESSOR_ROLE(), address(accrual));
+        strategy.setAccountingModule(address(replacement));
+        AccountingToken(address(accountingToken)).setAccountingModule(address(replacement));
+        vm.stopPrank();
+
+        assertEq(address(accrual.strategy()), address(strategy));
+        assertEq(address(accrual.accountingModule()), address(replacement));
+        assertEq(accrual.lastAccrual(), checkpoint);
+        assertEq(accrual.remainder(), retained);
+        vm.warp(block.timestamp + 1 days);
+        uint256 balanceBefore = accountingToken.balanceOf(address(strategy));
+        uint256 preview = accrual.previewAccrual();
+        assertGt(preview, 0);
+        assertEq(accrual.accrue(), preview);
+        assertEq(accountingToken.balanceOf(address(strategy)), balanceBefore + preview);
+        assertEq(replacement.snapshotsLength(), 2);
+        assertEq(accountingModule.snapshotsLength(), oldSnapshots);
     }
 
     function test_lossThenAccrue_sameTimestampRevertsWithZeroCooldown() public {
