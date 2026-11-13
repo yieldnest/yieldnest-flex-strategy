@@ -80,9 +80,10 @@ contract FixedAPYAccrualIntegrationTest is BaseIntegrationTest {
         assertEq(accrual.remainder(), retained);
         vm.warp(block.timestamp + 1 days);
         uint256 balanceBefore = accountingToken.balanceOf(address(strategy));
-        uint256 preview = accrual.previewAccrual();
+        (uint256 preview, uint256 previewRemainder) = accrual.previewAccrual();
         assertGt(preview, 0);
         assertEq(accrual.accrue(), preview);
+        assertEq(accrual.remainder(), previewRemainder);
         assertEq(accountingToken.balanceOf(address(strategy)), balanceBefore + preview);
         assertEq(replacement.snapshotsLength(), 2);
         assertEq(accountingModule.snapshotsLength(), oldSnapshots);
@@ -100,7 +101,8 @@ contract FixedAPYAccrualIntegrationTest is BaseIntegrationTest {
         assertEq(accountingModule.lastSnapshot().timestamp, block.timestamp);
         assertEq(accountingModule.cooldownSeconds(), 0);
         assertEq(accountingModule.nextUpdateWindow(), block.timestamp);
-        assertGt(accrual.previewAccrual(), 0);
+        (uint256 preview,) = accrual.previewAccrual();
+        assertGt(preview, 0);
 
         // The loss already succeeded. Accrual reaches APR validation, not a cooldown failure.
         vm.expectRevert(IAccountingModule.CurrentTimestampBeforePreviousTimestamp.selector);

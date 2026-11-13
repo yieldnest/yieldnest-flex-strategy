@@ -95,6 +95,10 @@ contract FixedAPYAccrualTest is Test {
         accrual.initialize(ADMIN, address(strategyReference), 0.1e18, START);
     }
 
+    function _previewRewards(FixedAPYAccrual target) internal view returns (uint256 rewards) {
+        (rewards,) = target.previewAccrual();
+    }
+
     function _newProxy() internal returns (FixedAPYAccrual) {
         return FixedAPYAccrual(address(new TransparentUpgradeableProxy(address(implementation), ADMIN, "")));
     }
@@ -168,10 +172,10 @@ contract FixedAPYAccrualTest is Test {
         FixedAPYAccrual future = _newProxy();
         future.initialize(ADMIN, address(strategyReference), 0.1e18, START + 1 days);
         vm.recordLogs();
-        assertEq(future.previewAccrual(), 0);
+        assertEq(_previewRewards(future), 0);
         assertEq(future.accrue(), 0);
         vm.warp(START + 1 days);
-        assertEq(future.previewAccrual(), 0);
+        assertEq(_previewRewards(future), 0);
         assertEq(future.accrue(), 0);
         assertEq(vm.getRecordedLogs().length, 0);
         assertEq(future.lastAccrual(), START + 1 days);
@@ -182,9 +186,9 @@ contract FixedAPYAccrualTest is Test {
 
     function test_preview_isReadOnlyAndAccrueIsPermissionless() public {
         vm.warp(START + YEAR);
-        uint256 preview = accrual.previewAccrual();
+        (uint256 preview,) = accrual.previewAccrual();
         assertApproxEqAbs(preview, 100e18, 100_000);
-        assertEq(accrual.previewAccrual(), preview);
+        assertEq(_previewRewards(accrual), preview);
         assertEq(accrual.lastAccrual(), START);
         assertEq(accounting.reports(), 0);
         assertEq(token.balanceOf(accounting.strategy()), BALANCE);
@@ -199,7 +203,7 @@ contract FixedAPYAccrualTest is Test {
         assertEq(token.balanceOf(accounting.strategy()), BALANCE + preview);
 
         vm.recordLogs();
-        assertEq(accrual.previewAccrual(), 0);
+        assertEq(_previewRewards(accrual), 0);
         assertEq(accrual.accrue(), 0);
         assertEq(vm.getRecordedLogs().length, 0);
         assertEq(accounting.reports(), 1);
@@ -221,7 +225,7 @@ contract FixedAPYAccrualTest is Test {
         assertEq(accrual.accrue(), 0);
         assertEq(accrual.lastAccrual(), block.timestamp);
         token.mint(accounting.strategy(), BALANCE);
-        assertEq(accrual.previewAccrual(), 0);
+        assertEq(_previewRewards(accrual), 0);
     }
 
     function test_accrue_zeroAPYCheckpoints() public {
@@ -231,7 +235,7 @@ contract FixedAPYAccrualTest is Test {
         vm.prank(ADMIN);
         accrual.setAPY(0.1e18, false);
         assertEq(accrual.lastAccrual(), block.timestamp);
-        assertEq(accrual.previewAccrual(), 0);
+        assertEq(_previewRewards(accrual), 0);
     }
 
     function _useSixDecimals(uint256 balance) internal {
@@ -251,9 +255,10 @@ contract FixedAPYAccrualTest is Test {
         for (uint256 i = 1; i <= 3600; ++i) {
             referenceBalance += accrual.calculateRewards(referenceBalance, 1, 0.1e18, YEAR);
             vm.warp(START + i);
-            uint256 preview = accrual.previewAccrual();
+            (uint256 preview, uint256 previewRemainder) = accrual.previewAccrual();
             assertGt(preview, 0);
             assertEq(accrual.accrue(), preview);
+            assertEq(accrual.remainder(), previewRemainder);
             assertLt(accrual.remainder(), 1e12);
             assertEq(token.balanceOf(accounting.strategy()) * 1e12 + accrual.remainder(), referenceBalance);
         }
@@ -277,6 +282,32 @@ contract FixedAPYAccrualTest is Test {
         uint256 pending = fraction + accrual.calculateRewards(1001e18 + fraction, 1, 0.1e18, YEAR);
         assertEq(accrual.accrue(), pending / 1e12);
         assertEq(accrual.remainder(), pending % 1e12);
+    }
+
+    function test_preview_returnsFractionWithoutMutatingState() public {
+        _useSixDecimals(1e6);
+        vm.warp(START + 1);
+        (uint256 rewards, uint256 fraction) = accrual.previewAccrual();
+        assertEq(rewards, 0);
+        assertGt(fraction, 0);
+        assertEq(accrual.remainder(), 0);
+        assertEq(accrual.lastAccrual(), START);
+        assertEq(accounting.reports(), 0);
+        assertEq(accrual.accrue(), rewards);
+        assertEq(accrual.remainder(), fraction);
+
+        // No elapsed time: return the existing fraction instead of zeroing it in the preview.
+        (rewards, fraction) = accrual.previewAccrual();
+        assertEq(rewards, 0);
+        assertEq(fraction, accrual.remainder());
+        vm.prank(ADMIN);
+        accrual.setAPY(0, false);
+        vm.warp(START + 1 days);
+        (rewards, fraction) = accrual.previewAccrual();
+        assertEq(rewards, 0);
+        assertEq(fraction, accrual.remainder());
+        assertEq(accrual.accrue(), rewards);
+        assertEq(accrual.remainder(), fraction);
     }
 
     function test_accrue_rejectedReportPreservesFraction() public {
@@ -324,11 +355,11 @@ contract FixedAPYAccrualTest is Test {
     function test_accrue_rejectedReportRollsBackAndCanBeRetried() public {
         accounting.setRejectReports(true);
         vm.warp(START + YEAR);
-        uint256 preview = accrual.previewAccrual();
+        (uint256 preview,) = accrual.previewAccrual();
         vm.expectRevert(AccrualAccountingMock.ReportRejected.selector);
         accrual.accrue();
         _assertUnsettled();
-        assertEq(accrual.previewAccrual(), preview);
+        assertEq(_previewRewards(accrual), preview);
         accounting.setRejectReports(false);
         assertEq(accrual.accrue(), preview);
         assertEq(accrual.lastAccrual(), START + YEAR);
@@ -336,7 +367,7 @@ contract FixedAPYAccrualTest is Test {
 
     function test_setAPY_settlesOldRateBeforeApplyingNewRate() public {
         vm.warp(START + YEAR);
-        uint256 preview = accrual.previewAccrual();
+        (uint256 preview,) = accrual.previewAccrual();
         vm.expectEmit(false, false, false, true, address(accrual));
         emit YieldAccrued(START, START + YEAR, BALANCE, preview);
         vm.expectEmit(false, false, false, true, address(accrual));
@@ -361,7 +392,7 @@ contract FixedAPYAccrualTest is Test {
         assertEq(accrual.lastAccrual(), START);
         assertEq(accounting.reports(), 0);
         assertEq(token.balanceOf(accounting.strategy()), BALANCE);
-        assertApproxEqAbs(accrual.previewAccrual(), 50e18, 100_000);
+        assertApproxEqAbs(_previewRewards(accrual), 50e18, 100_000);
         accounting.setRejectReports(false);
         assertApproxEqAbs(accrual.accrue(), 50e18, 100_000);
     }
@@ -377,7 +408,7 @@ contract FixedAPYAccrualTest is Test {
         accrual.setAPY(0, true);
         assertEq(accrual.remainder(), fraction);
         assertEq(accrual.lastAccrual(), START + 1);
-        assertEq(accrual.previewAccrual(), 0);
+        assertEq(_previewRewards(accrual), 0);
         assertEq(accounting.reports(), 0);
     }
 

@@ -91,11 +91,13 @@ contract FixedAPYAccrual is AccessControlUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /// @notice Estimates rewards; does not guarantee that the accounting module will accept the report.
-    function previewAccrual() public view returns (uint256 rewards) {
+    /// @return rewards Mintable rewards in accounting-token units.
+    /// @return remainder_ Unminted rewards that would remain after accrual, in 18-decimal token units.
+    function previewAccrual() public view returns (uint256 rewards, uint256 remainder_) {
         FixedAPYAccrualStorage storage s = _getFixedAPYAccrualStorage();
-        if (block.timestamp <= s.lastAccrual || s.apy == 0) return 0;
+        if (block.timestamp <= s.lastAccrual || s.apy == 0) return (0, s.remainder);
         uint256 balance = accountingModule().accountingToken().balanceOf(address(s.strategy));
-        (rewards,) = _pendingRewards(s, balance, block.timestamp - s.lastAccrual);
+        return _pendingRewards(s, balance, block.timestamp - s.lastAccrual);
     }
 
     /// @notice Anyone can settle yield through now, retaining unmintable fractions at 18 decimals.
