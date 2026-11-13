@@ -1,0 +1,14 @@
+{
+  "lib/forge-std": {
+    "rev": "77041d2ce690e692d6e03cc812b57d1ddaa4d505"
+  },
+  "lib/solady": {
+    "rev": "258f67cc71e39cff307b726939ade17e9d8bcf5c"
+  },
+  "lib/yieldnest-vault": {
+    "branch": {
+      "name": "eth-max-vault",
+      "rev": "0ee5197958126f37d49af1962a4ebc3d08e70911"
+    }
+  }
+}
