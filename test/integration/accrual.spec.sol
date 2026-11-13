@@ -130,4 +130,105 @@ contract FixedAPYAccrualIntegrationTest is BaseIntegrationTest {
         assertEq(accountingModule.snapshotsLength(), snapshotsBefore + 2);
         assertEq(accrual.lastAccrual(), block.timestamp);
     }
+
+    function test_rewardsThenAccrue_sameTimestampRevertsWithZeroCooldown() public {
+        uint256 start = accrual.lastAccrual();
+        vm.warp(start + 1 days);
+        uint256 initialBalance = accountingToken.balanceOf(address(strategy));
+
+        // Authorize a separate reporter to exercise the raw processRewards path.
+        vm.startPrank(deployment.actors().ADMIN());
+        AccountingModule(address(accountingModule)).grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), ALICE);
+        vm.stopPrank();
+        vm.prank(ALICE);
+        accountingModule.processRewards(0.01e18);
+
+        uint256 snapshotsAfterReport = accountingModule.snapshotsLength();
+        uint256 assetsAfterReport = strategy.totalAssets();
+        assertEq(accountingToken.balanceOf(address(strategy)), initialBalance + 0.01e18);
+        assertEq(accountingModule.lastSnapshot().timestamp, block.timestamp);
+        assertEq(accountingModule.cooldownSeconds(), 0);
+        assertEq(accountingModule.nextUpdateWindow(), block.timestamp);
+        assertEq(accrual.lastAccrual(), start);
+        (uint256 preview,) = accrual.previewAccrual();
+        assertGt(preview, 0);
+
+        vm.expectRevert(IAccountingModule.CurrentTimestampBeforePreviousTimestamp.selector);
+        accrual.accrue();
+        assertEq(accountingToken.balanceOf(address(strategy)), initialBalance + 0.01e18);
+        assertEq(strategy.totalAssets(), assetsAfterReport);
+        assertEq(accountingModule.snapshotsLength(), snapshotsAfterReport);
+        assertEq(accrual.lastAccrual(), start);
+        assertEq(accrual.remainder(), 0);
+    }
+
+    function test_directRewardsLeaveAccrualBlockedByAprCapAcrossLaterAttempts() public {
+        address admin = deployment.actors().ADMIN();
+        vm.startPrank(admin);
+        AccountingModule(address(accountingModule)).grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), ALICE);
+        vm.stopPrank();
+        uint256 start = accrual.lastAccrual();
+        uint256 reportTime = start + 30 days;
+        vm.warp(reportTime);
+
+        // Control: the outstanding fixed-APY accrual is accepted before the direct report.
+        uint256 state = vm.snapshotState();
+        assertGt(accrual.accrue(), 0);
+        assertTrue(vm.revertToState(state));
+
+        uint256 initialBalance = accountingToken.balanceOf(address(strategy));
+        vm.prank(ALICE);
+        accountingModule.processRewards(1e18); // Valid report: passes the existing 10% APR cap.
+        uint256 snapshotsAfterReport = accountingModule.snapshotsLength();
+        uint256 assetsAfterReport = strategy.totalAssets();
+        assertEq(accountingToken.balanceOf(address(strategy)), initialBalance + 1e18);
+        assertEq(accountingModule.lastSnapshot().timestamp, reportTime);
+        assertEq(accrual.lastAccrual(), start);
+        assertEq(accountingModule.cooldownSeconds(), 0);
+        assertEq(accountingModule.targetApy(), 0.1e18);
+
+        // These are later blocks, not the same-timestamp failure. The report reset the APR
+        // snapshot while accrual still includes the preceding 30 days and the added rewards.
+        // Sample repeated failures; this does not assert failure at every possible future time.
+        uint256[6] memory delays = [uint256(1), 1 hours, 1 days, 30 days, 365 days, 730 days];
+        uint256 previousPreview;
+        for (uint256 i; i < delays.length; ++i) {
+            vm.roll(block.number + 1);
+            vm.warp(reportTime + delays[i]);
+            (uint256 preview,) = accrual.previewAccrual();
+            assertGt(preview, previousPreview);
+            previousPreview = preview;
+            vm.expectPartialRevert(IAccountingModule.AccountingLimitsExceeded.selector);
+            accrual.accrue();
+            assertEq(accrual.lastAccrual(), start);
+            assertEq(accrual.remainder(), 0);
+            assertEq(accountingToken.balanceOf(address(strategy)), initialBalance + 1e18);
+            assertEq(strategy.totalAssets(), assetsAfterReport);
+            assertEq(accountingModule.snapshotsLength(), snapshotsAfterReport);
+        }
+    }
+
+    function test_accrueThenRewards_sameTimestampRevertsWithZeroCooldown() public {
+        vm.startPrank(deployment.actors().ADMIN());
+        AccountingModule(address(accountingModule)).grantRole(accountingModule.REWARDS_PROCESSOR_ROLE(), ALICE);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1 days);
+        assertGt(accrual.accrue(), 0);
+        uint256 balanceAfterAccrual = accountingToken.balanceOf(address(strategy));
+        uint256 assetsAfterAccrual = strategy.totalAssets();
+        uint256 snapshotsAfterAccrual = accountingModule.snapshotsLength();
+        uint256 remainderAfterAccrual = accrual.remainder();
+        assertEq(accountingModule.lastSnapshot().timestamp, block.timestamp);
+        assertEq(accountingModule.cooldownSeconds(), 0);
+        assertEq(accountingModule.nextUpdateWindow(), block.timestamp);
+
+        vm.prank(ALICE);
+        vm.expectRevert(IAccountingModule.CurrentTimestampBeforePreviousTimestamp.selector);
+        accountingModule.processRewards(0.01e18);
+        assertEq(accountingToken.balanceOf(address(strategy)), balanceAfterAccrual);
+        assertEq(strategy.totalAssets(), assetsAfterAccrual);
+        assertEq(accountingModule.snapshotsLength(), snapshotsAfterAccrual);
+        assertEq(accrual.lastAccrual(), block.timestamp);
+        assertEq(accrual.remainder(), remainderAfterAccrual);
+    }
 }
